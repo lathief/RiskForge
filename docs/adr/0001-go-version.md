@@ -5,7 +5,7 @@
 
 ## Konteks
 
-`System Design.md` menargetkan Go 1.27.x. Scaffold resmi Goravel v1.18.1 mensyaratkan `go 1.25.0` di `go.mod`, dan image `golang:1.27-bookworm` belum tersedia saat RF-001 dikerjakan.
+`SYSTEM_DESIGN.md` menargetkan Go 1.27.x. Scaffold resmi Goravel v1.18.1 mensyaratkan `go 1.25.0` di `go.mod`, dan image `golang:1.27-bookworm` belum tersedia saat RF-001 dikerjakan.
 
 ## Keputusan
 
