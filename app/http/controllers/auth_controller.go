@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"errors"
 	"strings"
 
@@ -42,10 +43,16 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 	}
 
 	principal, err := c.service.Authenticate(ctx.Context(), req.Username, req.Password)
-	if errors.Is(err, application.ErrInvalidCredentials) {
+	switch {
+	case errors.Is(err, application.ErrInvalidCredentials):
 		return responses.InvalidCredentials(ctx)
-	}
-	if err != nil {
+	case errors.Is(err, application.ErrBusy),
+		errors.Is(err, context.DeadlineExceeded),
+		errors.Is(err, context.Canceled):
+		// Hashing capacity is exhausted. Overload is never reported as wrong credentials.
+		facades.Log().Warningf("login: rejected, password hashing saturated: %v", err)
+		return responses.ServiceBusy(ctx, "1")
+	case err != nil:
 		facades.Log().Errorf("login: authenticate failed: %v", err)
 		return responses.Internal(ctx)
 	}

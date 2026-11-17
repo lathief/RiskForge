@@ -16,6 +16,8 @@ func Boot() contractsfoundation.Application {
 		WithSeeders(Seeders).
 		WithMiddleware(func(handler contractsconfiguration.Middleware) {
 			handler.Prepend(middleware.NewRequestID())
+			// Replaces the default handler, which logs request headers and body.
+			handler.Recover(middleware.Recover)
 		}).
 		WithRouting(func() {
 			routes.Api()

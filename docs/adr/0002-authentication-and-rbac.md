@@ -27,5 +27,6 @@ RF-003 membutuhkan login user demo, guard Goravel, permission matrix, dan test o
 ## Konsekuensi
 
 - Logout dan revocation token belum ada. Guard JWT Goravel memerlukan cache untuk blacklist token; ini ditunda sampai dibutuhkan. Untuk mencabut akses, nonaktifkan user.
-- Belum ada rate limit login. Ini masuk RF-023.
+- Belum ada rate limit login per client/IP (RF-023). Sejak M1 hardening, beban CPU login dibatasi semaphore bcrypt; lihat `docs/adr/0003-bounded-password-hashing.md`.
+- `JWT_TTL` divalidasi saat startup (1 sampai 1440 menit). Guard Goravel mengubah nilai `0` menjadi token 100 tahun, jadi nilai itu ditolak.
 - Context yang diteruskan ke use case harus `ctx.Context()`, bukan `http.Context`. Driver Fiber mengembalikan `http.Context` ke pool setelah handler selesai, sementara `database/sql` masih memantaunya dari goroutine lain. Race detector menangkap ini saat RF-003.

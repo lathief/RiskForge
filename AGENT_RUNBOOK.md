@@ -51,7 +51,9 @@ Perintah (jalankan lewat container `api`, lihat bagian di atas untuk prefix `doc
 ./artisan make:migration nama  # membuat file migration baru di database/migrations
 ```
 
-Migration baru harus didaftarkan di `bootstrap/migrations.go`. `Down()` tidak boleh memakai `CASCADE`, supaya rollback tidak menghapus data diam-diam.
+Migration baru harus didaftarkan di `bootstrap/migrations.go`.
+
+**Rollback menghapus data.** `Down()` pada migration tabel menjalankan `DROP TABLE`, yang menghapus seluruh baris tabel itu. Larangan `CASCADE` hanya mencegah rollback ikut menghapus objek lain yang bergantung (misalnya `DROP SCHEMA` gagal jika schema masih berisi tabel); larangan itu tidak melindungi isi tabel. Jangan menjalankan `migrate:rollback` pada database yang datanya ingin dipertahankan; backup terlebih dahulu.
 
 ### Reset database lokal
 
@@ -84,6 +86,8 @@ Aturan untuk endpoint baru (keputusan lengkap di `docs/adr/0002-authentication-a
 
 - Lindungi route dengan `middleware.NewAuthenticate(...)` lalu `middleware.NewRequirePermission(domain.Perm...)`. Cek permission, jangan nama role.
 - Tambahkan permission baru di `app/modules/identity/domain/permission.go`, dan pastikan `TestSeparationOfDuties` masih mencerminkan larangan di `SYSTEM_DESIGN.md` bagian 4.
+- Route khusus test didaftarkan di `tests/routes.go`, **jangan** di `SetupSuite`. Driver Fiber memasang handler 404 (fallback) sebagai catch-all pada request pertama; route yang didaftarkan setelah itu tertutup dan selalu menghasilkan 404.
+- Panic ditangani `middleware.Recover`, yang hanya melog request ID, method, path, dan nilai panic. Jangan kembalikan handler bawaan Goravel; handler itu melog header (token) dan body (password).
 - Teruskan `ctx.Context()` ke use case, **bukan** `http.Context`. Driver Fiber mengembalikan `http.Context` ke pool setelah handler selesai, sehingga meneruskannya ke query database menyebabkan data race.
 - Error dikembalikan dengan helper di `app/http/responses` agar format dan `request_id` konsisten.
 

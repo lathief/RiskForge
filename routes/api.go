@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"time"
+
 	"github.com/goravel/framework/contracts/route"
 
 	"goravel/app/facades"
@@ -22,14 +24,18 @@ func Api() {
 
 	facades.Route().Get("/health/live", health.Live)
 	facades.Route().Get("/health/ready", health.Ready)
+	facades.Route().Fallback(middleware.NotFound)
 
 	// Composition root.
 	dbManager := database.NewManager(facades.DB())
 
-	authService := identityapp.NewAuthService(
-		identityinfra.NewUserRepository(dbManager),
-		identityinfra.NewPasswordHasher(facades.Hash()),
+	// One shared hasher: its semaphore bounds password hashing across all requests.
+	hasher := identityinfra.NewPasswordHasher(
+		facades.Hash(),
+		facades.Config().GetInt("hashing.limits.max_concurrent", 0),
+		time.Duration(facades.Config().GetInt("hashing.limits.queue_timeout_ms", 1000))*time.Millisecond,
 	)
+	authService := identityapp.NewAuthService(identityinfra.NewUserRepository(dbManager), hasher)
 	authController := controllers.NewAuthController(authService)
 	authenticate := middleware.NewAuthenticate(authService)
 

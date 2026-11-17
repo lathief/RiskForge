@@ -23,8 +23,9 @@ Perintah migration dan test ada di [AGENT_RUNBOOK.md](AGENT_RUNBOOK.md).
 | RF-001 Bootstrap Goravel + Fiber + Compose | Selesai (merged ke `main`, PR #1) |
 | RF-002 PostgreSQL foundation | Selesai (merged ke `main`, PR #2) |
 | RF-003 Identity + RBAC | Selesai (merged ke `main`, PR #3) |
-| RF-004 Product catalog | Selesai di branch `feature/RF-004-product-catalog` |
-| RF-005 dan seterusnya | Belum dimulai |
+| RF-004 Product catalog | Selesai (merged ke `main`, PR #4) |
+| M1 hardening (hasil review) | Selesai di branch `fix/M1-hardening` (lihat `SYSTEM_DESIGN.md` bagian 17.1) |
+| DX-001 lalu RF-005 dan seterusnya | Belum dimulai |
 
 Kontrak API: [api/openapi/openapi.yaml](api/openapi/openapi.yaml).
 
@@ -65,3 +66,13 @@ Dijalankan di container, project Compose `rf-test-rf004` dengan PostgreSQL 18 ny
 - Constraint database menolak kode tidak valid, nama kosong, status tidak dikenal, dan kode duplikat walau service dilewati.
 - `api/openapi/openapi.yaml` lolos `redocly lint` (CLI 2.79.0). Tiga peringatan tersisa: belum ada objek `license`, dan dua endpoint health memang tidak punya respons 4xx.
 - Smoke test dengan server sungguhan: list, create (201 + `Location`), 403 untuk Analyst, PATCH status, dan 422 untuk filter tidak valid cocok dengan kontrak.
+
+### Bukti verifikasi M1 hardening
+
+Dijalankan di container, project Compose `rf-test-hard` dengan PostgreSQL 18 nyata (project sudah dihapus):
+
+- `go vet ./...` dan `go test -race ./...` lulus; suite feature diulang tiga kali (`-count=3`, 156 subtest) tanpa kegagalan atau data race.
+- Test baru: panic tidak menulis password maupun token ke log, NUL byte menghasilkan 401/422 (bukan 500), login saat semaphore penuh menghasilkan 503 + `Retry-After`, `page` di atas 10000 menghasilkan 422, dan route tidak dikenal menghasilkan JSON 404. Unit test semaphore memeriksa batas konkurensi, fail-fast, dan pembatalan context.
+- Image release (`docker build .`) dijalankan dengan `APP_ENV=production`: body 70 KB menghasilkan 413, log error tampil di `docker logs` tanpa token, dan proses berjalan sebagai user `app` serta bisa menulis `storage/logs`.
+- `api/openapi/openapi.yaml` 0.4.1 lolos `redocly lint` tanpa peringatan.
+- `govulncheck` belum dapat dijalankan karena `vuln.go.dev` tidak dapat diakses dari mesin pengembangan.

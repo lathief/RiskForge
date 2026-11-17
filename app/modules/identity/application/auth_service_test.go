@@ -42,13 +42,19 @@ func (f *fakeRepo) FindByID(_ context.Context, id string) (domain.User, error) {
 	return domain.User{}, ErrUserNotFound
 }
 
-// fakeHasher "hashes" by prefixing, and counts Check calls.
-type fakeHasher struct{ checks int }
+// fakeHasher "hashes" by prefixing, and counts Check calls. A non-nil err simulates overload.
+type fakeHasher struct {
+	checks int
+	err    error
+}
 
 func (h *fakeHasher) Make(plain string) (string, error) { return "h:" + plain, nil }
-func (h *fakeHasher) Check(plain, hash string) bool {
+func (h *fakeHasher) Check(_ context.Context, plain, hash string) (bool, error) {
 	h.checks++
-	return hash == "h:"+plain
+	if h.err != nil {
+		return false, h.err
+	}
+	return hash == "h:"+plain, nil
 }
 
 func newService(users ...domain.User) (*AuthService, *fakeRepo, *fakeHasher) {
@@ -97,6 +103,28 @@ func TestAuthenticateUnknownUserStillPerformsHashCheck(t *testing.T) {
 	_, err := svc.Authenticate(context.Background(), "ghost", "whatever")
 	require.ErrorIs(t, err, ErrInvalidCredentials)
 	assert.Equal(t, 1, hasher.checks, "timing equalization requires one hash comparison")
+}
+
+func TestAuthenticateMalformedUsernameSkipsRepositoryButStillHashes(t *testing.T) {
+	svc, repo, hasher := newService(analyst)
+
+	for _, u := range []string{"a\x00b", "ab", "has space", strings.Repeat("u", 65), "<script>"} {
+		_, err := svc.Authenticate(context.Background(), u, "correct-horse")
+		assert.ErrorIs(t, err, ErrInvalidCredentials, "%q", u)
+	}
+	assert.Equal(t, 0, repo.calls, "malformed usernames must not reach the database")
+	assert.Equal(t, 5, hasher.checks, "each rejection still spends one hash comparison")
+}
+
+func TestAuthenticateOverloadIsNotInvalidCredentials(t *testing.T) {
+	svc, _, hasher := newService(analyst)
+	hasher.err = ErrBusy
+
+	for _, u := range []string{"analyst", "ghost", "a\x00b"} {
+		_, err := svc.Authenticate(context.Background(), u, "correct-horse")
+		assert.ErrorIs(t, err, ErrBusy, u)
+		assert.NotErrorIs(t, err, ErrInvalidCredentials, u)
+	}
 }
 
 func TestAuthenticateRepositoryFailureIsNotInvalidCredentials(t *testing.T) {

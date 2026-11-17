@@ -60,6 +60,24 @@ func TestNameLengthCountsCharactersNotBytes(t *testing.T) {
 	assert.Equal(t, map[string]string{"name": "too_long"}, fieldIssues(t, err))
 }
 
+func TestControlCharactersAreRejected(t *testing.T) {
+	for _, bad := range []string{"a\x00b", "line\nbreak", "bell\a", "esc\x1b[31m", "invalid\xffutf8"} {
+		_, err := NewProduct("KTA_DEMO", bad, "", nil)
+		assert.Equal(t, map[string]string{"name": "invalid_characters"}, fieldIssues(t, err), "%q", bad)
+	}
+	for _, bad := range []string{"a\x00b", "esc\x1b", "invalid\xffutf8"} {
+		_, err := NewProduct("KTA_DEMO", "ok", bad, nil)
+		assert.Equal(t, map[string]string{"description": "invalid_characters"}, fieldIssues(t, err), "%q", bad)
+	}
+	_, err := NewProduct("KTA_DEMO", "ok", "multi\nline\r\nwith\ttab", nil)
+	assert.NoError(t, err, "newlines and tabs are fine in a description")
+
+	p, err := NewProduct("KTA_DEMO", "ok", "", nil)
+	require.NoError(t, err)
+	_, err = p.Apply(Changes{Name: ptr("x\x00")})
+	assert.Equal(t, map[string]string{"name": "invalid_characters"}, fieldIssues(t, err))
+}
+
 func TestApply(t *testing.T) {
 	p, err := NewProduct("KTA_DEMO", "Old", "keep", nil)
 	require.NoError(t, err)

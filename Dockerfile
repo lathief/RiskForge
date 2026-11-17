@@ -13,6 +13,10 @@ WORKDIR /www
 COPY --from=builder /build/main /www/
 COPY --from=builder /build/public/ /www/public/
 COPY --from=builder /build/resources/ /www/resources/
+# The app writes logs to storage/logs; it must be writable by the non-root user.
+RUN mkdir -p /www/storage/logs && chown -R app:app /www/storage
+# Also print logs to stdout so `docker logs` shows them.
+ENV LOG_PRINT=true
 USER app
 EXPOSE 3000
 ENTRYPOINT ["/www/main"]

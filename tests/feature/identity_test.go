@@ -10,11 +10,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"goravel/app/facades"
-	"goravel/app/http/middleware"
-	identityapp "goravel/app/modules/identity/application"
 	"goravel/app/modules/identity/domain"
-	identityinfra "goravel/app/modules/identity/infrastructure"
-	"goravel/app/platform/database"
 	"goravel/database/seeders"
 	"goravel/tests"
 )
@@ -35,34 +31,14 @@ func TestIdentityTestSuite(t *testing.T) {
 	suite.Run(t, new(IdentityTestSuite))
 }
 
+// rbacPath is a probe route (registered in tests/routes.go) that requires exactly p.
 func rbacPath(p domain.Permission) string {
-	return "/test/rbac/" + strings.ReplaceAll(string(p), ":", "-")
+	return tests.RBACProbePath(p)
 }
 
 func (s *IdentityTestSuite) SetupSuite() {
 	s.Require().NoError(facades.Artisan().Call("migrate"))
 	s.Require().NoError(seeders.SeedDemoUsers(demoPassword))
-
-	authService := identityapp.NewAuthService(
-		identityinfra.NewUserRepository(database.NewManager(facades.DB())),
-		identityinfra.NewPasswordHasher(facades.Hash()),
-	)
-	authenticate := middleware.NewAuthenticate(authService)
-
-	// One protected probe route per permission, built from the same middleware production uses.
-	for _, p := range domain.AllPermissions() {
-		facades.Route().
-			Middleware(authenticate, middleware.NewRequirePermission(p)).
-			Get(rbacPath(p), func(ctx http.Context) http.Response {
-				return ctx.Response().Json(http.StatusOK, http.Json{"ok": true})
-			})
-	}
-	// Fail-closed check: permission middleware without Authenticate in front of it.
-	facades.Route().
-		Middleware(middleware.NewRequirePermission(domain.PermProductRead)).
-		Get("/test/rbac-without-authenticate", func(ctx http.Context) http.Response {
-			return ctx.Response().Json(http.StatusOK, http.Json{"ok": true})
-		})
 
 	s.tokens = map[string]string{}
 	for _, u := range seeders.DemoUsers {
@@ -334,7 +310,7 @@ func (s *IdentityTestSuite) TestAnonymousCannotReachAnyProtectedRoute() {
 
 func (s *IdentityTestSuite) TestPermissionMiddlewareFailsClosedWithoutAuthenticate() {
 	// Even a valid, fully privileged token cannot open a route that forgot Authenticate.
-	s.get("/test/rbac-without-authenticate", s.tokens["demo_admin"]).AssertUnauthorized()
+	s.get(tests.RBACWithoutAuthenticatePath, s.tokens["demo_admin"]).AssertUnauthorized()
 }
 
 func (s *IdentityTestSuite) TestSeparationOfDutiesOverHTTP() {

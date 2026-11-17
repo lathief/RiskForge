@@ -19,6 +19,9 @@ var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	// ErrUnauthenticated is returned when a token refers to a missing or disabled user.
 	ErrUnauthenticated = errors.New("unauthenticated")
+	// ErrBusy is returned by PasswordHasher when no hashing slot became free in time.
+	// It is a capacity signal, not a credential failure.
+	ErrBusy = errors.New("password hashing capacity exhausted")
 )
 
 // UserRepository loads users together with their roles.
@@ -32,7 +35,9 @@ type UserRepository interface {
 // PasswordHasher abstracts the password hashing algorithm.
 type PasswordHasher interface {
 	Make(plain string) (string, error)
-	Check(plain, hash string) bool
+	// Check compares plain with hash. It returns ErrBusy when the hasher is saturated
+	// and ctx.Err() when ctx ends while waiting.
+	Check(ctx context.Context, plain, hash string) (bool, error)
 }
 
 type AuthService struct {
@@ -48,21 +53,29 @@ func NewAuthService(users UserRepository, hasher PasswordHasher) *AuthService {
 }
 
 // Authenticate verifies the credentials and returns the caller identity.
-// Any credential problem yields ErrInvalidCredentials; other errors are technical failures.
+// Any credential problem yields ErrInvalidCredentials; ErrBusy and other errors are
+// capacity or technical failures and must not be reported as wrong credentials.
 func (s *AuthService) Authenticate(ctx context.Context, username, password string) (domain.Principal, error) {
 	username = strings.TrimSpace(username)
 
+	// A malformed username cannot exist; skip the database but keep the hash comparison
+	// so the response time matches a real failed login.
+	if !domain.IsValidUsername(username) {
+		return domain.Principal{}, s.rejectAfterDummyCheck(ctx, password)
+	}
+
 	user, err := s.users.FindByUsername(ctx, username)
 	if errors.Is(err, ErrUserNotFound) {
-		// Hash comparison with a dummy keeps response time similar to a wrong password.
-		s.hasher.Check(password, s.dummy())
-		return domain.Principal{}, ErrInvalidCredentials
+		return domain.Principal{}, s.rejectAfterDummyCheck(ctx, password)
 	}
 	if err != nil {
 		return domain.Principal{}, fmt.Errorf("find user: %w", err)
 	}
 
-	passwordOK := s.hasher.Check(password, user.PasswordHash)
+	passwordOK, err := s.hasher.Check(ctx, password, user.PasswordHash)
+	if err != nil {
+		return domain.Principal{}, err
+	}
 	if !passwordOK || !user.Active {
 		return domain.Principal{}, ErrInvalidCredentials
 	}
@@ -84,6 +97,15 @@ func (s *AuthService) PrincipalByID(ctx context.Context, userID string) (domain.
 		return domain.Principal{}, ErrUnauthenticated
 	}
 	return user.Principal(), nil
+}
+
+// rejectAfterDummyCheck spends one hash comparison and returns ErrInvalidCredentials,
+// or the hasher's error if it could not run (so overload is never disguised as a bad password).
+func (s *AuthService) rejectAfterDummyCheck(ctx context.Context, password string) error {
+	if _, err := s.hasher.Check(ctx, password, s.dummy()); err != nil {
+		return err
+	}
+	return ErrInvalidCredentials
 }
 
 func (s *AuthService) dummy() string {

@@ -55,8 +55,9 @@ func (c *ProductController) Index(ctx http.Context) http.Response {
 	filter := application.ListFilter{}
 
 	var ok bool
-	if filter.Page, ok = queryInt(ctx, "page", 1); !ok {
-		details = append(details, responses.Detail{Field: "page", Issue: "must_be_positive_integer"})
+	// Bounding page keeps (page-1)*per_page far from integer overflow and negative offsets.
+	if filter.Page, ok = queryInt(ctx, "page", 1); !ok || filter.Page > application.MaxPage {
+		details = append(details, responses.Detail{Field: "page", Issue: "must_be_between_1_and_10000"})
 	}
 	if filter.PerPage, ok = queryInt(ctx, "per_page", application.DefaultPerPage); !ok || filter.PerPage > application.MaxPerPage {
 		details = append(details, responses.Detail{Field: "per_page", Issue: "must_be_between_1_and_100"})
