@@ -4,9 +4,26 @@ Platform backend untuk membuat, menguji, menyetujui, dan mengeksekusi kebijakan 
 
 Desain lengkap ada di [SYSTEM_DESIGN.md](SYSTEM_DESIGN.md). Pekerjaan dibagi per tiket (RF-001 dan seterusnya), satu branch per tiket.
 
+## Dokumentasi
+
+| Dokumen | Isi |
+|---|---|
+| [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) | Dari `git clone` sampai request API pertama, plus troubleshooting. |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Diagram arsitektur, batas module, alur request melalui middleware, transaksi. |
+| [docs/DOMAIN_GUIDE.md](docs/DOMAIN_GUIDE.md) | Konsep bisnis: product, RAC, scorecard, decision matrix, policy, approval. |
+| [docs/API_EXAMPLES.md](docs/API_EXAMPLES.md) | Contoh `curl` dengan response dan error nyata untuk 8 endpoint yang ada. |
+| [docs/TESTING.md](docs/TESTING.md) | Cara menjalankan dan menulis unit, integration, HTTP, concurrency, dan contract test. |
+| [docs/DECISION_ENGINE.md](docs/DECISION_ENGINE.md) | Spesifikasi evaluasi RAC, scorecard, matrix, precedence, edge cases (planned M3). |
+| [docs/README.md](docs/README.md) | Indeks dokumentasi dan penjelasan isi setiap folder repository. |
+| [SYSTEM_DESIGN.md](SYSTEM_DESIGN.md) | Spesifikasi desain lengkap (source of truth untuk scope dan invariant). |
+| [AGENT_RUNBOOK.md](AGENT_RUNBOOK.md) | Perintah dan konvensi untuk developer dan AI agent. |
+| [docs/adr/](docs/adr/) | Architecture Decision Records. |
+
+Guide di `docs/` mengikuti implementasi aktual; fitur yang belum ada ditandai *Planned*.
+
 ## Menjalankan secara lokal
 
-Prasyarat: Docker Engine dengan Compose v2. Go dan PostgreSQL tidak perlu dipasang di host.
+Prasyarat: Docker Engine dengan Compose v2. Go dan PostgreSQL tidak perlu dipasang di host. Panduan lengkap: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 
 ```sh
 ./scripts/init-agent-env.sh
@@ -27,6 +44,7 @@ Perintah migration dan test ada di [AGENT_RUNBOOK.md](AGENT_RUNBOOK.md).
 | M1 hardening (hasil review) | Selesai di branch `fix/M1-hardening` (lihat `SYSTEM_DESIGN.md` bagian 17.1) |
 | LOG-001 Structured logs (activity, error, lifetime, query) | Selesai, digabung ke `fix/M1-hardening` (lihat `SYSTEM_DESIGN.md` bagian 15.4) |
 | DX-001 Swagger UI + Postman Collection | Selesai, digabung ke `fix/M1-hardening` (lihat `SYSTEM_DESIGN.md` bagian 5.6) |
+| DOC-001 Developer guides (`docs/`) | Selesai di branch `docs/DOC-001-developer-guides` (lihat `SYSTEM_DESIGN.md` bagian 0.1) |
 | RF-005 dan seterusnya | Belum dimulai |
 
 ## Dokumentasi API

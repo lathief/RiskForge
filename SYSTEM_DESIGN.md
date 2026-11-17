@@ -29,6 +29,18 @@ Dokumen ini adalah **single source of truth untuk scope, desain, dan perilaku Ri
 
 **Prioritas saat ada konflik:** (1) keamanan/integritas data, (2) invariant domain, (3) acceptance criteria tiket, (4) kesederhanaan desain, (5) preferensi library.
 
+### 0.1 Peta dokumentasi (DOC-001)
+
+| Dokumen | Peran | Mengikuti |
+|---|---|---|
+| `SYSTEM_DESIGN.md` (dokumen ini) | **Design specification**: scope, invariant, desain target, backlog. | Keputusan desain (diubah lewat ADR). |
+| `docs/*.md` | **Panduan praktis**: getting started, arsitektur, domain, contoh API, testing, decision engine. Bagian yang belum terimplementasi ditandai *Planned* beserta tiketnya. | Implementasi aktual dan test-nya. |
+| `docs/adr/` | Alasan dan konsekuensi setiap keputusan teknis. | Keputusan yang sudah diambil. |
+| `AGENT_RUNBOOK.md` | Perintah dan konvensi persis untuk developer dan AI agent. | Tooling aktual. |
+| `api/openapi/openapi.yaml` | Kontrak HTTP (sumber tunggal Swagger UI dan Postman). | Endpoint yang live. |
+
+Aturan agar tidak muncul dua sumber yang saling bertentangan: `docs/` tidak mengulang spesifikasi, tetapi merangkum dan merujuk bagian dokumen ini. Jika `docs/` dan kode berbeda, kode beserta test-nya yang benar dan `docs/` diperbaiki dalam PR yang sama. Setiap tiket yang mengubah perilaku yang dijelaskan sebuah guide wajib memperbarui guide tersebut, `README.md`, dan bagian terkait di dokumen ini. Indeks guide dan penjelasan isi setiap folder repository ada di `docs/README.md`.
+
 ### Hal yang tidak boleh dilakukan AI tanpa diminta
 
 - Mengubah arsitektur menjadi microservices atau mengganti framework Goravel/Fiber tanpa ADR dan persetujuan.
@@ -292,10 +304,12 @@ riskforge/
 │       ├── RiskForge.postman_collection.json    # Generated from OpenAPI; commit
 │       └── RiskForge.local.postman_environment.json # Template non-secret; optional
 ├── tests/                          # framework/integration/E2E tests
-├── docs/
-│   ├── adr/
-│   ├── architecture/
-│   └── demo/
+├── docs/                         # DOC-001: practical guides that follow the code (see 0.1)
+│   ├── README.md                   # index + repository layout explanation
+│   ├── GETTING_STARTED.md, ARCHITECTURE.md, DOMAIN_GUIDE.md, API_EXAMPLES.md
+│   ├── TESTING.md, DECISION_ENGINE.md
+│   ├── adr/                        # Architecture Decision Records
+│   └── (planned) SECURITY, DATABASE, DEMO_SCENARIOS, OBSERVABILITY, TRADEOFFS
 ├── compose.yaml                    # Dev & agent runtime: api + db, per-project isolation
 ├── scripts/
 │   ├── init-agent-env.sh           # Generate untracked local secrets
