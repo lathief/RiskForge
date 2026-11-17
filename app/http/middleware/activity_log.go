@@ -22,9 +22,10 @@ import (
 // driver's request timeout.
 //
 // Timeouts: Fiber's timeout middleware runs the handler in its own goroutine. When the
-// deadline passes it answers 408 at once and may reuse the request context for another
-// request while the handler is still running. Therefore everything about the request is
-// captured before the handler runs, and after the deadline only that copy is used: the
+// deadline passes it writes 408 to the request context at once and abandons it while the
+// handler may still be running; any later access to that request or response races with
+// the driver. Therefore everything about the request is captured before the handler runs,
+// and after the deadline only that copy is used: the
 // entry records 408 (what the client received) and never touches the request or response
 // again. After the deadline the driver also stops calling Recover, so a late panic is
 // written to error.log here. Handlers must honour ctx.Context() so they stop at the deadline.

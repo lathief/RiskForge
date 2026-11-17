@@ -88,8 +88,8 @@ func registerTestRoutes() {
 	route.Post(PanicPath, func(ctx http.Context) http.Response { panic(PanicMessage) })
 
 	// Slow handlers behave like real ones: they stop when the request context ends and do
-	// not write a response afterwards (Fiber v3 answers 408 at the deadline and may reuse
-	// the context; writing to it later is a data race inside the driver).
+	// not write a response afterwards (Fiber v3 writes 408 to the context at the deadline and
+	// abandons it; writing to it later is a data race inside the driver).
 	route.Get(SlowPath, func(ctx http.Context) http.Response {
 		waitPastDeadline(ctx)
 		return nil

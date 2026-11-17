@@ -11,7 +11,7 @@ Built as a **modular monolith** on Goravel v1.18 with the official Fiber HTTP dr
 | Area | In this repository |
 |---|---|
 | **Architecture** | Modular monolith with enforced boundaries: `domain` and `application` packages import no framework code; one PostgreSQL schema per module; a single composition root. [ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| **Security** | JWT auth with roles re-read on every request (revocation is immediate); permission matrix with tested separation of duties (maker cannot approve, admin cannot approve); fail-closed middleware; bcrypt behind a semaphore (503, not lockup); startup refuses weak secrets; secrets and credentials redacted from every log. [ADR 0002](docs/adr/0002-authentication-and-rbac.md), [ADR 0003](docs/adr/0003-bounded-password-hashing.md) |
+| **Security** | JWT auth with roles and account status re-read on every request, so a role change or deactivation applies on the next call (issued tokens cannot be revoked yet); permission matrix with tested separation of duties (maker cannot approve, admin cannot approve); fail-closed middleware; bcrypt behind a semaphore (503, not lockup); startup refuses weak secrets; known credential fields and auth headers redacted from logs, and request bodies not logged outside development. [ADR 0002](docs/adr/0002-authentication-and-rbac.md), [ADR 0003](docs/adr/0003-bounded-password-hashing.md) |
 | **Data integrity** | One transaction boundary per business operation, row locks for read-modify-write, database constraints that mirror domain rules, concurrency tests under `-race`. |
 | **Observability** | Structured JSON logs per type (`activity`, `error`, `lifetime`, `query`) and per module, correlated by `X-Request-ID`, with SQL timings and redaction. [ADR 0004](docs/adr/0004-structured-logging.md) |
 | **API contract** | OpenAPI 3.1 as the single source; Swagger UI (local only); a Postman collection generated deterministically with a pinned, offline toolchain; tests prove routes, spec, and collection agree, and that the running code enforces the spec's auth and permissions. [ADR 0005](docs/adr/0005-swagger-ui-and-generated-postman.md) |
@@ -60,7 +60,7 @@ Contract: [api/openapi/openapi.yaml](api/openapi/openapi.yaml). Real requests an
 | [SCRIPTS.md](docs/SCRIPTS.md) | What every script in `scripts/` does and how to run it. |
 | [VERIFICATION.md](docs/VERIFICATION.md) | Evidence recorded for every accepted ticket. |
 | [docs/README.md](docs/README.md) | Documentation index and what each folder contains. |
-| [docs/adr/](docs/adr/) | Architecture Decision Records. |
+| [docs/adr/](docs/adr/) | Architecture Decision Records (Indonesian). |
 | [SYSTEM_DESIGN.md](SYSTEM_DESIGN.md) | Full design specification and backlog (Indonesian). |
 | [AGENT_RUNBOOK.md](AGENT_RUNBOOK.md) | Exact commands and conventions for developers and AI agents (Indonesian). |
 

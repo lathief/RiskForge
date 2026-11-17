@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"testing"
 
@@ -102,6 +103,25 @@ func TestLoggedTxRecordsErrors(t *testing.T) {
 	assert.Equal(t, "duplicate key", got[0]["error"])
 	assert.Equal(t, 0.0, got[0]["rows"])
 	assert.Equal(t, false, got[0]["inTransaction"])
+}
+
+func TestTransactionEntryLevels(t *testing.T) {
+	business := errors.New("product not found")
+	assert.Equal(t, "COMMIT", transactionEntry("catalog", nil, nil).SQL)
+	assert.Equal(t, "", transactionEntry("catalog", nil, nil).Level, "commit keeps the default level")
+
+	e := transactionEntry("catalog", business, business)
+	assert.Equal(t, "ROLLBACK", e.SQL)
+	assert.Equal(t, "warn", e.Level, "a business rollback is not an incident")
+
+	commitFailed := errors.New("commit: connection reset")
+	assert.Equal(t, "error", transactionEntry("catalog", commitFailed, nil).Level)
+
+	deadline := fmt.Errorf("query: %w", context.DeadlineExceeded)
+	assert.Equal(t, "error", transactionEntry("catalog", deadline, deadline).Level)
+
+	panicked := errors.New("panic: boom") // Goravel turns a panic into an error; fn returned nothing
+	assert.Equal(t, "error", transactionEntry("catalog", panicked, nil).Level)
 }
 
 func TestWithModuleKeepsConnection(t *testing.T) {

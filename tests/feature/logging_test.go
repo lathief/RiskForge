@@ -267,10 +267,8 @@ func (s *LoggingTestSuite) TestTransactionOutcomeIsLogged() {
 // Malformed URL escapes ("/%zz") cannot be sent through Goravel's test client (it builds the
 // request with httptest.NewRequest, which panics). The panic-safety of body capture is unit
 // tested in app/http/middleware/activity_log_test.go and verified end to end with curl
-// (README.md, "Bukti verifikasi").
+// (docs/VERIFICATION.md, "Second review").
 
-// awaitActivity waits for the activity entry of a request whose handler outlived the
-// response: the driver answers 408 at the deadline, the handler finishes (and logs) later.
 // lockedBuffer is a bytes.Buffer safe to read while the logger writes from another goroutine.
 type lockedBuffer struct {
 	mu  sync.Mutex

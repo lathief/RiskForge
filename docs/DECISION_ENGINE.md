@@ -98,7 +98,7 @@ Maps the total score to a grade and a decision. Supported domain `0` to `900` in
 | `[500, 650)` | B | `REFER` |
 | `[650, 901)` | A | `APPROVE` |
 
-`901` is an exclusive bound so a score of 900 is included. Ranges must be complete and non-overlapping; no matching row is a configuration error, **never a default APPROVE**.
+`901` is an exclusive bound so a score of 900 is included. The grades follow the design's illustrative dataset (`SYSTEM_DESIGN.md` 20.3), which uses three bands and skips C; a real policy defines its own bands. Ranges must be complete and non-overlapping; no matching row is a configuration error, **never a default APPROVE**.
 
 ### 6. Precedence
 

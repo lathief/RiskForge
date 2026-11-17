@@ -1181,6 +1181,8 @@ Review independen kedua atas `fix/M1-hardening` (tanpa temuan severity high) men
 | Bukti import Postman belum ada. | `scripts/smoke-postman.sh` menjalankan koleksi dengan Newman terhadap stack nyata (8/8). |
 | Kecil: parsing `DOCS_ENABLED` ganda, kunci sensitif kurang, ukuran body besar keliru, deadline DB dilabeli "hashing saturated", ROLLBACK level error, header hilang saat body dimatikan, header `Authorization` di contoh endpoint publik, `Referer` membawa query string. | Semua diperbaiki. |
 
+**Review ketiga (sebelum publikasi):** `artisan` yang terhapus tidak sengaja dipulihkan, bit executable skrip diperbaiki, password smoke test tidak lagi muncul di command line `docker`, cakupan redaksi diperluas (`pwd`, `pass`, `passphrase`, data kartu, `nik`, `user:password@` di URL), level log ROLLBACK membedakan rollback bisnis (`warn`) dari kegagalan BEGIN/COMMIT/deadline (`error`), dan base image Dockerfile dipin dengan digest. Detail: `docs/VERIFICATION.md`.
+
 **Temuan baru saat verifikasi:** `./artisan migrate:fresh` tidak cocok dengan schema logis (hanya menghapus tabel di `public`, lalu gagal `relation already exists`, padahal tetap mencetak "success"). Reset yang benar: `./artisan migrate:reset && ./artisan migrate`, atau `down -v` untuk project Compose. Lihat `AGENT_RUNBOOK.md`.
 
 ---

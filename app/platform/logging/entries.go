@@ -206,6 +206,7 @@ func (l *Logger) Query(ctx context.Context, e QueryEntry, duration time.Duration
 	e.SQL = compactSQL(e.SQL)
 	e.DurationMs = float64(duration.Microseconds()) / 1000
 	e.Slow = l.cfg.SlowQuery > 0 && duration >= l.cfg.SlowQuery
+	preset := e.Level // callers may classify an outcome (see database.transactionEntry)
 	e.Level = "info"
 	if e.Slow {
 		e.Level = "warn"
@@ -213,11 +214,9 @@ func (l *Logger) Query(ctx context.Context, e QueryEntry, duration time.Duration
 	if err != nil {
 		e.Error = err.Error()
 		e.Level = "error"
-		// A rollback is usually a normal business outcome (validation, conflict, not
-		// found); the failing statement itself is already logged at error level.
-		if e.Kind == "transaction" {
-			e.Level = "warn"
-		}
+	}
+	if preset != "" {
+		e.Level = preset
 	}
 	e.At = l.timestamp()
 	l.write(TypeQuery, e)

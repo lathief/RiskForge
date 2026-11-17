@@ -77,6 +77,15 @@ func TestNewSensitiveKeys(t *testing.T) {
 		assert.Equal(t, Redacted, got[k], k)
 	}
 	assert.Equal(t, "keep", got["author"])
+
+	got = decode(t, RedactBody([]byte(`{"pwd":"a","pass":"b","passphrase":"c","auth_code":"d","cvv":"e",
+		"card_number":"f","nik":"3201010101010001","pan":"g","passenger":"keep","nickname":"keep","company":"keep"}`), 8192)).(map[string]any)
+	for _, k := range []string{"pwd", "pass", "passphrase", "auth_code", "cvv", "card_number", "nik", "pan"} {
+		assert.Equal(t, Redacted, got[k], k)
+	}
+	for _, k := range []string{"passenger", "nickname", "company"} {
+		assert.Equal(t, "keep", got[k], k)
+	}
 }
 
 func TestCapAndSafeURL(t *testing.T) {
@@ -89,6 +98,10 @@ func TestCapAndSafeURL(t *testing.T) {
 	assert.Equal(t, "https://x/cb", SafeURL("https://x/cb?code=secret#f"))
 	assert.Equal(t, "https://x/cb", SafeURL("https://x/cb#token=abc"))
 	assert.Equal(t, "", SafeURL(""))
+	assert.Equal(t, "https://host/p", SafeURL("https://user:secret@host/p?x=1"))
+	assert.Equal(t, "https://host", SafeURL("https://user:p@ss@host"))
+	assert.Equal(t, "/relative/path", SafeURL("/relative/path?token=1"))
+	assert.Equal(t, "https://host/a@b", SafeURL("https://host/a@b"), "@ in the path is not userinfo")
 }
 
 func TestRedactHeaders(t *testing.T) {

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Runs the generated Postman collection with Newman against a running Compose stack
 # (SYSTEM_DESIGN.md 5.6.2 "import/smoke test"). It proves the collection imports, every
-# request reaches its route, and auth is wired: health and login answer 200, reads 200, and
-# writes 403 (the run uses the read-only demo_analyst token, so no data is changed).
+# request reaches its route, and auth is wired: health 200, the saved login example 401
+# (placeholder password), reads 200, and writes 403. The run uses the read-only
+# demo_analyst token, so no data is changed.
 #
 #   ./scripts/smoke-postman.sh            # against Compose project rf-dev
 #   ./scripts/smoke-postman.sh rf-test-x  # against another project (stack must be up and seeded)
@@ -38,12 +39,13 @@ docker run --rm -v "${root}/scripts/postman:/src:ro" -v "${TOOLS_VOLUME}:/tools"
     fi
   '
 
-password="$(sed -n 's/^DEMO_USER_PASSWORD=//p' .env.agent)"
-
-# The password is passed through the environment, never on a command line or in a file.
+# The password reaches the container through an exported variable (`-e DEMO_PASSWORD`
+# without a value), so it never appears on a command line or in a file.
+DEMO_PASSWORD="$(sed -n 's/^DEMO_USER_PASSWORD=//p' .env.agent)"
+export DEMO_PASSWORD
 docker run --rm --network "$NETWORK" --read-only --tmpfs /tmp \
   -v "${root}/api/postman:/postman:ro" -v "${root}/scripts/postman:/src:ro" -v "${TOOLS_VOLUME}:/tools:ro" \
-  -e DEMO_PASSWORD="$password" \
+  -e DEMO_PASSWORD \
   "$NODE_IMAGE" sh -euc '
     token=$(node -e "
       fetch(\"http://api:3000/api/v1/auth/login\", {method: \"POST\", headers: {\"Content-Type\": \"application/json\"},

@@ -1,5 +1,6 @@
 # Release image. Configuration comes from environment variables at runtime; no .env is baked in.
-FROM golang:1.25-alpine AS builder
+# Base images are pinned by digest; refresh them deliberately (docker pull + inspect RepoDigests).
+FROM golang:1.25-alpine@sha256:1ae0735f00daffa3aaf1363a5184c0d2dc55c78e3db4ec70241cdac97bf84b59 AS builder
 ENV CGO_ENABLED=0
 WORKDIR /build
 COPY go.mod go.sum ./
@@ -7,15 +8,16 @@ RUN go mod download
 COPY . .
 RUN go build -trimpath -ldflags "-s -w" -o main .
 
-FROM alpine:3.22
+FROM alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f
 RUN addgroup -S app && adduser -S -G app app
 WORKDIR /www
 COPY --from=builder /build/main /www/
 COPY --from=builder /build/public/ /www/public/
-# The app writes logs to storage/logs; it must be writable by the non-root user.
+# Goravel's own framework log (goravel-YYYY-MM-DD.log, daily) is written to storage/logs, so
+# the directory must be writable by the non-root user.
 RUN mkdir -p /www/storage/logs && chown -R app:app /www/storage
-# Structured logs go to stdout only (`docker logs`): the log files have no rotation yet
-# (RF-023), and request/response bodies are not logged outside local development.
+# RiskForge's structured logs go to stdout only (`docker logs`): the activity/error/lifetime/
+# query files have no rotation yet (RF-023), and request/response bodies are not logged.
 ENV LOG_PRINT=true \
     LOG_FILES=false \
     LOG_HTTP_BODIES=false

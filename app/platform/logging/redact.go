@@ -17,12 +17,16 @@ const Redacted = "[REDACTED]"
 var sensitiveKeyParts = []string{
 	"password", "passwd", "secret", "token", "authorization", "cookie",
 	"api_key", "apikey", "api-key", "credential", "private_key",
-	"session", "bearer", "signature", "jwt",
+	"session", "bearer", "signature", "jwt", "passphrase", "auth_code",
+	"cvv", "cvc", "card_number", "cardnumber", "account_number",
 }
 
 // sensitiveExactKeys are too short to match by substring ("pin" would hit "shipping",
-// "auth" would hit "author").
-var sensitiveExactKeys = map[string]bool{"pin": true, "otp": true, "auth": true}
+// "auth" would hit "author", "pass" would hit "passenger"). "nik" is the Indonesian
+// national identity number.
+var sensitiveExactKeys = map[string]bool{
+	"pin": true, "otp": true, "auth": true, "pass": true, "pwd": true, "nik": true, "pan": true,
+}
 
 // nonSensitiveKeys match a sensitive substring but carry no secret.
 var nonSensitiveKeys = map[string]bool{"token_type": true}
@@ -96,10 +100,21 @@ func Cap(s string) string {
 }
 
 // SafeURL drops the query string and fragment of a URL (they can carry tokens, for example
-// a Referer of "https://app/cb?code=..."), then caps the length.
+// a Referer of "https://app/cb?code=...") and any "user:password@" credentials, then caps
+// the length.
 func SafeURL(raw string) string {
 	if i := strings.IndexAny(raw, "?#"); i >= 0 {
 		raw = raw[:i]
+	}
+	if scheme := strings.Index(raw, "://"); scheme >= 0 {
+		rest := raw[scheme+3:]
+		host := rest
+		if slash := strings.IndexByte(rest, '/'); slash >= 0 {
+			host = rest[:slash]
+		}
+		if at := strings.LastIndexByte(host, '@'); at >= 0 {
+			raw = raw[:scheme+3] + rest[at+1:]
+		}
 	}
 	return Cap(raw)
 }

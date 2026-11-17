@@ -6,6 +6,7 @@ package database
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/goravel/framework/contracts/database/db"
@@ -54,18 +55,31 @@ func (m *Manager) WithinTransaction(ctx context.Context, fn func(ctx context.Con
 	}
 
 	start := time.Now()
+	var fnErr error
 	err := m.base.WithContext(ctx).Transaction(func(t db.Tx) error {
-		return fn(context.WithValue(ctx, txKey{}, t))
+		fnErr = fn(context.WithValue(ctx, txKey{}, t))
+		return fnErr
 	})
-	outcome := "COMMIT"
-	if err != nil {
-		outcome = "ROLLBACK"
-	}
-	logging.Default().Query(ctx, logging.QueryEntry{
-		Module:        m.module,
-		Kind:          "transaction",
-		SQL:           outcome,
-		InTransaction: true,
-	}, time.Since(start), err)
+	logging.Default().Query(ctx, transactionEntry(m.module, err, fnErr), time.Since(start), err)
 	return err
+}
+
+// transactionEntry describes a transaction outcome for query.log. A rollback caused by the
+// business operation (validation, conflict, not found) is "warn": the failing statement, if
+// any, is logged on its own. A failure of BEGIN or COMMIT, a database deadline, or a panic
+// has no other error-level line, so it is "error".
+func transactionEntry(module string, err, fnErr error) logging.QueryEntry {
+	e := logging.QueryEntry{Module: module, Kind: "transaction", SQL: "COMMIT", InTransaction: true}
+	if err == nil {
+		return e
+	}
+	e.SQL = "ROLLBACK"
+	business := fnErr != nil && errors.Is(err, fnErr) &&
+		!errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled)
+	if business {
+		e.Level = "warn"
+	} else {
+		e.Level = "error"
+	}
+	return e
 }

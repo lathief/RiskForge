@@ -50,10 +50,13 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 		// Hashing capacity is exhausted. Overload is never reported as wrong credentials.
 		logging.Default().Warn(ctx.Context(), "login rejected: password hashing saturated", err)
 		return responses.ServiceBusy(ctx, "1")
-	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+	case errors.Is(err, context.DeadlineExceeded):
 		// The request deadline passed (while waiting for a hashing slot or in the database);
-		// the client has already been answered 408 by the driver.
+		// the driver has already answered the client with 408.
 		logging.Default().Warn(ctx.Context(), "login aborted: request deadline exceeded", err)
+		return responses.ServiceBusy(ctx, "1")
+	case errors.Is(err, context.Canceled):
+		logging.Default().Warn(ctx.Context(), "login aborted: request cancelled", err)
 		return responses.ServiceBusy(ctx, "1")
 	case err != nil:
 		logging.Default().Error(ctx.Context(), "login: authenticate failed", err)

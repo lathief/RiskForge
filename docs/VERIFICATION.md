@@ -61,6 +61,19 @@ What was actually run to accept each ticket, and the observed result. Every run 
 - `./scripts/update-swagger-ui.sh` re-downloaded Swagger UI 5.35.0, the sha512 matched the recorded value, and the vendored files were byte-identical to the committed ones.
 - `./scripts/generate-postman.sh --check` passes with the lockfile-based, offline converter.
 - Found during verification: `./artisan migrate:fresh` does not work with per-module schemas; the runbook and [SCRIPTS.md](SCRIPTS.md) now document `migrate:reset && migrate` instead.
+- Release image rebuilt after the repository cleanup (scaffold `resources/` removed): `/health/ready` 200, no structured log files in `storage/logs`, every entry on stdout, `requestBody` null.
+
+## Third review (pre-publication)
+
+A review of the branch as published found, and this round fixed:
+
+- `artisan` had been deleted by mistake in the cleanup commit, which broke every `./artisan` command in the docs; restored (mode 755).
+- Three scripts were committed without the executable bit; fixed (`100755`).
+- `smoke-postman.sh` passed the demo password as `-e NAME=value` on the `docker` command line; it now exports the variable and passes `-e NAME` only.
+- Redaction now also covers `pwd`, `pass`, `passphrase`, `auth_code`, `cvv`/`cvc`, card and account numbers, `pan`, and `nik` (exact-match for short names), and strips `user:password@` from logged URLs; unit tests cover false positives (`passenger`, `nickname`, `company`).
+- Transaction outcomes: business rollbacks are `warn`, while failed `BEGIN`/`COMMIT`, database deadlines, and panics are `error` (unit tested).
+- README claims tightened (redaction scope, what "immediate" revocation means).
+- Dockerfile base images pinned by digest.
 
 ## Not verified yet
 
