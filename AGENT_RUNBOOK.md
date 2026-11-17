@@ -87,6 +87,18 @@ Aturan untuk endpoint baru (keputusan lengkap di `docs/adr/0002-authentication-a
 - Teruskan `ctx.Context()` ke use case, **bukan** `http.Context`. Driver Fiber mengembalikan `http.Context` ke pool setelah handler selesai, sehingga meneruskannya ke query database menyebabkan data race.
 - Error dikembalikan dengan helper di `app/http/responses` agar format dan `request_id` konsisten.
 
+## Product catalog dan kontrak API
+
+- `./artisan db:seed` menjalankan semua seeder demo, termasuk produk `KTA_DEMO`. Seeder tunggal: `--seeder DemoProductsSeeder`.
+- Produk tidak pernah dihapus. Nonaktifkan dengan `PATCH /api/v1/products/{code}` `{"status":"INACTIVE"}`. `code` tidak bisa diubah.
+- Kontrak API ada di `api/openapi/openapi.yaml`. Perbarui file ini di tiket yang sama dengan perubahan endpoint, lalu jalankan lint:
+
+```sh
+docker run --rm -v "$PWD/api/openapi:/spec:ro" redocly/cli:2.79.0 lint /spec/openapi.yaml
+```
+
+Di Git Bash Windows, jalankan dengan `MSYS_NO_PATHCONV=1` dan ganti `$PWD` dengan `$(pwd -W)`.
+
 ## Git workflow
 
 Satu tiket backlog = satu branch, dengan format `feature/RF-xxx-deskripsi-singkat`, dibuat dari `main`.

@@ -22,8 +22,11 @@ Perintah migration dan test ada di [AGENT_RUNBOOK.md](AGENT_RUNBOOK.md).
 |---|---|
 | RF-001 Bootstrap Goravel + Fiber + Compose | Selesai (merged ke `main`, PR #1) |
 | RF-002 PostgreSQL foundation | Selesai (merged ke `main`, PR #2) |
-| RF-003 Identity + RBAC | Selesai di branch `feature/RF-003-identity-rbac` |
-| RF-004 dan seterusnya | Belum dimulai |
+| RF-003 Identity + RBAC | Selesai (merged ke `main`, PR #3) |
+| RF-004 Product catalog | Selesai di branch `feature/RF-004-product-catalog` |
+| RF-005 dan seterusnya | Belum dimulai |
+
+Kontrak API: [api/openapi/openapi.yaml](api/openapi/openapi.yaml).
 
 ### Bukti verifikasi RF-001
 
@@ -51,3 +54,14 @@ Dijalankan di container, project Compose `rf-test-rf003` dengan PostgreSQL 18 ny
 - Test HTTP lewat driver Fiber memeriksa setiap kombinasi 6 user demo x 15 permission (200 atau 403), akses anonim (401), token rusak, tanpa tanda tangan (`alg=none`), dan kedaluwarsa (401), serta respons login gagal yang identik.
 - Menonaktifkan user atau mencabut role berlaku seketika untuk token yang sudah diterbitkan.
 - Smoke test dengan server sungguhan: `db:seed`, login, dan `/api/v1/auth/me` berhasil. Password demo tidak muncul di log.
+
+### Bukti verifikasi RF-004
+
+Dijalankan di container, project Compose `rf-test-rf004` dengan PostgreSQL 18 nyata (project sudah dihapus):
+
+- `go vet ./...` dan `go test -race ./...` lulus; suite produk diulang tiga kali (`-count=3`) tanpa kegagalan atau data race.
+- Test HTTP lewat driver Fiber mencakup otorisasi per role (baca untuk Admin, Analyst, Approver, Auditor; tulis hanya Admin; API consumer ditolak), validasi field, field tak dikenal, perubahan `code` lewat PATCH (ditolak), pagination, filter status, 404, dan 409.
+- Konkurensi: 10 create bersamaan dengan kode sama menghasilkan tepat satu produk; update bersamaan ke field berbeda tidak saling menimpa (`SELECT ... FOR UPDATE`).
+- Constraint database menolak kode tidak valid, nama kosong, status tidak dikenal, dan kode duplikat walau service dilewati.
+- `api/openapi/openapi.yaml` lolos `redocly lint` (CLI 2.79.0). Tiga peringatan tersisa: belum ada objek `license`, dan dua endpoint health memang tidak punya respons 4xx.
+- Smoke test dengan server sungguhan: list, create (201 + `Location`), 403 untuk Analyst, PATCH status, dan 422 untuk filter tidak valid cocok dengan kontrak.
