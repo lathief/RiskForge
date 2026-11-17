@@ -20,8 +20,9 @@ Perintah migration dan test ada di [AGENT_RUNBOOK.md](AGENT_RUNBOOK.md).
 
 | Tiket | Status |
 |---|---|
-| RF-001 Bootstrap Goravel + Fiber + Compose | Selesai di branch `feature/RF-001-bootstrap-goravel-fiber` |
-| RF-002 dan seterusnya | Belum dimulai |
+| RF-001 Bootstrap Goravel + Fiber + Compose | Selesai (merged ke `main`, PR #1) |
+| RF-002 PostgreSQL foundation | Selesai di branch `feature/RF-002-goravel-postgres-foundation` |
+| RF-003 dan seterusnya | Belum dimulai |
 
 ### Bukti verifikasi RF-001
 
@@ -31,3 +32,12 @@ Dijalankan di container, project Compose `rf-test-rf001fix` dengan database koso
 - `./artisan migrate` berhasil dan idempoten.
 - `docker build .` berhasil. Image tidak berisi `.env`, berjalan dengan environment variable, dan `/health/ready` mengembalikan 200. Tanpa `APP_KEY`, proses berhenti dengan pesan error.
 - CI GitHub Actions belum ada (dijadwalkan di RF-025).
+
+### Bukti verifikasi RF-002
+
+Dijalankan di container, project Compose `rf-test-rf002` dengan PostgreSQL 18 nyata (project sudah dihapus):
+
+- `go vet ./...` dan `go test -race -count=1 ./...` lulus. Test transaksi mencakup commit lintas dua repository, rollback saat error, rollback saat pelanggaran UNIQUE, rollback saat panic, transaksi bersarang, dan data yang belum di-commit tidak terlihat dari koneksi lain.
+- `./artisan migrate`, `migrate:rollback`, lalu `migrate` lagi berhasil. Pemanggilan `migrate` berulang menghasilkan "Nothing to migrate".
+- Tujuh schema logis (`identity`, `catalog`, `dictionary`, `policy`, `approval`, `decision`, `audit`) terbentuk. Tabel milik tiap schema dibuat di milestone masing-masing.
+- Tidak ada port database yang dipublikasikan ke host.
