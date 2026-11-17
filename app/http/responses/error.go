@@ -56,6 +56,14 @@ func Forbidden(ctx http.Context) http.AbortableResponse {
 	return Error(ctx, http.StatusForbidden, CodeForbidden, genericForbiddenMessage)
 }
 
+func NotFound(ctx http.Context, code, message string) http.AbortableResponse {
+	return Error(ctx, http.StatusNotFound, code, message)
+}
+
+func Conflict(ctx http.Context, code, message string) http.AbortableResponse {
+	return Error(ctx, http.StatusConflict, code, message)
+}
+
 func ValidationError(ctx http.Context, message string, details ...Detail) http.AbortableResponse {
 	return Error(ctx, http.StatusUnprocessableEntity, CodeInputValidation, message, details...)
 }
