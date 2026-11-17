@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.4.1
+  version: 0.4.2
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
     Contract for the endpoints implemented so far (RF-001 to RF-004, plus M1 hardening).
@@ -10,7 +10,9 @@ info:
     - Authorization is permission-based. Each operation lists the required permission
       in `x-required-permission`; the role-to-permission matrix lives in
       `app/modules/identity/domain/permission.go`.
-    - Every response carries an `X-Request-ID` header. JSON error bodies repeat it as `request_id`.
+    - Every response produced by the application carries an `X-Request-ID` header, and JSON
+      error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver
+      and may not carry it.
     - Semantic validation errors use HTTP 422 consistently.
     - Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.
     - Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,

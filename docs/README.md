@@ -37,7 +37,7 @@ What each folder contains. Folders marked *scaffold* come from the Goravel v1.18
 | `app/support/` | Small framework-agnostic helpers, currently startup configuration validation. |
 | `app/facades/` | *Scaffold.* Typed accessors for Goravel services. Used in transport and infrastructure code only, never in `domain/` or `application/`. |
 | `database/migrations/` | Versioned schema changes run by `./artisan migrate`, registered in `bootstrap/migrations.go`. |
-| `database/seeders/` | Synthetic demo data (demo users, `KTA_DEMO`). Refuses to run outside `APP_ENV=local|testing`. |
+| `database/seeders/` | Synthetic demo data (demo users, `KTA_DEMO`). Refuses to run unless `APP_ENV` is `local` or `testing`. |
 | `api/openapi/` | `openapi.yaml`, the single source of truth for the HTTP contract (OpenAPI 3.1). |
 | `api/postman/` | Postman collection **generated** from the contract, plus a non-secret environment template. Never edited by hand. |
 | `public/swagger/` | Swagger UI page and its pinned, vendored assets (`vendor/`). Served only in local/testing. |

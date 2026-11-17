@@ -6,7 +6,7 @@
 > **Primary language:** Bahasa Indonesia  
 > **Core stack:** Go 1.25.x · Goravel v1.18 (Fiber HTTP driver) · PostgreSQL 18.x · Modular Monolith · REST API · OpenAPI 3.1 · Swagger UI · Postman Collection · Docker Compose  
 > **Implementation principle:** Selesaikan satu vertical slice yang berjalan dan teruji sebelum menambah fitur baru.
-> **Verified repository snapshot:** `lathief/RiskForge` branch `main`, commit `07e9ebea` (17 November 2026): RF-001..RF-004 merged melalui PR #1..#4; `api/openapi/openapi.yaml` sudah ada dan mendokumentasikan 8 HTTP operations. Runtime test dicatat pada README repo, bukan dijalankan ulang ketika dokumen ini diperbarui.
+> **Verified repository snapshot:** `lathief/RiskForge` branch `main`, commit `07e9ebea` (17 November 2026): RF-001..RF-004 merged melalui PR #1..#4; `api/openapi/openapi.yaml` sudah ada dan mendokumentasikan 8 HTTP operations. Bukti runtime dicatat di `docs/VERIFICATION.md`. Bagian 5.6, 15.4, 17.1, dan 17.2 menggambarkan branch `fix/M1-hardening`, yang menunggu merge ke `main`.
 
 ---
 
@@ -261,7 +261,7 @@ flowchart TB
 | `decision` | request, resolved version, evaluation, result, idempotency | catalog, dictionary, policy, ruleengine |
 | `audit` | append-only domain events & decision trace access | decision/policy/approval events |
 
-**Mapping Goravel:** `routes/` dan `app/http/controllers` = transport; `app/modules/*/application` = use case; `app/modules/*/domain` = pure business logic; `app/modules/*/infrastructure` = Goravel/Postgres adapters; `bootstrap/` dan `app/providers` = dependency composition.
+**Mapping Goravel:** `routes/` dan `app/http/controllers` = transport; `app/modules/*/application` = use case; `app/modules/*/domain` = pure business logic; `app/modules/*/infrastructure` = Goravel/Postgres adapters; `bootstrap/` (provider, middleware global, migration, seeder) dan `routes/api.go` (composition root: wiring repository dan use case) = dependency composition.
 
 ### 5.3 Suggested repository layout — mengikuti Goravel
 
@@ -327,7 +327,7 @@ riskforge/
 └── README.md
 ```
 
-**Penting:** Ini struktur target **berdasarkan direktori scaffold Goravel v1.18**. Jangan menghapus/mengganti file bootstrap dan provider bawaan hanya agar tree terlihat sama dengan contoh. Nama/path yang dibuat oleh installer aktual menjadi acuan final. Buat modul secara bertahap, bukan semua folder kosong sekaligus. File di bawah `api/postman/` dan script generator adalah **target implementasi DX-001**, belum diklaim tersedia di `main`. Swagger UI boleh menggunakan asset lokal yang dipin di `public/` atau embed bila cocok dengan Goravel versi terpasang.
+**Penting:** Ini struktur target **berdasarkan direktori scaffold Goravel v1.18**. Jangan menghapus/mengganti file bootstrap dan provider bawaan hanya agar tree terlihat sama dengan contoh. Nama/path yang dibuat oleh installer aktual menjadi acuan final. Buat modul secara bertahap, bukan semua folder kosong sekaligus. File di bawah `api/postman/`, skrip generator, dan Swagger UI (`public/swagger/`) sudah ada di branch `fix/M1-hardening` (DX-001). Tree di atas adalah saran awal: beberapa folder di dalamnya belum dibutuhkan (`app/http/requests/`, `app/providers/`, `app/models/`, `.github/workflows/`, `deployments/local/`), sementara layout aktual juga memuat `app/platform/`, `app/support/`, `app/facades/`, dan `public/swagger/`. **Acuan layout aktual: `docs/README.md` bagian "Repository layout".**
 
 ### 5.4 Framework boundary & dependency direction
 
@@ -358,6 +358,8 @@ flowchart LR
 **File yang wajib tersedia di root repository setelah bootstrap:** `compose.yaml`, `.env.agent.example`, `scripts/init-agent-env.sh`, `AGENT_RUNBOOK.md`; serta `.env` milik scaffold Goravel. Agent perlu membaca instruksi di runbook sebelum menggunakan Docker. `.env` dan `.env.agent` **wajib masuk `.gitignore`**, jangan di-commit.
 
 #### 5.5.1 File `compose.yaml` (baseline agent/dev)
+
+> **Catatan:** listing di bawah adalah baseline desain awal. File aktual `compose.yaml` sudah berkembang: container `api` menjalankan `go build` lalu `exec` binary (agar SIGTERM sampai ke aplikasi dan `lifetime.log` mencatat `stopped`), dengan `stop_grace_period: 15s`, `JWT_SECRET` wajib, serta `DEMO_USER_PASSWORD` dan `DOCS_ENABLED` diteruskan. Isolasi (project name, tanpa port database, `no-new-privileges`, `cap_drop`) tetap sama.
 
 ```yaml
 # RiskForge developer/agent environment (not a production deployment).
@@ -437,7 +439,7 @@ volumes:
 - `postgres_data`, `go_modules`, dan `go_build` otomatis mendapat prefix Compose project; project name harus **unik per agent/task**, jangan memakai `container_name` atau external volume.
 - Bind mount source (`./:/workspace`) bersifat writeable karena tujuan agent adalah mengubah codebase. Jadi Compose mengisolasi **runtime, dependency, dan data test**, bukan memberikan perlindungan dari agent yang tidak dipercaya.
 - Docker socket tidak dipasang dalam container. Docker Engine tetap harus berjalan di host; untuk sandbox keamanan agent yang tidak tepercaya gunakan VM/remote disposable workspace.
-- `APP_KEY` dan `DB_PASSWORD` harus acak di file `.env.agent` yang diabaikan Git; nilai contoh di `.env.agent.example` **bukan** credential sungguhan. Jangan jalankan untuk data sensitif nyata.
+- `APP_KEY`, `DB_PASSWORD`, `JWT_SECRET`, dan `DEMO_USER_PASSWORD` harus acak di file `.env.agent` yang diabaikan Git (dibuat oleh `scripts/init-agent-env.sh`); nilai contoh di `.env.agent.example` **bukan** credential sungguhan. Jangan jalankan untuk data sensitif nyata.
 - Pin image tags/digests setelah environment berhasil diboot dan diverifikasi; pastikan versi yang dipakai kompatibel dengan scaffold aktual.
 
 #### 5.5.2 Alur kerja agent (sebelum satu tiket dimulai)
@@ -460,7 +462,7 @@ Untuk **test isolasi** tanpa menyentuh database development, gunakan project nam
 ```sh
 docker compose -p rf-test-rf012 --env-file .env.agent up -d db
 docker compose -p rf-test-rf012 --env-file .env.agent run --rm --no-deps api ./artisan migrate
-docker compose -p rf-test-rf012 --env-file .env.agent run --rm --no-deps api go test ./...
+docker compose -p rf-test-rf012 --env-file .env.agent run --rm --no-deps -e HASH_BCRYPT_ROUNDS=4 api go test -race -count=1 ./...
 # Menghapus HANYA database, network, cache milik rf-test-rf012
 docker compose -p rf-test-rf012 --env-file .env.agent down -v --remove-orphans
 ```
@@ -469,15 +471,17 @@ docker compose -p rf-test-rf012 --env-file .env.agent down -v --remove-orphans
 
 #### 5.5.3 Acceptance criteria isolasi
 
-- [ ] Compose valid dengan `docker compose -p rf-dev --env-file .env.agent config --quiet`.
-- [ ] API Goravel/Fiber sukses boot dan endpoint `/health/live` dapat diakses pada `127.0.0.1`.
-- [ ] PostgreSQL healthcheck lulus; tidak ada port PostgreSQL yang dipublish di host.
-- [ ] `./artisan migrate` serta `go test ./...` berjalan dari container Go, tidak mengandalkan Go atau PostgreSQL host.
-- [ ] Dua project berbeda menghasilkan network dan DB volume terpisah.
-- [ ] Cleanup `rf-test-*` tidak memengaruhi data `rf-dev`.
-- [ ] Agent tidak memasang Docker socket, privileged mode, ataupun bypass boundary domain.
+Status: semua kriteria terverifikasi saat RF-001/RF-002 (bukti di `docs/VERIFICATION.md`).
 
-**Status terbaru (17 November 2026):** RF-001 dan RF-002 telah merged di `main`; README repository mencatat verifikasi container, migration, dan test terisolasi. Catatan ini **bukan** klaim pengujian ulang secara independen. Baseline `api + db` tetap dipertahankan ketika menambahkan Swagger/Postman; tooling generator berjalan sebagai *one-off container*, bukan service ketiga.
+- [x] Compose valid dengan `docker compose -p rf-dev --env-file .env.agent config --quiet`.
+- [x] API Goravel/Fiber sukses boot dan endpoint `/health/live` dapat diakses pada `127.0.0.1`.
+- [x] PostgreSQL healthcheck lulus; tidak ada port PostgreSQL yang dipublish di host.
+- [x] `./artisan migrate` serta `go test ./...` berjalan dari container Go, tidak mengandalkan Go atau PostgreSQL host.
+- [x] Dua project berbeda menghasilkan network dan DB volume terpisah.
+- [x] Cleanup `rf-test-*` tidak memengaruhi data `rf-dev`.
+- [x] Agent tidak memasang Docker socket, privileged mode, ataupun bypass boundary domain.
+
+**Status terbaru (17 November 2026):** RF-001..RF-004 telah merged di `main`; `docs/VERIFICATION.md` mencatat verifikasi container, migration, dan test terisolasi. Catatan ini **bukan** klaim pengujian ulang secara independen. Baseline `api + db` tetap dipertahankan ketika menambahkan Swagger/Postman; tooling generator berjalan sebagai *one-off container*, bukan service ketiga.
 
 
 ### 5.6 Swagger UI, OpenAPI, dan Postman Collection
@@ -491,7 +495,7 @@ docker compose -p rf-test-rf012 --env-file .env.agent down -v --remove-orphans
 #### 5.6.1 Swagger UI (DX-001, terimplementasi)
 
 - **Halaman dokumentasi:** `GET /swagger` (boleh redirect ke `/swagger/` untuk asset relatif), merender Swagger UI interaktif. **Kontrak mentah:** `GET /openapi.yaml` menyajikan isi persis `api/openapi/openapi.yaml` dengan Content-Type YAML yang sesuai. Dua route dokumentasi ini berada di **Goravel + Fiber app yang sama**, bukan proses web/container terpisah.
-- Gunakan distribusi **Swagger UI 5.x** yang mendukung OpenAPI 3.1, **pin** versi asset/dependency setelah diverifikasi; utamakan asset lokal/bundled untuk akses offline di Docker. Jangan membangun aplikasi Fiber mandiri atau menebak API route handler Goravel. Jika menggunakan `public/`/embed, pastikan file Swagger dan `openapi.yaml` masuk image release hanya ketika docs diaktifkan.
+- Gunakan distribusi **Swagger UI 5.x** yang mendukung OpenAPI 3.1, **pin** versi asset/dependency setelah diverifikasi; utamakan asset lokal/bundled untuk akses offline di Docker. Jangan membangun aplikasi Fiber mandiri atau menebak API route handler Goravel. Implementasi: aset di `public/swagger/`, dan `.dockerignore` mengecualikan `public/swagger` serta `api/`, sehingga file Swagger dan `openapi.yaml` **tidak pernah** masuk image release.
 - **Security:** dokumentasi dan spec aktif di `local`/`testing` secara eksplisit (misalnya `DOCS_ENABLED=true`); nonaktif secara default di production, atau proteksi dengan autentikasi yang layak jika perlu diaktifkan. Halaman Swagger boleh menyediakan tombol *Authorize* untuk JWT sintetis. Jangan menyisipkan token demo, password, JWT secret, atau credential ke spec, HTML, dan asset statis.
 - Uji via HTTP integration test: `GET /swagger` menghasilkan halaman yang memuat Swagger UI; `GET /openapi.yaml` mengembalikan dokumen OpenAPI 3.1 valid; halaman membaca endpoint yang ada; route bisnis tetap ditegakkan oleh middleware auth/permission (`401`/`403` tidak boleh di-bypass oleh Swagger).
 
@@ -864,7 +868,7 @@ Base path bisnis: `/api/v1` (health dan docs berada di luar prefix). Semua endpo
 
 ### 13.1 Endpoint inventory
 
-**Telah terimplementasi (Milestone 1, `main` commit `07e9ebea`):** delapan operations berikut sudah tercatat di `routes/api.go` dan OpenAPI 3.1; semua bisa di-*try out* lewat Swagger UI dan tercakup di Postman Collection (DX-001 selesai).
+**Telah terimplementasi (Milestone 1):** delapan operations berikut ada di `main` commit `07e9ebea` dan tercatat di `routes/api.go` serta OpenAPI 3.1. Swagger UI dan Postman Collection yang mencakup kedelapannya (DX-001) ada di branch `fix/M1-hardening`, menunggu merge ke `main`.
 
 | Method | Absolute path | Auth / Permission |
 |---|---|---|
@@ -1062,7 +1066,7 @@ sequenceDiagram
 
 | Signal | Example |
 |---|---|
-| Logs | `request_id`, `decision_id`, `product_code`, `policy_version`, `error_code` (tanpa PII). Di luar development, body request/response **tidak** dicatat (`LOG_HTTP_BODIES=false`, default image release); di dev/test body dicatat setelah redaksi untuk data sintetis saja (15.4). |
+| Logs | `request_id`, `decision_id`, `product_code`, `policy_version`, `error_code` (tanpa PII). Pada image release body request/response **tidak** dicatat (`LOG_HTTP_BODIES=false`). Default kode adalah `true`, untuk dev/test dengan data sintetis saja; body dicatat setelah redaksi (15.4). |
 | Metrics | `decision_requests_total{outcome}`, `decision_duration_seconds`, `approval_actions_total`, `policy_publish_total`. |
 | Health | `/health/live`, `/health/ready` dan DB connectivity. |
 | Trace | correlation ID dari API hingga DB operations; OpenTelemetry opsional bila sederhana. |
@@ -1087,7 +1091,7 @@ Empat file JSON-lines di `storage/logs` (juga ke stdout bila `LOG_PRINT=true`), 
 | Pengaturan | Dev/test (Compose) | Image release (`Dockerfile`) |
 |---|---|---|
 | `LOG_HTTP_BODIES` | `true` (data sintetis, untuk debugging) | `false`: hanya header dan metadata |
-| `LOG_FILES` | `true`: empat file di `storage/logs` | `false`: tidak ada file (belum ada rotasi, RF-023) |
+| `LOG_FILES` | `true`: empat file di `storage/logs` | `false`: keempat file terstruktur tidak ditulis (belum ada rotasi, RF-023); hanya log framework Goravel harian (`goravel-*.log`) |
 | `LOG_PRINT` | `false` | `true`: semua entri ke stdout (`docker logs`) |
 
 **Status yang dicatat** adalah yang benar-benar diterima klien: request yang melewati timeout 3 detik dicatat `408` walaupun handler selesai belakangan, dan panic setelah deadline tetap masuk `error.log`.
@@ -1128,7 +1132,7 @@ Setiap tiket hanya selesai jika:
 
 | Milestone | Scope | Release gate |
 |---|---|---|
-| M1 — Foundation | Goravel + Fiber driver bootstrap, Compose agent sandbox, Postgres driver, config, migrations, auth/RBAC, product catalog | **Done pada `main` (PR #1..#4, commit `07e9ebea`);** bukti runtime tersedia di README. |
+| M1 — Foundation | Goravel + Fiber driver bootstrap, Compose agent sandbox, Postgres driver, config, migrations, auth/RBAC, product catalog | **Done pada `main` (PR #1..#4, commit `07e9ebea`);** bukti runtime tersedia di `docs/VERIFICATION.md`. |
 | M2 — Policy Configuration | Data dictionary (DX-001 Swagger UI + Postman baseline sudah selesai), versioned draft, RAC/scorecard/matrix CRUD + validation | Valid & invalid policy examples pass contract tests; setiap endpoint M2 tersedia di OpenAPI, Swagger UI, dan Postman. |
 | M3 — Decision Engine | Derived features, RAC, scorecard, matrix, decision API, idempotency | Golden dataset passes; decision run stored durably. |
 | M4 — Governance | Simulator, workflow config, tier approval, publish/rollback semantics | Self-approval blocked; concurrency tests pass; version is immutable. |
@@ -1154,7 +1158,7 @@ Review independen atas RF-001..RF-004 tidak menemukan cacat severity high pada a
 
 | # | Temuan | Perbaikan |
 |---|---|---|
-| 1 | Handler panic bawaan Goravel melog header (token Bearer) dan body (password login). | `middleware.Recover` menggantikan handler bawaan; hanya melog request ID, method, path, dan nilai panic, lalu mengembalikan `500 INTERNAL_ERROR`. |
+| 1 | Handler panic bawaan Goravel melog header (token Bearer) dan body (password login). | `middleware.Recover` menggantikan handler bawaan; hanya melog request ID, module, method, path, nilai panic, dan stack trace (tanpa header dan body), lalu mengembalikan `500 INTERNAL_ERROR`. |
 | 2 | `JWT_TTL=0` diterima dan guard mengubahnya menjadi token 100 tahun. | Validasi startup: `JWT_TTL` 1–1440 menit. |
 | 3 | `body_limit: 4096` ternyata KiB (4 MiB) pada endpoint login publik. | `body_limit: 64` (KiB), unit dicatat di `config/http.go`. |
 | 4 | Byte NUL di username/nama produk menghasilkan 500 dari PostgreSQL. | Username di luar format tersimpan langsung `401` tanpa query; nama/deskripsi produk dengan karakter kontrol menjadi `422 invalid_characters`. |
@@ -1401,7 +1405,7 @@ Ekspansi harus berbasis kebutuhan dan bukti bottleneck, bukan sekadar menambah t
 
 ## 22. Architectural Decision Records (ADR) to Maintain
 
-Mulai dari dokumen singkat di `docs/adr/`:
+Daftar ADR yang direncanakan. Nomor di daftar ini adalah label desain; ADR yang sudah ditulis ada di `docs/adr/0001..0005` dan memakai penomoran sendiri (Go version, autentikasi/RBAC, bounded hashing, structured logging, Swagger/Postman). Topik di bawah ditulis sebagai ADR baru saat keputusannya diambil:
 
 - **ADR-001:** Modular monolith over microservices.
 - **ADR-002:** PostgreSQL as the sole primary database for MVP, via Goravel Postgres driver.
@@ -1483,4 +1487,4 @@ Setiap ADR mencatat **context, decision, alternatives, consequences, date**.
 - [ ] Agent dapat menjalankan stack dari Compose `api + db`, menguji dengan `rf-test-*` terisolasi, dan membersihkan test project tanpa menghapus volume development.
 - [ ] Tidak ada data pribadi sesungguhnya, keys, atau credentials di repo.
 
-**Status kini: M1/RF-001..RF-004 selesai di `main`. M1 hardening (17.1), LOG-001 structured logs (15.4), dan DX-001 Swagger UI + generated Postman Collection (5.6) selesai di branch `fix/M1-hardening`, bersama DOC-001 (guide di `docs/`) dan perbaikan review kedua (17.2); menunggu merge ke `main`. Langkah berikutnya: `RF-005 Data Dictionary`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.
+**Status kini: M1/RF-001..RF-004 selesai di `main`. M1 hardening (17.1), LOG-001 structured logs (15.4), dan DX-001 Swagger UI + generated Postman Collection (5.6) selesai di branch `fix/M1-hardening`, bersama DOC-001 (guide di `docs/`) dan perbaikan review kedua serta ketiga (17.2); menunggu merge ke `main`. Langkah berikutnya: `RF-005 Data Dictionary`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.

@@ -49,6 +49,13 @@ What was actually run to accept each ticket, and the observed result. Every run 
 - The release image contains neither `public/swagger` nor `api/`; `DOCS_ENABLED=true` with `APP_ENV=production` is refused at startup.
 - Docs pages and the spec contain no demo password, `JWT_SECRET`, `APP_KEY`, or JWT.
 
+## DOC-001 Developer guides
+
+- All seven Mermaid diagrams in `docs/` rendered without errors with `mermaid-cli`.
+- Every relative link in `README.md`, `AGENT_RUNBOOK.md`, `docs/*.md`, and `docs/adr/*.md` resolves.
+- Every request and response in [API_EXAMPLES.md](API_EXAMPLES.md) was captured from a running, seeded container rather than written by hand.
+- Before the pull request, an independent audit compared every factual claim in the documentation with the code (endpoints, permissions, limits, env vars, file paths, test names, versions). Its findings were fixed; see the commit "docs: align documentation with the code".
+
 ## Second review (hardening + LOG-001 + DX-001)
 
 - `go vet` and `go test -race` pass in two consecutive runs, including the new suites:

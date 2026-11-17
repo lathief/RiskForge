@@ -91,7 +91,7 @@ func (s *HardeningTestSuite) TestPanicDoesNotLogCredentials() {
 // #3: body limit is 64 KiB.
 func (s *HardeningTestSuite) TestOversizedBodyIsRejected() {
 	// The in-memory test client surfaces fasthttp's limit as an error; a real server answers
-	// 413 (verified by the smoke test recorded in README.md).
+	// 413 (verified by the smoke test recorded in docs/VERIFICATION.md).
 	big := `{"username":"demo_admin","password":"` + strings.Repeat("a", 70*1024) + `"}`
 	_, err := s.Http(s.T()).WithHeader("Content-Type", "application/json").
 		Post("/api/v1/auth/login", strings.NewReader(big))

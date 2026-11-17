@@ -105,7 +105,7 @@ docker compose -p rf-dev --env-file .env.agent down -v     # also DELETE the rf-
 | Symptom | Cause and fix |
 |---|---|
 | `required variable APP_KEY is missing` | `.env.agent` is missing or old. Run `./scripts/init-agent-env.sh`. |
-| `/health/live` refuses connections right after `up` | The container is still compiling. Check `docker compose -p rf-dev logs -f api`. |
+| `/health/live` refuses connections right after `up` | The container is still compiling. Check `docker compose -p rf-dev --env-file .env.agent logs -f api`. |
 | `/usr/bin/env: 'bash\r'` | `artisan` or a script has CRLF line endings. Convert it to LF. |
 | Port 3000 is in use | Set `RISKFORGE_HOST_PORT=3001` in `.env.agent` and restart. |
 | Login returns 401 with the right password | Users were seeded earlier with a different `DEMO_USER_PASSWORD`. Seeders never overwrite users; reset with `down -v`, then migrate and seed again. |

@@ -22,7 +22,7 @@ LOANAPP=$(token demo_loan_application)
 
 - **Auth:** `Authorization: Bearer <access_token>` on everything under `/api/v1` except login.
 - **Correlation:** send `X-Request-ID` (8-64 characters of `A-Z a-z 0-9 . _ -`) and it is echoed back and written to every log line of the request. Otherwise the server generates one.
-- **Errors** always use one envelope, with field-level `details` for validation:
+- **Application errors** use one envelope, with field-level `details` for validation. Two exceptions: `408` and `413` are plain text written by the HTTP driver, and a failing `/health/ready` returns `{"status":"unavailable"}`.
 
 ```json
 {"error":{"code":"INPUT_VALIDATION_ERROR","message":"invalid product","details":[{"field":"code","issue":"invalid_format"}]},"request_id":"729a2235c61409681f87002bd9a8f1f5"}
@@ -185,7 +185,7 @@ HTTP/1.1 422 Unprocessable Entity
 {"error":{"code":"INPUT_VALIDATION_ERROR","message":"request contains fields that cannot be set","details":[{"field":"code","issue":"not_allowed"}]},"request_id":"db50b3730472c9317759150031d28da5"}
 ```
 
-An empty body gives `422` with `details` `body: no_changes`.
+An empty JSON object `{}` gives `422` with `details` `body: no_changes`. A body that is not a JSON object gives `422` "request body must be a JSON object".
 
 ## Unknown routes
 

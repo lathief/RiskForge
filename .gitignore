@@ -20,6 +20,7 @@ api/postman/.check.json
 node_modules/
 
 # --- Local tooling and reviews (not part of the project) ---
+.kiro/
 .agents/
 .air.toml
 semantic-review/

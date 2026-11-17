@@ -27,7 +27,7 @@ Useful variations:
 ... api go test -run 'TestContractParityTestSuite' ./tests/feature
 ```
 
-Feature suites skip themselves when `DB_HOST` is not set (and the docs suite when `DOCS_ENABLED` is not true), so `go test ./...` on a bare machine reports skips rather than false failures.
+Feature suites that need PostgreSQL skip themselves when `DB_HOST` is not set, the docs suite skips when `DOCS_ENABLED` is not true, and `ContractParityTestSuite` (files only) always runs, so `go test ./...` on a bare machine reports skips rather than false failures.
 
 ## Test levels
 

@@ -157,7 +157,7 @@ docker compose -p rf-test-<tiket> --env-file .env.agent run --rm --no-deps -e HA
 
 ## Git workflow
 
-Satu tiket backlog = satu branch, dengan format `feature/RF-xxx-deskripsi-singkat`, dibuat dari `main`.
+Satu tiket backlog = satu branch, dibuat dari `main`, dengan format `feature/<TIKET>-deskripsi-singkat` (misalnya `feature/RF-005-data-dictionary`). Perbaikan memakai `fix/...` dan dokumentasi `docs/...`. Branch yang bergantung pada branch lain yang belum di-merge (misalnya `fix/M1-hardening`, yang menggabungkan LOG-001, DX-001, dan DOC-001) dibuat di atas branch tersebut dan di-merge berurutan.
 
 ## Catatan
 

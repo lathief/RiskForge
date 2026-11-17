@@ -4,14 +4,14 @@
 
 Built as a **modular monolith** on Goravel v1.18 with the official Fiber HTTP driver and PostgreSQL 18, developed ticket by ticket with tests, ADRs, and verification evidence for every change. All data is synthetic.
 
-> **Status:** Milestone 1 (foundation, identity and RBAC, product catalog) is complete and hardened through two independent reviews. The decision engine and policy governance are designed (`SYSTEM_DESIGN.md`) and come next. See [Roadmap](#roadmap).
+> **Status:** Milestone 1 (foundation, identity and RBAC, product catalog) is complete and hardened through three review rounds ([verification log](docs/VERIFICATION.md)). The decision engine and policy governance are designed (`SYSTEM_DESIGN.md`) and come next. See [Roadmap](#roadmap).
 
 ## What this project demonstrates
 
 | Area | In this repository |
 |---|---|
 | **Architecture** | Modular monolith with enforced boundaries: `domain` and `application` packages import no framework code; one PostgreSQL schema per module; a single composition root. [ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| **Security** | JWT auth with roles and account status re-read on every request, so a role change or deactivation applies on the next call (issued tokens cannot be revoked yet); permission matrix with tested separation of duties (maker cannot approve, admin cannot approve); fail-closed middleware; bcrypt behind a semaphore (503, not lockup); startup refuses weak secrets; known credential fields and auth headers redacted from logs, and request bodies not logged outside development. [ADR 0002](docs/adr/0002-authentication-and-rbac.md), [ADR 0003](docs/adr/0003-bounded-password-hashing.md) |
+| **Security** | JWT auth with roles and account status re-read on every request, so a role change or deactivation applies on the next call (issued tokens cannot be revoked yet); permission matrix with tested separation of duties (maker cannot approve, admin cannot approve); fail-closed middleware; bcrypt behind a semaphore (503, not lockup); startup refuses weak secrets; known credential fields and auth headers redacted from logs, and request/response bodies not logged in the release image (`LOG_HTTP_BODIES=false`; the code default is `true` for development with synthetic data). [ADR 0002](docs/adr/0002-authentication-and-rbac.md), [ADR 0003](docs/adr/0003-bounded-password-hashing.md) |
 | **Data integrity** | One transaction boundary per business operation, row locks for read-modify-write, database constraints that mirror domain rules, concurrency tests under `-race`. |
 | **Observability** | Structured JSON logs per type (`activity`, `error`, `lifetime`, `query`) and per module, correlated by `X-Request-ID`, with SQL timings and redaction. [ADR 0004](docs/adr/0004-structured-logging.md) |
 | **API contract** | OpenAPI 3.1 as the single source; Swagger UI (local only); a Postman collection generated deterministically with a pinned, offline toolchain; tests prove routes, spec, and collection agree, and that the running code enforces the spec's auth and permissions. [ADR 0005](docs/adr/0005-swagger-ui-and-generated-postman.md) |
@@ -26,7 +26,7 @@ Prerequisites: Docker Engine with Compose v2, and Bash (Git Bash on Windows).
 docker compose -p rf-dev --env-file .env.agent up -d          # API on 127.0.0.1:3000 + PostgreSQL
 docker compose -p rf-dev --env-file .env.agent exec -T api ./artisan migrate
 docker compose -p rf-dev --env-file .env.agent exec -T api ./artisan db:seed
-curl http://127.0.0.1:3000/health/ready
+curl http://127.0.0.1:3000/health/ready                       # first start compiles the app: retry for a minute or two if refused
 ```
 
 Then open <http://127.0.0.1:3000/swagger>, or follow [GETTING_STARTED.md](docs/GETTING_STARTED.md) for your first authenticated request.
@@ -58,7 +58,7 @@ Contract: [api/openapi/openapi.yaml](api/openapi/openapi.yaml). Real requests an
 | [DECISION_ENGINE.md](docs/DECISION_ENGINE.md) | Planned engine behaviour: pipeline, precedence, edge cases. |
 | [TESTING.md](docs/TESTING.md) | How tests are organized and run, and what each suite proves. |
 | [SCRIPTS.md](docs/SCRIPTS.md) | What every script in `scripts/` does and how to run it. |
-| [VERIFICATION.md](docs/VERIFICATION.md) | Evidence recorded for every accepted ticket. |
+| [VERIFICATION.md](docs/VERIFICATION.md) | Evidence recorded for each accepted ticket and review round. |
 | [docs/README.md](docs/README.md) | Documentation index and what each folder contains. |
 | [docs/adr/](docs/adr/) | Architecture Decision Records (Indonesian). |
 | [SYSTEM_DESIGN.md](SYSTEM_DESIGN.md) | Full design specification and backlog (Indonesian). |
@@ -69,7 +69,7 @@ Contract: [api/openapi/openapi.yaml](api/openapi/openapi.yaml). Real requests an
 | Milestone | Scope | Status |
 |---|---|---|
 | M1 Foundation | Bootstrap, PostgreSQL, identity and RBAC, product catalog | Done |
-| Hardening, LOG-001, DX-001, DOC-001 | Two review rounds, structured logs, Swagger and Postman, guides | Done |
+| Hardening, LOG-001, DX-001, DOC-001 | Three review rounds, structured logs, Swagger and Postman, guides | Done (branch `fix/M1-hardening`, pending merge) |
 | M2 Policy configuration | Data dictionary, versioned policy drafts, RAC, scorecard, matrix validation | Next (RF-005) |
 | M3 Decision engine | Features, RAC, scorecard and matrix evaluation, idempotent decision API | Planned |
 | M4 Governance | Simulator, multi-level approval, atomic publishing | Planned |
