@@ -42,7 +42,7 @@ func Api() {
 	// DX-001: Swagger UI and the raw contract, local/testing only (enforced at startup).
 	// These tooling routes are not part of the API contract and are excluded from the
 	// OpenAPI/Postman parity check (tests/feature/api_contract_test.go).
-	if facades.Config().GetBool("docs.enabled", false) && support.DocsAllowedIn(facades.Config().GetString("app.env")) {
+	if support.DocsEnabled(facades.Config().GetString("docs.enabled"), facades.Config().GetString("app.env")) {
 		docs := controllers.NewDocsController(
 			facades.App().BasePath("api", "openapi", "openapi.yaml"),
 			facades.App().PublicPath("swagger"),

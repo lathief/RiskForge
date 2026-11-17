@@ -213,6 +213,11 @@ func (l *Logger) Query(ctx context.Context, e QueryEntry, duration time.Duration
 	if err != nil {
 		e.Error = err.Error()
 		e.Level = "error"
+		// A rollback is usually a normal business outcome (validation, conflict, not
+		// found); the failing statement itself is already logged at error level.
+		if e.Kind == "transaction" {
+			e.Level = "warn"
+		}
 	}
 	e.At = l.timestamp()
 	l.write(TypeQuery, e)

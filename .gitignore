@@ -1,10 +1,34 @@
-.idea
-.vscode
-.DS_Store
+# --- Secrets and local configuration (never commit) ---
 .env
 .env.*
 !.env.example
-storage
-tmp
 !.env.agent.example
-.env.agent
+
+# --- Runtime output ---
+storage/
+tmp/
+*.log
+
+# --- Build and test artefacts ---
+/main
+/riskforge
+*.exe
+*.test
+*.out
+coverage.*
+api/postman/.check.json
+node_modules/
+
+# --- Local tooling and reviews (not part of the project) ---
+.agents/
+.air.toml
+semantic-review/
+artisan.bat
+artisan.ps1
+
+# --- Editors and OS ---
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

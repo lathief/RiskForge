@@ -12,6 +12,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,6 +65,32 @@ func TestRedactBodyNeverLogsUnparseableOrOversizedContent(t *testing.T) {
 	assert.Equal(t, "null", string(RedactBody([]byte("  \n"), 10)))
 }
 
+func TestRedactBodySizedReportsTheRealSize(t *testing.T) {
+	partial := []byte(strings.Repeat("x", 11)) // what was read: max+1
+	raw := RedactBodySized(partial, 1_000_000, 10)
+	assert.Equal(t, map[string]any{"_omitted": "too_large", "_bytes": 1e6}, decode(t, raw))
+}
+
+func TestNewSensitiveKeys(t *testing.T) {
+	got := decode(t, RedactBody([]byte(`{"jwt":"a","session_id":"b","signature":"c","auth":"d","author":"keep","bearer":"e"}`), 8192)).(map[string]any)
+	for _, k := range []string{"jwt", "session_id", "signature", "auth", "bearer"} {
+		assert.Equal(t, Redacted, got[k], k)
+	}
+	assert.Equal(t, "keep", got["author"])
+}
+
+func TestCapAndSafeURL(t *testing.T) {
+	long := strings.Repeat("é", 400) // 800 bytes
+	capped := Cap(long)
+	assert.True(t, strings.HasSuffix(capped, "...(truncated)"))
+	assert.True(t, utf8.ValidString(capped), "never cuts a multi-byte character")
+	assert.Equal(t, "short", Cap("short"))
+
+	assert.Equal(t, "https://x/cb", SafeURL("https://x/cb?code=secret#f"))
+	assert.Equal(t, "https://x/cb", SafeURL("https://x/cb#token=abc"))
+	assert.Equal(t, "", SafeURL(""))
+}
+
 func TestRedactHeaders(t *testing.T) {
 	h := http.Header{}
 	h.Set("Authorization", "Bearer abc")
@@ -81,6 +108,8 @@ func TestRedactHeaders(t *testing.T) {
 	assert.Equal(t, "loan-application-simulator", got["X-App"])
 	assert.Equal(t, "a, b", got["Accept"])
 	assert.True(t, strings.HasSuffix(got["X-Long"], "...(truncated)"))
+	h.Set("Referer", "https://app/cb?code=secret-1#x")
+	assert.Equal(t, "https://app/cb", RedactHeaders(h)["Referer"])
 	assert.LessOrEqual(t, len(got["X-Long"]), maxHeaderValue+20)
 }
 

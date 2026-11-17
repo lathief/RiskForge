@@ -39,6 +39,13 @@ func Boot() contractsfoundation.Application {
 	return app
 }
 
+func logDir(files bool) string {
+	if !files {
+		return ""
+	}
+	return facades.App().StoragePath("logs")
+}
+
 // initStructuredLogging installs the process-wide structured logger. If the log files cannot
 // be opened the process keeps running with stdout-only logging rather than refusing to start.
 func initStructuredLogging() {
@@ -46,7 +53,7 @@ func initStructuredLogging() {
 	logCfg := logging.Config{
 		AppName:       cfg.GetString("app.name", "RiskForge"),
 		Env:           cfg.GetString("app.env"),
-		Dir:           facades.App().StoragePath("logs"),
+		Dir:           logDir(cfg.GetBool("logging.structured.files", true)),
 		Stdout:        cfg.GetBool("logging.structured.print", false),
 		LogHTTPBodies: cfg.GetBool("logging.structured.http_bodies", true),
 		MaxBodyBytes:  cfg.GetInt("logging.structured.max_body_bytes", 8192),

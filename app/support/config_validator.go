@@ -44,6 +44,18 @@ func DocsAllowedIn(env string) bool {
 	return false
 }
 
+// DocsRequested parses DOCS_ENABLED. Startup validation and route registration both use it,
+// so a value such as "1" cannot pass one check and fail the other.
+func DocsRequested(raw string) bool {
+	v, err := strconv.ParseBool(strings.TrimSpace(raw))
+	return err == nil && v
+}
+
+// DocsEnabled reports whether the docs routes are registered.
+func DocsEnabled(raw, env string) bool {
+	return DocsRequested(raw) && DocsAllowedIn(env)
+}
+
 // requiredConfigKeys are the settings the API cannot run without.
 // They are config keys as registered in the config/ package.
 var requiredConfigKeys = []string{
@@ -74,7 +86,7 @@ func ValidateConfig(get func(key string) string) error {
 	if len(get("jwt.secret")) < minJWTSecretLength {
 		return fmt.Errorf("invalid configuration, jwt.secret must be at least %d characters", minJWTSecretLength)
 	}
-	if strings.EqualFold(strings.TrimSpace(get("docs.enabled")), "true") && !DocsAllowedIn(get("app.env")) {
+	if DocsRequested(get("docs.enabled")) && !DocsAllowedIn(get("app.env")) {
 		return fmt.Errorf("invalid configuration, docs.enabled (DOCS_ENABLED) may only be true when APP_ENV is local or testing")
 	}
 	for _, s := range boundedSettings {

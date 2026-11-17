@@ -2,7 +2,10 @@ package middleware
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"io"
+	nethttp "net/http"
 	"time"
 
 	"github.com/goravel/framework/contracts/http"
@@ -12,13 +15,19 @@ import (
 	"goravel/app/platform/logging"
 )
 
-// ActivityLog writes one activity.log entry per request: request and response headers and
-// bodies (redacted), status, latency, live heap size, the authenticated user, and the
-// gateway headers X-App, X-Path-Gateway, X-Request-From, X-Request-User, X-Device-ID,
-// X-Request-Tags. It must run after RequestID so that the correlation ID is known.
+// ActivityLog writes one activity.log entry per request: request and response headers,
+// bodies (redacted, only when LOG_HTTP_BODIES=true), status, latency, live heap size, the
+// authenticated user, and the gateway headers X-App, X-Path-Gateway, X-Request-From,
+// X-Request-User, X-Device-ID, X-Request-Tags. It runs after RequestID and inside the
+// driver's request timeout.
 //
-// A panicking handler is logged as status 500 and the panic is re-raised so that Recover
-// still answers the client and writes error.log.
+// Timeouts: Fiber's timeout middleware runs the handler in its own goroutine. When the
+// deadline passes it answers 408 at once and may reuse the request context for another
+// request while the handler is still running. Therefore everything about the request is
+// captured before the handler runs, and after the deadline only that copy is used: the
+// entry records 408 (what the client received) and never touches the request or response
+// again. After the deadline the driver also stops calling Recover, so a late panic is
+// written to error.log here. Handlers must honour ctx.Context() so they stop at the deadline.
 type ActivityLog struct{}
 
 func NewActivityLog() *ActivityLog {
@@ -33,75 +42,124 @@ func (m *ActivityLog) Handle(ctx http.Context) {
 	start := time.Now()
 	logger := logging.Default()
 	cfg := logger.Config()
+	reqCtx := ctx.Context() // carries the request deadline
 
-	var requestBody []byte
+	entry := captureRequest(ctx, start)
 	if cfg.LogHTTPBodies {
-		requestBody = readRequestBody(ctx, cfg.MaxBodyBytes)
+		body := readRequestBody(ctx, cfg.MaxBodyBytes)
+		entry.RequestBody = logging.RedactBodySized(body.data, body.size, cfg.MaxBodyBytes)
 	}
 
 	defer func() {
 		if r := recover(); r != nil {
-			m.write(ctx, logger, start, requestBody, http.StatusInternalServerError, false)
+			if deadlinePassed(reqCtx) {
+				logger.Panic(reqCtx, entry.Method, entry.Path, r)
+				finish(logger, entry, start, http.StatusRequestTimeout)
+			} else {
+				m.addUser(ctx, &entry)
+				finish(logger, entry, start, http.StatusInternalServerError)
+			}
 			panic(r)
 		}
 	}()
 
 	ctx.Request().Next()
 
-	m.write(ctx, logger, start, requestBody, ctx.Response().Origin().Status(), cfg.LogHTTPBodies)
+	if deadlinePassed(reqCtx) {
+		finish(logger, entry, start, http.StatusRequestTimeout)
+		return
+	}
+	m.addUser(ctx, &entry)
+	origin := ctx.Response().Origin()
+	entry.ResponseHeaders = logging.RedactHeaders(origin.Header())
+	if cfg.LogHTTPBodies {
+		// The buffer aliases Fiber's pooled response; RedactBody copies what it keeps.
+		entry.ResponseBody = logging.RedactBody(origin.Body().Bytes(), cfg.MaxBodyBytes)
+	}
+	finish(logger, entry, start, origin.Status())
 }
 
-func (m *ActivityLog) write(ctx http.Context, logger *logging.Logger, start time.Time, requestBody []byte, status int, withResponse bool) {
-	cfg := logger.Config()
-	req := ctx.Request()
+func deadlinePassed(reqCtx context.Context) bool {
+	return errors.Is(reqCtx.Err(), context.DeadlineExceeded)
+}
 
+// captureRequest copies every request-derived field before the handler runs.
+func captureRequest(ctx http.Context, start time.Time) logging.ActivityEntry {
+	req := ctx.Request()
 	entry := logging.ActivityEntry{
-		Host:           req.Host(),
+		Host:           logging.Cap(req.Host()),
 		ClientIP:       req.Ip(),
-		Referer:        req.Header("Referer"),
-		ClientApp:      req.Header("X-App"),
+		Referer:        logging.SafeURL(req.Header("Referer")),
+		ClientApp:      logging.Cap(req.Header("X-App")),
 		Method:         req.Method(),
-		Path:           req.Path(),
-		PathAlias:      req.Header("X-Path-Gateway"),
-		RequestFrom:    req.Header("X-Request-From"),
-		RequestUser:    req.Header("X-Request-User"),
-		DeviceID:       req.Header("X-Device-ID"),
-		RequestTags:    req.Header("X-Request-Tags"),
+		Path:           logging.Cap(req.Path()),
+		PathAlias:      logging.Cap(req.Header("X-Path-Gateway")),
+		RequestFrom:    logging.Cap(req.Header("X-Request-From")),
+		RequestUser:    logging.Cap(req.Header("X-Request-User")),
+		DeviceID:       logging.Cap(req.Header("X-Device-ID")),
+		RequestTags:    logging.Cap(req.Header("X-Request-Tags")),
 		RequestHeaders: logging.RedactHeaders(req.Headers()),
-		HTTPCode:       status,
-		ResponseTime:   float64(time.Since(start).Microseconds()) / 1000,
-		MemoryUsage:    logging.HeapBytes(),
 		RequestAt:      start.UTC().Format(time.RFC3339Nano),
 	}
 	entry.RequestID, _ = ctx.Value(ctxkeys.RequestID).(string)
+	return entry
+}
+
+// addUser reads values set by later middleware (module label, authenticated user). It is
+// only called before the deadline, while the request context is still this request's.
+func (m *ActivityLog) addUser(ctx http.Context, entry *logging.ActivityEntry) {
 	entry.Module, _ = ctx.Value(ctxkeys.Module).(string)
 	if p, ok := auth.PrincipalFrom(ctx); ok {
 		entry.UserID = p.UserID
 	}
-	if cfg.LogHTTPBodies {
-		entry.RequestBody = logging.RedactBody(requestBody, cfg.MaxBodyBytes)
-	}
-	if withResponse {
-		origin := ctx.Response().Origin()
-		entry.ResponseHeaders = logging.RedactHeaders(origin.Header())
-		// The buffer aliases Fiber's pooled response; RedactBody copies what it keeps.
-		entry.ResponseBody = logging.RedactBody(origin.Body().Bytes(), cfg.MaxBodyBytes)
-	}
+}
+
+func finish(logger *logging.Logger, entry logging.ActivityEntry, start time.Time, status int) {
+	entry.HTTPCode = status
+	entry.ResponseTime = float64(time.Since(start).Microseconds()) / 1000
+	entry.MemoryUsage = logging.HeapBytes()
 	logger.Activity(entry)
 }
 
-// readRequestBody returns at most max+1 bytes, enough for RedactBody to detect an
-// oversized body without buffering it whole. Origin() builds a fresh reader each call,
-// so the handler can still read the body.
-func readRequestBody(ctx http.Context, max int) []byte {
-	origin := ctx.Request().Origin()
+// requestBody holds at most max+1 bytes of the body plus its declared total size.
+type requestBody struct {
+	data []byte
+	size int
+}
+
+// readRequestBody reads at most max+1 bytes, enough for redaction to detect an oversized
+// body without buffering it whole. Origin() builds a fresh reader each call, so the handler
+// can still read the body.
+//
+// Origin() converts the request to net/http and panics on a URL it cannot parse (for
+// example "/%zz"). Such a request is still served (routing works on the raw path); only
+// its body is left out of the log.
+func readRequestBody(ctx http.Context, max int) requestBody {
+	return readBody(ctx.Request().Origin, max)
+}
+
+// readBody takes the request constructor as a function so the panic path can be tested.
+func readBody(origin func() *nethttp.Request, max int) (out requestBody) {
+	defer func() {
+		if recover() != nil {
+			out = requestBody{}
+		}
+	}()
+	return readOrigin(origin(), max)
+}
+
+func readOrigin(origin *nethttp.Request, max int) requestBody {
 	if origin == nil || origin.Body == nil {
-		return nil
+		return requestBody{}
 	}
 	defer origin.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(origin.Body, int64(max)+1))
+	data, err := io.ReadAll(io.LimitReader(origin.Body, int64(max)+1))
 	if err != nil {
-		return nil
+		return requestBody{}
 	}
-	return bytes.Clone(body)
+	size := len(data)
+	if origin.ContentLength > int64(size) {
+		size = int(origin.ContentLength)
+	}
+	return requestBody{data: bytes.Clone(data), size: size}
 }

@@ -110,4 +110,5 @@ docker compose -p rf-dev --env-file .env.agent down -v     # also DELETE the rf-
 | Port 3000 is in use | Set `RISKFORGE_HOST_PORT=3001` in `.env.agent` and restart. |
 | Login returns 401 with the right password | Users were seeded earlier with a different `DEMO_USER_PASSWORD`. Seeders never overwrite users; reset with `down -v`, then migrate and seed again. |
 | Tests fail with `408` on login | Tests were run without `-e HASH_BCRYPT_ROUNDS=4`. |
+| `relation "roles" already exists` after a reset | `./artisan migrate:fresh` was used; it does not handle the per-module schemas. Use `./artisan migrate:reset && ./artisan migrate`, or `down -v` if the database is already half-built. See [SCRIPTS.md](SCRIPTS.md). |
 | Startup fails: `DOCS_ENABLED ... local or testing` | Docs were enabled in a non-local environment. Unset `DOCS_ENABLED`. |

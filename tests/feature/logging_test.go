@@ -5,9 +5,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -260,6 +262,121 @@ func (s *LoggingTestSuite) TestTransactionOutcomeIsLogged() {
 	}
 	s.Equal([]string{"COMMIT"}, outcome)
 	s.True(lockedRead, "the locked read runs inside the transaction")
+}
+
+// Malformed URL escapes ("/%zz") cannot be sent through Goravel's test client (it builds the
+// request with httptest.NewRequest, which panics). The panic-safety of body capture is unit
+// tested in app/http/middleware/activity_log_test.go and verified end to end with curl
+// (README.md, "Bukti verifikasi").
+
+// awaitActivity waits for the activity entry of a request whose handler outlived the
+// response: the driver answers 408 at the deadline, the handler finishes (and logs) later.
+// lockedBuffer is a bytes.Buffer safe to read while the logger writes from another goroutine.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) lines() []map[string]any {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	var out []map[string]any
+	for _, line := range bytes.Split(b.buf.Bytes(), []byte("\n")) {
+		var m map[string]any
+		if json.Unmarshal(line, &m) == nil {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// captureLogs routes activity and error entries to memory for the rest of the test. Late
+// handlers (which finish after the driver answered 408) are awaited in memory rather than by
+// re-reading the shared, ever-growing log files over a slow bind mount.
+func (s *LoggingTestSuite) captureLogs() (activity, errs *lockedBuffer) {
+	activity, errs = &lockedBuffer{}, &lockedBuffer{}
+	previous := logging.Default()
+	logging.SetDefault(logging.NewWithWriters(previous.Config(),
+		map[string]io.Writer{logging.TypeActivity: activity, logging.TypeError: errs}))
+	s.T().Cleanup(func() { logging.SetDefault(previous) })
+	return activity, errs
+}
+
+// await polls buf until an entry with requestID id appears. The condition makes no
+// assertions: Eventually runs it in another goroutine, where a failed Require ends silently.
+func (s *LoggingTestSuite) await(buf *lockedBuffer, id string) map[string]any {
+	var found map[string]any
+	s.Require().Eventually(func() bool {
+		for _, e := range buf.lines() {
+			if e["requestID"] == id {
+				found = e
+				return true
+			}
+		}
+		return false
+	}, 5*time.Second, 50*time.Millisecond, "log entry for %s", id)
+	return found
+}
+
+// The client gets 408 from the driver when the handler outlives the request timeout; the
+// log must say 408 too, not the status the late handler produced.
+func (s *LoggingTestSuite) TestTimedOutRequestIsLoggedAs408() {
+	activity, _ := s.captureLogs()
+	id := newRequestID("log-timeout")
+	s.req(id).Get(tests.SlowPath).AssertStatus(408)
+
+	e := s.await(activity, id)
+	s.EqualValues(408, e["httpCode"])
+	s.GreaterOrEqual(e["responseTime"], 2900.0)
+	s.Nil(e["responseBody"], "nothing from the late handler is logged as the response")
+	s.Equal(tests.SlowPath, e["path"], "request fields captured before the handler ran")
+}
+
+// After the deadline the driver no longer calls Recover, so ActivityLog records the panic.
+func (s *LoggingTestSuite) TestPanicAfterDeadlineReachesErrorLog() {
+	activity, errs := s.captureLogs()
+	id := newRequestID("log-late-panic")
+	s.req(id).Get(tests.SlowPanicPath).AssertStatus(408)
+
+	s.EqualValues(408, s.await(activity, id)["httpCode"])
+	e := s.await(errs, id)
+	s.Equal(true, e["panic"])
+	s.Equal(tests.SlowPanicMessage, e["error"])
+}
+
+// LOG_HTTP_BODIES=false (the release image default) omits bodies but keeps headers.
+func (s *LoggingTestSuite) TestBodiesCanBeTurnedOffWithoutLosingHeaders() {
+	buf := &bytes.Buffer{}
+	previous := logging.Default()
+	logging.SetDefault(logging.NewWithWriters(logging.Config{AppName: "RiskForge", LogHTTPBodies: false},
+		map[string]io.Writer{logging.TypeActivity: buf}))
+	defer logging.SetDefault(previous)
+
+	id := newRequestID("log-nobody")
+	s.req(id).Post("/api/v1/auth/login", strings.NewReader(`{"username":"demo_admin","password":"`+demoPassword+`"}`)).AssertOk()
+
+	var e map[string]any
+	s.Require().NoError(json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &e))
+	s.Equal(id, e["requestID"])
+	s.Nil(e["requestBody"])
+	s.Nil(e["responseBody"])
+	s.NotEmpty(e["requestHeaders"])
+	s.NotEmpty(e["responseHeaders"], "headers are logged even without bodies")
+	s.NotContains(buf.String(), demoPassword)
+}
+
+func (s *LoggingTestSuite) TestRefererQueryStringIsDropped() {
+	id := newRequestID("log-referer")
+	s.req(id).withHeader("Referer", "https://loan-app.example/callback?code=secret-code-123#frag").Get("/health/live").AssertOk()
+	e := s.oneActivity(id)
+	s.Equal("https://loan-app.example/callback", e["referer"])
+	s.NotContains(fmt.Sprint(e), "secret-code-123")
 }
 
 func (s *LoggingTestSuite) TestHandledErrorsCarryModuleAndRequestID() {

@@ -58,7 +58,8 @@ Migration baru harus didaftarkan di `bootstrap/migrations.go`.
 ### Reset database lokal
 
 - **Test (`rf-test-*`):** hapus seluruh project dengan `docker compose -p rf-test-<tiket> --env-file .env.agent down -v --remove-orphans`, lalu buat ulang.
-- **Development (`rf-dev`):** `docker compose -p rf-dev ... exec -T api ./artisan migrate:fresh` menghapus semua tabel dan menjalankan ulang migration. Perintah ini destruktif; jalankan hanya jika Anda memang ingin menghapus data `rf-dev`.
+- **Development (`rf-dev`):** `docker compose -p rf-dev --env-file .env.agent exec -T api sh -c './artisan migrate:reset && ./artisan migrate && ./artisan db:seed'`. Destruktif; jalankan hanya jika Anda memang ingin menghapus data `rf-dev`.
+- **Jangan pakai `./artisan migrate:fresh`.** Perintah itu hanya menghapus tabel di schema `public`, lalu migration gagal (`relation "roles" already exists`) sambil tetap mencetak "success", sehingga database tertinggal setengah jadi. `migrate:reset` menjalankan `Down()` setiap migration secara terbalik dan menangani schema per modul dengan benar. Jika database sudah telanjur rusak oleh `migrate:fresh`, pakai `down -v`.
 
 ### Pola akses data dan transaksi
 
@@ -88,6 +89,7 @@ Aturan untuk endpoint baru (keputusan lengkap di `docs/adr/0002-authentication-a
 - Tambahkan permission baru di `app/modules/identity/domain/permission.go`, dan pastikan `TestSeparationOfDuties` masih mencerminkan larangan di `SYSTEM_DESIGN.md` bagian 4.
 - Route khusus test didaftarkan di `tests/routes.go`, **jangan** di `SetupSuite`. Driver Fiber memasang handler 404 (fallback) sebagai catch-all pada request pertama; route yang didaftarkan setelah itu tertutup dan selalu menghasilkan 404.
 - Panic ditangani `middleware.Recover`, yang menulis ke `error.log` hanya request ID, module, method, path, nilai panic, dan stack trace. Jangan kembalikan handler bawaan Goravel; handler itu melog header (token) dan body (password).
+- Handler yang bisa lama wajib berhenti saat `ctx.Context()` selesai (timeout 3 detik) dan tidak menulis respons sesudahnya. Driver Fiber sudah menjawab 408 dan bisa memakai ulang context request; menulis setelahnya adalah data race (lihat ADR 0004).
 - Teruskan `ctx.Context()` ke use case, **bukan** `http.Context`. Driver Fiber mengembalikan `http.Context` ke pool setelah handler selesai, sehingga meneruskannya ke query database menyebabkan data race.
 - Error dikembalikan dengan helper di `app/http/responses` agar format dan `request_id` konsisten.
 
@@ -116,7 +118,7 @@ grep '"slow":true' storage/logs/query.log
 cat storage/logs/lifetime.log
 ```
 
-Pengaturan (env, default di `config/logging.go`): `LOG_PRINT` (salin ke stdout), `LOG_HTTP_BODIES` (default `true`), `LOG_MAX_BODY_BYTES` (default 8192), `LOG_SLOW_QUERY_MS` (default 200).
+Pengaturan (env, default di `config/logging.go`): `LOG_PRINT` (salin ke stdout), `LOG_FILES` (tulis empat file; default `true`, image release `false`), `LOG_HTTP_BODIES` (default `true`, image release `false`), `LOG_MAX_BODY_BYTES` (default 8192), `LOG_SLOW_QUERY_MS` (default 200).
 
 Aturan untuk kode baru:
 
@@ -141,6 +143,8 @@ docker run --rm -v "$PWD/api/openapi:/spec:ro" redocly/cli:2.79.0 lint /spec/ope
 ./scripts/generate-postman.sh
 # 4. Pastikan tidak ada drift (dipakai juga oleh CI RF-025):
 ./scripts/generate-postman.sh --check
+# 4b. Jalankan koleksi terhadap stack yang berjalan dan sudah di-seed (default rf-dev):
+./scripts/smoke-postman.sh
 # 5. Jalankan test; ContractParityTestSuite membandingkan route, spec, dan koleksi:
 docker compose -p rf-test-<tiket> --env-file .env.agent run --rm --no-deps -e HASH_BCRYPT_ROUNDS=4 api go test ./tests/feature -run ContractParity
 ```
@@ -148,7 +152,8 @@ docker compose -p rf-test-<tiket> --env-file .env.agent run --rm --no-deps -e HA
 - Naikkan `expectedOperationCount` di `tests/feature/api_contract_test.go` saat menambah endpoint.
 - Jangan edit `api/postman/RiskForge.postman_collection.json` manual; selalu lewat generator.
 - Import ke Postman: koleksi + `api/postman/RiskForge.local.postman_environment.json`, login lewat request "Exchange username and password...", lalu salin `access_token` ke variabel `accessToken`.
-- Memperbarui Swagger UI: `SWAGGER_UI_VERSION=<5.x> ./scripts/update-swagger-ui.sh`, tinjau diff, perbarui ADR 0005.
+- Memperbarui Swagger UI: `SWAGGER_UI_VERSION=<5.x> SWAGGER_UI_INTEGRITY=<sha512-...> ./scripts/update-swagger-ui.sh`, tinjau diff, perbarui ADR 0005.
+- Penjelasan lengkap setiap skrip (mount, network, versi yang dipin): `docs/SCRIPTS.md`.
 
 ## Git workflow
 

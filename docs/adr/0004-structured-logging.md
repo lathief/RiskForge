@@ -31,7 +31,9 @@ Tim membutuhkan log yang bisa dibaca mesin dan dikorelasikan, mengikuti format l
 
 ## Konsekuensi
 
-- Belum ada rotasi file; di container log dianggap ephemeral dan dibaca lewat `docker logs` (`LOG_PRINT=true` di image release). Rotasi/pengiriman log ke sistem terpusat masuk RF-023.
+- Belum ada rotasi file. Karena itu image release tidak menulis file sama sekali (`LOG_FILES=false`) dan hanya mencetak ke stdout (`LOG_PRINT=true`), sehingga rotasi ditangani runtime container. File di `storage/logs` hanya ada di dev/test. Rotasi/pengiriman log ke sistem terpusat masuk RF-023.
 - Query lewat query builder `Table()` belum dicatat; repository proyek ini memakai SQL mentah.
-- Respons `408` dan `413` dari driver Fiber tidak melewati middleware sehingga tidak tercatat di `activity.log`.
-- Untuk data nyata (bukan sintetis), set `LOG_HTTP_BODIES=false`: redaksi berbasis nama key tidak mengenali PII seperti NIK atau alamat.
+- `413` ditolak fasthttp sebelum middleware berjalan, sehingga tidak tercatat di `activity.log`. `408` **tercatat**: middleware timeout driver berada di luar `ActivityLog`, handler tetap berjalan sampai selesai, dan `ActivityLog` mencatat `408` (bukan status handler) begitu deadline lewat. Panic setelah deadline tidak lagi diteruskan driver ke `Recover`, jadi `ActivityLog` sendiri yang menulisnya ke `error.log`. (Koreksi review kedua; versi awal ADR ini keliru menyatakan 408 tidak tercatat.)
+- Middleware timeout Fiber v3 menjalankan handler di goroutine sendiri, menjawab 408 tepat saat deadline, lalu dapat memakai ulang context request untuk request lain sementara handler masih berjalan. Karena itu `ActivityLog` menyalin semua data request **sebelum** handler berjalan dan tidak menyentuh request/response lagi setelah deadline. Handler yang tetap menulis respons setelah deadline memicu data race di dalam driver (ditemukan oleh `-race`); aturannya: handler wajib menghormati `ctx.Context()` (query database sudah memakainya) dan tidak menulis respons setelah context selesai.
+- Image release memakai `LOG_HTTP_BODIES=false`: redaksi berbasis nama key tidak mengenali PII seperti NIK atau alamat, jadi body hanya dicatat di dev/test dengan data sintetis.
+- `pin`, `otp`, `auth` dicocokkan persis (bukan substring) agar `shipping` atau `author` tidak ikut disensor; `Referer` dicatat tanpa query string dan fragment.

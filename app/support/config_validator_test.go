@@ -70,6 +70,28 @@ func TestDocsOnlyInLocalOrTesting(t *testing.T) {
 	values["app.env"] = "production"
 	values["docs.enabled"] = "false"
 	assert.NoError(t, ValidateConfig(func(k string) string { return values[k] }))
+
+	// Every spelling that turns the docs on must also be rejected in production.
+	for _, on := range []string{"1", "TRUE", "True", "t", " true "} {
+		values["docs.enabled"] = on
+		assert.ErrorContains(t, ValidateConfig(func(k string) string { return values[k] }), "DOCS_ENABLED", on)
+		assert.True(t, DocsRequested(on), on)
+	}
+	for _, off := range []string{"", "false", "0", "no", "yes"} {
+		assert.False(t, DocsRequested(off), off)
+	}
+}
+
+// The docs routes are registered only when requested AND the environment allows it. This is
+// the "docs disabled" guarantee: with any off value, or in any other environment, /swagger
+// and /openapi.yaml are never registered (so they return 404).
+func TestDocsEnabledGate(t *testing.T) {
+	assert.True(t, DocsEnabled("true", "local"))
+	assert.True(t, DocsEnabled("1", "testing"))
+	assert.False(t, DocsEnabled("false", "local"))
+	assert.False(t, DocsEnabled("", "local"))
+	assert.False(t, DocsEnabled("true", "production"))
+	assert.False(t, DocsEnabled("true", ""))
 }
 
 func TestValidateConfigBounds(t *testing.T) {

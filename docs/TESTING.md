@@ -58,9 +58,10 @@ Each suite boots the real application once (`tests/test_case.go`), migrates the 
 | `IdentityTestSuite` | Login, token validation (tampered, `alg=none`, expired), the full role-by-permission matrix over HTTP, immediate effect of role removal and deactivation. |
 | `ProductTestSuite` | Authorization per role, validation, pagination, 404/409, concurrent creates of the same code, concurrent updates of different fields, database constraints enforced even when the service is bypassed. |
 | `HardeningTestSuite` | Panics do not log credentials, body limit, NUL bytes never reach PostgreSQL, `503` on hashing overload, page cap, JSON 404. |
-| `LoggingTestSuite` | One `activity.log` entry per request with gateway headers and redaction, panics in `error.log`, per-module `query.log` with transaction outcome. |
+| `LoggingTestSuite` | One `activity.log` entry per request with gateway headers and redaction, panics in `error.log`, per-module `query.log` with transaction outcome, timeouts logged as 408 (including a panic after the deadline), bodies off keeps headers, `Referer` query strings dropped. |
 | `DocsTestSuite` | Swagger page and assets, CSP, whitelist and path traversal, spec served byte for byte, no secrets in docs, docs do not bypass authorization. |
-| `ContractParityTestSuite` | Registered routes, OpenAPI operations, and Postman requests are the same set of `(METHOD, path)`; unique `operationId`; auth matches `security`. |
+| `ContractParityTestSuite` | Registered routes, OpenAPI operations, and Postman requests are the same set of `(METHOD, path)`; unique `operationId`; auth matches `security`; parameter names match; every `x-required-permission` is a known permission. |
+| `ContractBehaviourTestSuite` | The running code enforces the spec: every secured operation answers 401 to anonymous callers, every public one does not, and each demo role gets 403 exactly when the permission matrix denies `x-required-permission`. |
 
 ### Concurrency tests
 
@@ -79,10 +80,11 @@ The HTTP contract has one source (`api/openapi/openapi.yaml`) and two derived ar
 ```sh
 docker run --rm -v "$PWD/api/openapi:/spec:ro" redocly/cli:2.79.0 lint /spec/openapi.yaml   # spec is valid
 ./scripts/generate-postman.sh --check                                                    # collection is current and deterministic
-... api go test -run TestContractParityTestSuite ./tests/feature                          # routes = spec = collection
+... api go test -run 'TestContract' ./tests/feature                                      # routes = spec = collection, and code enforces spec
+./scripts/smoke-postman.sh                                                               # the collection runs against a live stack (8/8)
 ```
 
-`ContractParityTestSuite` compares method and path, auth, and the operation count. It does **not** compare parameters, request bodies, or `x-required-permission`; keep those consistent in review.
+The contract tests cover operations, parameters, auth, and permissions. They do **not** compare request and response body schemas with the code; each endpoint's HTTP tests and code review keep those consistent.
 
 ## Writing tests
 
@@ -101,4 +103,5 @@ docker run --rm -v "$PWD/api/openapi:/spec:ro" redocly/cli:2.79.0 lint /spec/ope
 | Golden decision cases and engine property tests | RF-012, RF-013, RF-024 |
 | Load test and latency baseline (engine-only and end-to-end, documented hardware) | RF-024 |
 | Dependency vulnerability scan (`govulncheck`) in a networked environment | RF-025 |
-| Timeout logging, malformed URL escapes, docs disabled over HTTP | Open review findings on `fix/M1-hardening` |
+| Malformed URL escapes (`/%zz`) over HTTP: Goravel's test client cannot send them, so the fix is unit tested (`activity_log_test.go`) and verified with `curl` | Covered outside the feature suite |
+| Docs disabled, over HTTP: routes are registered once per process, so the gate (`support.DocsEnabled`) is unit tested instead | Covered by unit test |

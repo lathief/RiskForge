@@ -20,6 +20,9 @@ func init() {
 		"structured": map[string]any{
 			// Mirror entries to stdout so `docker logs` shows them.
 			"print": config.Env("LOG_PRINT", false),
+			// Write the four files in storage/logs. The files have no rotation yet
+			// (RF-023), so the release image turns this off and logs to stdout only.
+			"files": config.Env("LOG_FILES", true),
 			// Include redacted request/response bodies in activity.log.
 			"http_bodies": config.Env("LOG_HTTP_BODIES", true),
 			// Bodies larger than this (bytes) are logged by size only.

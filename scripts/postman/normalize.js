@@ -87,7 +87,13 @@ function visit(items) {
     fixUrl(req.url);
     req.auth = op.secured ? bearer : { type: "noauth" };
     for (const response of item.response || []) {
-      if (response.originalRequest && response.originalRequest.url) fixUrl(response.originalRequest.url);
+      const original = response.originalRequest;
+      if (!original) continue;
+      if (original.url) fixUrl(original.url);
+      // Saved examples must not suggest that public endpoints take a token.
+      if (!op.secured && Array.isArray(original.header)) {
+        original.header = original.header.filter((h) => h.key.toLowerCase() !== "authorization");
+      }
     }
   }
 }

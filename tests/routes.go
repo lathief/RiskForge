@@ -40,6 +40,14 @@ const (
 	PanicMessage = "boom from test route"
 	// LoginBusyPath is the real login controller backed by a saturated hasher.
 	LoginBusyPath = "/test/login-busy"
+	// SlowPath answers 200 only after the 3 s request timeout has passed.
+	SlowPath = "/test/slow"
+	// SlowPanicPath panics after the request timeout has passed.
+	SlowPanicPath = "/test/slow-panic"
+	// SlowPanicMessage is the value SlowPanicPath panics with.
+	SlowPanicMessage = "boom after deadline"
+	// beyondTimeout outlasts the driver's 3 s request timeout (config/http.go).
+	beyondTimeout = 3500 * time.Millisecond
 )
 
 // busyHasher simulates a hashing semaphore that never has a free slot.
@@ -48,6 +56,15 @@ type busyHasher struct{}
 func (busyHasher) Make(string) (string, error) { return "x", nil }
 func (busyHasher) Check(context.Context, string, string) (bool, error) {
 	return false, identityapp.ErrBusy
+}
+
+// waitPastDeadline blocks until the request context is done (the 3 s driver timeout),
+// with a safety cap.
+func waitPastDeadline(ctx http.Context) {
+	select {
+	case <-ctx.Context().Done():
+	case <-time.After(beyondTimeout):
+	}
 }
 
 func registerTestRoutes() {
@@ -69,6 +86,18 @@ func registerTestRoutes() {
 	route.Get(ReadyDownPath, down.Ready)
 
 	route.Post(PanicPath, func(ctx http.Context) http.Response { panic(PanicMessage) })
+
+	// Slow handlers behave like real ones: they stop when the request context ends and do
+	// not write a response afterwards (Fiber v3 answers 408 at the deadline and may reuse
+	// the context; writing to it later is a data race inside the driver).
+	route.Get(SlowPath, func(ctx http.Context) http.Response {
+		waitPastDeadline(ctx)
+		return nil
+	})
+	route.Get(SlowPanicPath, func(ctx http.Context) http.Response {
+		waitPastDeadline(ctx)
+		panic(SlowPanicMessage)
+	})
 
 	busy := identityapp.NewAuthService(users, busyHasher{})
 	route.Post(LoginBusyPath, controllers.NewAuthController(busy).Login)

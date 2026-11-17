@@ -307,7 +307,7 @@ riskforge/
 ├── docs/                         # DOC-001: practical guides that follow the code (see 0.1)
 │   ├── README.md                   # index + repository layout explanation
 │   ├── GETTING_STARTED.md, ARCHITECTURE.md, DOMAIN_GUIDE.md, API_EXAMPLES.md
-│   ├── TESTING.md, DECISION_ENGINE.md
+│   ├── TESTING.md, DECISION_ENGINE.md, SCRIPTS.md, VERIFICATION.md
 │   ├── adr/                        # Architecture Decision Records
 │   └── (planned) SECURITY, DATABASE, DEMO_SCENARIOS, OBSERVABILITY, TRADEOFFS
 ├── compose.yaml                    # Dev & agent runtime: api + db, per-project isolation
@@ -315,7 +315,9 @@ riskforge/
 │   ├── init-agent-env.sh           # Generate untracked local secrets
 │   ├── generate-postman.sh         # DX-001: deterministic one-shot generator (--check)
 │   ├── postman/normalize.js        # DX-001: normalization step used by the generator
-│   └── update-swagger-ui.sh        # DX-001: vendors pinned swagger-ui-dist into public/swagger
+│   ├── postman/package*.json       # DX-001: pinned generator/Newman tools (npm ci)
+│   ├── smoke-postman.sh            # DX-001: runs the collection against a running stack
+│   └── update-swagger-ui.sh        # DX-001: vendors pinned, integrity-checked swagger-ui-dist
 ├── .env.agent.example              # Template non-secret; .env.agent generated/ignored
 ├── AGENT_RUNBOOK.md                # Commands for dev/test agent sessions
 ├── deployments/local/             # Future deployment artefacts (optional)
@@ -486,7 +488,7 @@ docker compose -p rf-test-rf012 --env-file .env.agent down -v --remove-orphans
 
 **Snapshot M1 yang telah dikonfirmasi di repository** (`main` commit `07e9ebea`): 8 HTTP operations: `GET /health/live`, `GET /health/ready`, `POST /api/v1/auth/login`, `GET /api/v1/auth/me`, `GET /api/v1/products`, `POST /api/v1/products`, `GET /api/v1/products/{code}`, dan `PATCH /api/v1/products/{code}`. Daftar pada Bagian 13 yang belum terimplementasi adalah **rencana**, tidak boleh dianggap sebagai endpoint yang sudah live atau otomatis dimasukkan ke spec. Route tooling `/swagger`, `/openapi.yaml`, dan asset Swagger bukan domain API dan sengaja **dikecualikan** dari baseline delapan request Postman; pengecualian ini harus dicatat pada parity checker.
 
-#### 5.6.1 Swagger UI (target awal: DX-001 sebelum RF-005 HTTP API)
+#### 5.6.1 Swagger UI (DX-001, terimplementasi)
 
 - **Halaman dokumentasi:** `GET /swagger` (boleh redirect ke `/swagger/` untuk asset relatif), merender Swagger UI interaktif. **Kontrak mentah:** `GET /openapi.yaml` menyajikan isi persis `api/openapi/openapi.yaml` dengan Content-Type YAML yang sesuai. Dua route dokumentasi ini berada di **Goravel + Fiber app yang sama**, bukan proses web/container terpisah.
 - Gunakan distribusi **Swagger UI 5.x** yang mendukung OpenAPI 3.1, **pin** versi asset/dependency setelah diverifikasi; utamakan asset lokal/bundled untuk akses offline di Docker. Jangan membangun aplikasi Fiber mandiri atau menebak API route handler Goravel. Jika menggunakan `public/`/embed, pastikan file Swagger dan `openapi.yaml` masuk image release hanya ketika docs diaktifkan.
@@ -506,7 +508,8 @@ docker compose -p rf-test-rf012 --env-file .env.agent down -v --remove-orphans
     'npx --yes --package=openapi-to-postmanv2@6.3.3 openapi2postmanv2 \
       -s api/openapi/openapi.yaml \
       -o api/postman/RiskForge.postman_collection.json -p'
-  # DX-001 akan membungkus command di atas + normalisasi baseUrl di scripts/generate-postman.sh.
+  # Terimplementasi: scripts/generate-postman.sh membungkus command ini (lockfile, image digest,
+  # konversi tanpa network) dan menormalisasi baseUrl/auth.
   ```
 
 - CLI tersebut mendukung OpenAPI **3.1** serta opsi `-s` / `-o` / `-p`. **Perhatikan:** kode contoh di atas adalah *rencana perintah*, bukan klaim sudah dijalankan. Script final wajib menghasilkan JSON valid, importable, dan stabil antara dua run terhadap input spec yang sama. Bila versi konverter berubah, pin lewat ADR/skrip dan verifikasi output/diff.
@@ -523,7 +526,7 @@ docker compose -p rf-test-rf012 --env-file .env.agent down -v --remove-orphans
    docker run --rm -v "$PWD/api/openapi:/spec:ro" redocly/cli:2.79.0 lint /spec/openapi.yaml
    ```
 
-4. Jalankan `./scripts/generate-postman.sh` (setelah DX-001 tersedia), lalu commit hasil `api/postman/RiskForge.postman_collection.json` dan file template environment jika berubah. Bandingkan cakupan operasi dan tes request baru melalui Postman/local API.
+4. Jalankan `./scripts/generate-postman.sh` (lalu `./scripts/smoke-postman.sh` terhadap stack yang berjalan), lalu commit hasil `api/postman/RiskForge.postman_collection.json` dan file template environment jika berubah. Bandingkan cakupan operasi dan tes request baru melalui Postman/local API.
 5. Uji `/swagger` dan `/openapi.yaml` di Compose dev/test. *Swagger UI* harus mencerminkan spec yang sama; UI/API consumer tidak boleh mendapatkan akses istimewa hanya karena dokumentasi tersedia.
 6. **PR tidak selesai** jika endpoint baru/berubah sudah bisa diakses tetapi OpenAPI, Swagger, atau Postman Collection belum mengikuti. Setelah CI RF-025 tersedia, CI wajib lint spec, generate koleksi dari scratch, cek hasil byte/diff (setelah generator deterministik), dan verifikasi parity `(method,path)`; sebelum RF-025, agent menjalankan gate tersebut secara lokal/container dan menempelkan hasil di deskripsi PR.
 
@@ -861,7 +864,7 @@ Base path bisnis: `/api/v1` (health dan docs berada di luar prefix). Semua endpo
 
 ### 13.1 Endpoint inventory
 
-**Telah terimplementasi (Milestone 1, `main` commit `07e9ebea`):** delapan operations berikut sudah tercatat di `routes/api.go` dan OpenAPI 3.1; semua bisa di-*try out* lewat Swagger UI setelah DX-001 selesai, dan wajib menjadi baseline Postman Collection.
+**Telah terimplementasi (Milestone 1, `main` commit `07e9ebea`):** delapan operations berikut sudah tercatat di `routes/api.go` dan OpenAPI 3.1; semua bisa di-*try out* lewat Swagger UI dan tercakup di Postman Collection (DX-001 selesai).
 
 | Method | Absolute path | Auth / Permission |
 |---|---|---|
@@ -1059,7 +1062,7 @@ sequenceDiagram
 
 | Signal | Example |
 |---|---|
-| Logs | `request_id`, `decision_id`, `product_code`, `policy_version`, `error_code` (tanpa PII). |
+| Logs | `request_id`, `decision_id`, `product_code`, `policy_version`, `error_code` (tanpa PII). Di luar development, body request/response **tidak** dicatat (`LOG_HTTP_BODIES=false`, default image release); di dev/test body dicatat setelah redaksi untuk data sintetis saja (15.4). |
 | Metrics | `decision_requests_total{outcome}`, `decision_duration_seconds`, `approval_actions_total`, `policy_publish_total`. |
 | Health | `/health/live`, `/health/ready` dan DB connectivity. |
 | Trace | correlation ID dari API hingga DB operations; OpenTelemetry opsional bila sederhana. |
@@ -1077,7 +1080,17 @@ Empat file JSON-lines di `storage/logs` (juga ke stdout bila `LOG_PRINT=true`), 
 | `lifetime.log` | Siklus proses dari start sampai stop. | `event` (`starting`, `signal_received`, `stopped`, `startup_failed`, `crashed`), `pid`, `hostname`, `uptimeSeconds`. |
 | `query.log` | Setiap statement SQL dan hasil transaksi. | `module` (repository pemilik), `requestID`, `kind`, `sql`, `args` (jumlah saja), `rows`, `durationMs`, `slow`, `inTransaction`. |
 
-**Invariant keamanan:** body dan header disensor sebelum ditulis (password, token, secret, Authorization, cookie, dan sejenisnya menjadi `[REDACTED]`); body yang tidak bisa disensor (bukan JSON valid, atau terlalu besar) hanya dicatat ukurannya; nilai argumen SQL tidak pernah dicatat. Bila kelak memproses data pribadi nyata, set `LOG_HTTP_BODIES=false`.
+**Invariant keamanan:** body dan header disensor sebelum ditulis (password, token, secret, session, signature, JWT, Authorization, cookie, dan sejenisnya menjadi `[REDACTED]`; query string `Referer` dibuang); body yang tidak bisa disensor (bukan JSON valid, atau terlalu besar) hanya dicatat ukurannya; nilai argumen SQL tidak pernah dicatat.
+
+**Per environment:**
+
+| Pengaturan | Dev/test (Compose) | Image release (`Dockerfile`) |
+|---|---|---|
+| `LOG_HTTP_BODIES` | `true` (data sintetis, untuk debugging) | `false`: hanya header dan metadata |
+| `LOG_FILES` | `true`: empat file di `storage/logs` | `false`: tidak ada file (belum ada rotasi, RF-023) |
+| `LOG_PRINT` | `false` | `true`: semua entri ke stdout (`docker logs`) |
+
+**Status yang dicatat** adalah yang benar-benar diterima klien: request yang melewati timeout 3 detik dicatat `408` walaupun handler selesai belakangan, dan panic setelah deadline tetap masuk `error.log`.
 
 ---
 
@@ -1116,12 +1129,12 @@ Setiap tiket hanya selesai jika:
 | Milestone | Scope | Release gate |
 |---|---|---|
 | M1 — Foundation | Goravel + Fiber driver bootstrap, Compose agent sandbox, Postgres driver, config, migrations, auth/RBAC, product catalog | **Done pada `main` (PR #1..#4, commit `07e9ebea`);** bukti runtime tersedia di README. |
-| M2 — Policy Configuration | DX-001 Swagger UI + Postman baseline, lalu data dictionary, versioned draft, RAC/scorecard/matrix CRUD + validation | Valid & invalid policy examples pass contract tests; setiap endpoint M2 tersedia di OpenAPI, Swagger UI, dan Postman. |
+| M2 — Policy Configuration | Data dictionary (DX-001 Swagger UI + Postman baseline sudah selesai), versioned draft, RAC/scorecard/matrix CRUD + validation | Valid & invalid policy examples pass contract tests; setiap endpoint M2 tersedia di OpenAPI, Swagger UI, dan Postman. |
 | M3 — Decision Engine | Derived features, RAC, scorecard, matrix, decision API, idempotency | Golden dataset passes; decision run stored durably. |
 | M4 — Governance | Simulator, workflow config, tier approval, publish/rollback semantics | Self-approval blocked; concurrency tests pass; version is immutable. |
 | M5 — Portfolio Hardening | Audit search, observability, CI untuk validasi OpenAPI + Postman parity, tests, demo | Complete E2E demo reproducible dari Compose project baru + fresh DB; docs/collection drift gagal di CI. |
 
-**Urutan:** M1 (done) → **DX-001 (Swagger UI + Postman baseline)** → M2/RF-005 → M3 → M4 → M5. Agar ada demo cepat, boleh menerapkan policy seed **khusus development/test** sebelum workflow approval selesai, tetapi production evaluation endpoint tidak boleh memiliki bypass policy publishing di versi final.
+**Urutan:** M1 (done) → DX-001 (done) → **M2/RF-005** → M3 → M4 → M5. Agar ada demo cepat, boleh menerapkan policy seed **khusus development/test** sebelum workflow approval selesai, tetapi production evaluation endpoint tidak boleh memiliki bypass policy publishing di versi final.
 
 ### Portfolio demo script (5–10 menit)
 
@@ -1153,6 +1166,22 @@ Review independen atas RF-001..RF-004 tidak menemukan cacat severity high pada a
 **Aturan baru untuk tiket berikutnya:** route khusus test didaftarkan sekali di `tests/routes.go` (driver memasang fallback 404 sebagai catch-all pada request pertama, sehingga route yang didaftarkan sesudahnya tertutup).
 
 **Belum dapat diverifikasi:** pemindaian kerentanan dependency (`govulncheck`) gagal dijalankan dari lingkungan pengembangan karena `vuln.go.dev` tidak dapat diakses; jalankan di CI (RF-025).
+
+### 17.2 Review lanjutan (hardening + LOG-001 + DX-001)
+
+Review independen kedua atas `fix/M1-hardening` (tanpa temuan severity high) menghasilkan perbaikan berikut, semuanya diuji:
+
+| Temuan | Perbaikan |
+|---|---|
+| URL dengan escape tidak valid (`/%zz`) menjadi 500 karena pencatatan body memanggil `Origin()` yang panic. | Pembacaan body untuk log tahan panic; request tetap dirutekan (404 JSON). Unit test + verifikasi `curl`. |
+| Request yang timeout dicatat dengan status handler (mis. 200), dan panic setelah deadline hilang dari `error.log`. | Status yang dicatat `408` saat deadline lewat; panic setelah deadline ditulis oleh `ActivityLog`. Test HTTP nyata (3,5 detik). |
+| Body ikut dicatat di image release; file log tanpa rotasi. | Image release: `LOG_HTTP_BODIES=false`, `LOG_FILES=false`, stdout saja (15.4). |
+| Skrip generator me-mount seluruh repo (termasuk `.env.agent`) dengan akses jaringan; dependency tidak dikunci. | Lockfile `scripts/postman/package-lock.json` + `npm ci`, image Node dipin dengan digest, konversi `--network none` dengan mount sempit; integritas Swagger UI diverifikasi (sha512). |
+| Parity test hanya method+path. | Ditambah parameter spec vs koleksi, `x-required-permission` dikenal, serta uji perilaku nyata: operasi ber-`security` menolak anonim (401) dan permission sesuai matriks untuk setiap role (403). |
+| Bukti import Postman belum ada. | `scripts/smoke-postman.sh` menjalankan koleksi dengan Newman terhadap stack nyata (8/8). |
+| Kecil: parsing `DOCS_ENABLED` ganda, kunci sensitif kurang, ukuran body besar keliru, deadline DB dilabeli "hashing saturated", ROLLBACK level error, header hilang saat body dimatikan, header `Authorization` di contoh endpoint publik, `Referer` membawa query string. | Semua diperbaiki. |
+
+**Temuan baru saat verifikasi:** `./artisan migrate:fresh` tidak cocok dengan schema logis (hanya menghapus tabel di `public`, lalu gagal `relation already exists`, padahal tetap mencetak "success"). Reset yang benar: `./artisan migrate:reset && ./artisan migrate`, atau `down -v` untuk project Compose. Lihat `AGENT_RUNBOOK.md`.
 
 ---
 
@@ -1202,7 +1231,7 @@ Review independen atas RF-001..RF-004 tidak menemukan cacat severity high pada a
 - [ ] **RF-025 CI/CD and local run.** GitHub Actions, Goravel/Fiber build + HTTP tests, Docker image build untuk release (jika relevan), Compose agent test/runbook, Artisan migration check, **Redocly OpenAPI 3.1 lint + regenerate Postman + byte/diff parity + operationId coverage checks**; CI menggunakan project namespace unik serta disposable test DB. Tooling Swagger/Postman pertama dibuat di DX-001, **bukan** menunggu RF-025.
 - [ ] **RF-026 Developer experience & demo.** README, architecture diagrams, ADRs, synthetic fixtures, demo walkthrough and screenshots/API sample output.
 
-**Milestone completion rule:** jangan lanjut jika release gate sebelumnya belum lulus, kecuali ada alasan tercatat di ADR/issue. **M1 selesai dan merged** menurut status repository 17 November 2026 (PR #1..#4). Lanjutkan DX-001, kemudian RF-005; jangan membuat ulang M1. Setiap HTTP API ticket setelah itu wajib memenuhi documentation parity pada Bagian 5.6.
+**Milestone completion rule:** jangan lanjut jika release gate sebelumnya belum lulus, kecuali ada alasan tercatat di ADR/issue. **M1 selesai dan merged** menurut status repository 17 November 2026 (PR #1..#4). DX-001 juga sudah selesai; lanjutkan RF-005 dan jangan membuat ulang M1. Setiap HTTP API ticket setelah itu wajib memenuhi documentation parity pada Bagian 5.6.
 
 ---
 
@@ -1234,8 +1263,8 @@ Jangan menyatakan test sukses bila container belum benar-benar dijalankan.
 Jika menambah/mengubah/menghapus endpoint HTTP: wajib update OpenAPI 3.1,
 uji halaman /swagger dan /openapi.yaml, generate Postman Collection via
 scripts/generate-postman.sh, commit JSON generated, dan cek kesetaraan
-method+path dengan implementasi. Jika DX-001 belum tersedia, selesaikan
-DX-001 terlebih dahulu sebelum tiket HTTP berikutnya.
+method+path, parameter, dan permission dengan implementasi
+(ContractParityTestSuite dan ContractBehaviourTestSuite harus lulus).
 
 Goravel facades/HTTP context hanya di HTTP atau infrastructure adapter;
 pure ruleengine/domain tidak boleh bergantung pada Goravel/Fiber/SQL.
@@ -1452,4 +1481,4 @@ Setiap ADR mencatat **context, decision, alternatives, consequences, date**.
 - [ ] Agent dapat menjalankan stack dari Compose `api + db`, menguji dengan `rf-test-*` terisolasi, dan membersihkan test project tanpa menghapus volume development.
 - [ ] Tidak ada data pribadi sesungguhnya, keys, atau credentials di repo.
 
-**Status kini: M1/RF-001..RF-004 selesai di `main`. M1 hardening (17.1), LOG-001 structured logs (15.4), dan DX-001 Swagger UI + generated Postman Collection (5.6) selesai di branch `fix/M1-hardening`, menunggu review dan merge ke `main`. Langkah berikutnya: `RF-005 Data Dictionary`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.
+**Status kini: M1/RF-001..RF-004 selesai di `main`. M1 hardening (17.1), LOG-001 structured logs (15.4), dan DX-001 Swagger UI + generated Postman Collection (5.6) selesai di branch `fix/M1-hardening`, bersama DOC-001 (guide di `docs/`) dan perbaikan review kedua (17.2); menunggu merge ke `main`. Langkah berikutnya: `RF-005 Data Dictionary`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.
