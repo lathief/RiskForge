@@ -39,6 +39,31 @@ docker compose -p $P --env-file .env.agent run --rm --no-deps api go test -race 
 docker compose -p $P --env-file .env.agent down -v --remove-orphans   # hanya project ini
 ```
 
+## Database dan migrations
+
+Perintah (jalankan lewat container `api`, lihat bagian di atas untuk prefix `docker compose`):
+
+```sh
+./artisan migrate              # menjalankan migration yang belum jalan; aman diulang
+./artisan migrate:rollback     # membatalkan batch migration terakhir
+./artisan make:migration nama  # membuat file migration baru di database/migrations
+```
+
+Migration baru harus didaftarkan di `bootstrap/migrations.go`. `Down()` tidak boleh memakai `CASCADE`, supaya rollback tidak menghapus data diam-diam.
+
+### Reset database lokal
+
+- **Test (`rf-test-*`):** hapus seluruh project dengan `docker compose -p rf-test-<tiket> --env-file .env.agent down -v --remove-orphans`, lalu buat ulang.
+- **Development (`rf-dev`):** `docker compose -p rf-dev ... exec -T api ./artisan migrate:fresh` menghapus semua tabel dan menjalankan ulang migration. Perintah ini destruktif; jalankan hanya jika Anda memang ingin menghapus data `rf-dev`.
+
+### Pola akses data dan transaksi
+
+- Use case bergantung pada port `tx.Manager` (`app/platform/tx`), bukan pada Goravel.
+- Adapter repository memakai `database.Manager` (`app/platform/database`) dan **selalu** memanggil `manager.Querier(ctx)` untuk query. Jangan memakai `facades.DB()` atau `facades.Orm()` langsung di repository, karena query itu berjalan di luar transaksi.
+- `WithinTransaction(ctx, fn)` melakukan commit jika `fn` mengembalikan `nil`, dan rollback jika `fn` mengembalikan error atau panic. Panic diubah Goravel menjadi error. Pemanggilan bersarang dengan `ctx` yang sama bergabung ke transaksi luar (tanpa savepoint).
+- SQL mentah (`Insert`, `Select`, `Statement`) memakai placeholder PostgreSQL `$1, $2, ...`, bukan `?`.
+- Contoh pola dan test atomicity ada di `tests/feature/database_test.go`.
+
 ## Git workflow
 
 Satu tiket backlog = satu branch, dengan format `feature/RF-xxx-deskripsi-singkat`, dibuat dari `main`.
