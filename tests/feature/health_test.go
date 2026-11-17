@@ -1,14 +1,11 @@
 package feature
 
 import (
-	"errors"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
 
-	"goravel/app/facades"
-	"goravel/app/http/controllers"
 	"goravel/tests"
 )
 
@@ -55,10 +52,7 @@ func (s *HealthTestSuite) TestReplacesUnsafeRequestID() {
 }
 
 func (s *HealthTestSuite) TestReadyReturns503WhenDependencyFails() {
-	down := controllers.NewHealthController(func() error { return errors.New("database unreachable") })
-	facades.Route().Get("/test/health/ready-down", down.Ready)
-
-	resp, err := s.Http(s.T()).Get("/test/health/ready-down")
+	resp, err := s.Http(s.T()).Get(tests.ReadyDownPath)
 	s.Require().NoError(err)
 	resp.AssertServiceUnavailable().AssertJson(map[string]any{"status": "unavailable"})
 	body, err := resp.Content()

@@ -1,67 +1,82 @@
 # RiskForge
 
-Platform backend untuk membuat, menguji, menyetujui, dan mengeksekusi kebijakan keputusan kredit (RAC, scorecard, decision matrix). Dibangun dengan Goravel v1.18 (HTTP driver Fiber) dan PostgreSQL 18 sebagai modular monolith.
+**A credit decision platform backend in Go**: risk teams version, test, and approve credit policies (Risk Acceptance Criteria, scorecards, decision matrices), and a Loan Application system asks the API for an auditable `APPROVE` / `REFER` / `REJECT`.
 
-Desain lengkap ada di [SYSTEM_DESIGN.md](SYSTEM_DESIGN.md). Pekerjaan dibagi per tiket (RF-001 dan seterusnya), satu branch per tiket.
+Built as a **modular monolith** on Goravel v1.18 with the official Fiber HTTP driver and PostgreSQL 18, developed ticket by ticket with tests, ADRs, and verification evidence for every change. All data is synthetic.
 
-## Menjalankan secara lokal
+> **Status:** Milestone 1 (foundation, identity and RBAC, product catalog) is complete and hardened through three review rounds ([verification log](docs/VERIFICATION.md)). The decision engine and policy governance are designed (`SYSTEM_DESIGN.md`) and come next. See [Roadmap](#roadmap).
 
-Prasyarat: Docker Engine dengan Compose v2. Go dan PostgreSQL tidak perlu dipasang di host.
+## What this project demonstrates
+
+| Area | In this repository |
+|---|---|
+| **Architecture** | Modular monolith with enforced boundaries: `domain` and `application` packages import no framework code; one PostgreSQL schema per module; a single composition root. [ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| **Security** | JWT auth with roles and account status re-read on every request, so a role change or deactivation applies on the next call (issued tokens cannot be revoked yet); permission matrix with tested separation of duties (maker cannot approve, admin cannot approve); fail-closed middleware; bcrypt behind a semaphore (503, not lockup); startup refuses weak secrets; known credential fields and auth headers redacted from logs, and request/response bodies not logged in the release image (`LOG_HTTP_BODIES=false`; the code default is `true` for development with synthetic data). [ADR 0002](docs/adr/0002-authentication-and-rbac.md), [ADR 0003](docs/adr/0003-bounded-password-hashing.md) |
+| **Data integrity** | One transaction boundary per business operation, row locks for read-modify-write, database constraints that mirror domain rules, concurrency tests under `-race`. |
+| **Observability** | Structured JSON logs per type (`activity`, `error`, `lifetime`, `query`) and per module, correlated by `X-Request-ID`, with SQL timings and redaction. [ADR 0004](docs/adr/0004-structured-logging.md) |
+| **API contract** | OpenAPI 3.1 as the single source; Swagger UI (local only); a Postman collection generated deterministically with a pinned, offline toolchain; tests prove routes, spec, and collection agree, and that the running code enforces the spec's auth and permissions. [ADR 0005](docs/adr/0005-swagger-ui-and-generated-postman.md) |
+| **Engineering process** | Disposable Docker Compose environments per test run (no Go or PostgreSQL on the host), architecture decision records, and a [verification log](docs/VERIFICATION.md) of what was run to accept each ticket. |
+
+## Quick start
+
+Prerequisites: Docker Engine with Compose v2, and Bash (Git Bash on Windows).
 
 ```sh
-./scripts/init-agent-env.sh
-docker compose -p rf-dev --env-file .env.agent up -d
-curl http://127.0.0.1:3000/health/live
+./scripts/init-agent-env.sh                                   # random local secrets in .env.agent
+docker compose -p rf-dev --env-file .env.agent up -d          # API on 127.0.0.1:3000 + PostgreSQL
+docker compose -p rf-dev --env-file .env.agent exec -T api ./artisan migrate
+docker compose -p rf-dev --env-file .env.agent exec -T api ./artisan db:seed
+curl http://127.0.0.1:3000/health/ready                       # first start compiles the app: retry for a minute or two if refused
 ```
 
-Perintah migration dan test ada di [AGENT_RUNBOOK.md](AGENT_RUNBOOK.md).
+Then open <http://127.0.0.1:3000/swagger>, or follow [GETTING_STARTED.md](docs/GETTING_STARTED.md) for your first authenticated request.
 
-## Status
+## Tech stack
 
-| Tiket | Status |
+Go 1.25 · Goravel v1.18 · Fiber v3 (via `goravel/fiber`) · PostgreSQL 18 · JWT (HS256) · bcrypt · OpenAPI 3.1 · Swagger UI 5 · Postman / Newman · Docker Compose · testify
+
+## API (implemented)
+
+| Method | Path | Access |
+|---|---|---|
+| `GET` | `/health/live`, `/health/ready` | Public |
+| `POST` | `/api/v1/auth/login` | Public |
+| `GET` | `/api/v1/auth/me` | Any authenticated user |
+| `GET` | `/api/v1/products`, `/api/v1/products/{code}` | `product:read` (admin, analyst, approver, auditor) |
+| `POST` / `PATCH` | `/api/v1/products`, `/api/v1/products/{code}` | `product:write` (admin) |
+
+Contract: [api/openapi/openapi.yaml](api/openapi/openapi.yaml). Real requests and responses: [API_EXAMPLES.md](docs/API_EXAMPLES.md). Postman: [api/postman/](api/postman/).
+
+## Documentation
+
+| Guide | Contents |
 |---|---|
-| RF-001 Bootstrap Goravel + Fiber + Compose | Selesai (merged ke `main`, PR #1) |
-| RF-002 PostgreSQL foundation | Selesai (merged ke `main`, PR #2) |
-| RF-003 Identity + RBAC | Selesai (merged ke `main`, PR #3) |
-| RF-004 Product catalog | Selesai di branch `feature/RF-004-product-catalog` |
-| RF-005 dan seterusnya | Belum dimulai |
+| [GETTING_STARTED.md](docs/GETTING_STARTED.md) | Clone to first API call, tests, reset, troubleshooting. |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Diagrams, module boundaries, request lifecycle, transactions. |
+| [DOMAIN_GUIDE.md](docs/DOMAIN_GUIDE.md) | Credit concepts: product, RAC, scorecard, decision matrix, policy, approval. |
+| [API_EXAMPLES.md](docs/API_EXAMPLES.md) | `curl` calls with captured responses and errors. |
+| [DECISION_ENGINE.md](docs/DECISION_ENGINE.md) | Planned engine behaviour: pipeline, precedence, edge cases. |
+| [TESTING.md](docs/TESTING.md) | How tests are organized and run, and what each suite proves. |
+| [SCRIPTS.md](docs/SCRIPTS.md) | What every script in `scripts/` does and how to run it. |
+| [VERIFICATION.md](docs/VERIFICATION.md) | Evidence recorded for each accepted ticket and review round. |
+| [docs/README.md](docs/README.md) | Documentation index and what each folder contains. |
+| [docs/adr/](docs/adr/) | Architecture Decision Records (Indonesian). |
+| [SYSTEM_DESIGN.md](SYSTEM_DESIGN.md) | Full design specification and backlog (Indonesian). |
+| [AGENT_RUNBOOK.md](AGENT_RUNBOOK.md) | Exact commands and conventions for developers and AI agents (Indonesian). |
 
-Kontrak API: [api/openapi/openapi.yaml](api/openapi/openapi.yaml).
+## Roadmap
 
-### Bukti verifikasi RF-001
+| Milestone | Scope | Status |
+|---|---|---|
+| M1 Foundation | Bootstrap, PostgreSQL, identity and RBAC, product catalog | Done |
+| Hardening, LOG-001, DX-001, DOC-001 | Three review rounds, structured logs, Swagger and Postman, guides | Done (branch `fix/M1-hardening`, pending merge) |
+| M2 Policy configuration | Data dictionary, versioned policy drafts, RAC, scorecard, matrix validation | Next (RF-005) |
+| M3 Decision engine | Features, RAC, scorecard and matrix evaluation, idempotent decision API | Planned |
+| M4 Governance | Simulator, multi-level approval, atomic publishing | Planned |
+| M5 Hardening | Audit search, metrics, CI/CD, benchmarks, demo | Planned |
 
-Dijalankan di container, project Compose `rf-test-rf001fix` dengan database kosong (project sudah dihapus):
+Ticket-level detail is in `SYSTEM_DESIGN.md` section 18.
 
-- `go vet ./...` dan `go test -race -count=1 ./...` lulus, termasuk test `/health/ready` terhadap PostgreSQL nyata dan test 503 saat dependency gagal.
-- `./artisan migrate` berhasil dan idempoten.
-- `docker build .` berhasil. Image tidak berisi `.env`, berjalan dengan environment variable, dan `/health/ready` mengembalikan 200. Tanpa `APP_KEY`, proses berhenti dengan pesan error.
-- CI GitHub Actions belum ada (dijadwalkan di RF-025).
+## License
 
-### Bukti verifikasi RF-002
-
-Dijalankan di container, project Compose `rf-test-rf002` dengan PostgreSQL 18 nyata (project sudah dihapus):
-
-- `go vet ./...` dan `go test -race -count=1 ./...` lulus. Test transaksi mencakup commit lintas dua repository, rollback saat error, rollback saat pelanggaran UNIQUE, rollback saat panic, transaksi bersarang, dan data yang belum di-commit tidak terlihat dari koneksi lain.
-- `./artisan migrate`, `migrate:rollback`, lalu `migrate` lagi berhasil. Pemanggilan `migrate` berulang menghasilkan "Nothing to migrate".
-- Tujuh schema logis (`identity`, `catalog`, `dictionary`, `policy`, `approval`, `decision`, `audit`) terbentuk. Tabel milik tiap schema dibuat di milestone masing-masing.
-- Tidak ada port database yang dipublikasikan ke host.
-
-### Bukti verifikasi RF-003
-
-Dijalankan di container, project Compose `rf-test-rf003` dengan PostgreSQL 18 nyata (project sudah dihapus):
-
-- `go vet ./...` dan `go test -race -count=1 ./...` (dengan `HASH_BCRYPT_ROUNDS=4`) lulus tiga kali berturut-turut tanpa data race.
-- Test HTTP lewat driver Fiber memeriksa setiap kombinasi 6 user demo x 15 permission (200 atau 403), akses anonim (401), token rusak, tanpa tanda tangan (`alg=none`), dan kedaluwarsa (401), serta respons login gagal yang identik.
-- Menonaktifkan user atau mencabut role berlaku seketika untuk token yang sudah diterbitkan.
-- Smoke test dengan server sungguhan: `db:seed`, login, dan `/api/v1/auth/me` berhasil. Password demo tidak muncul di log.
-
-### Bukti verifikasi RF-004
-
-Dijalankan di container, project Compose `rf-test-rf004` dengan PostgreSQL 18 nyata (project sudah dihapus):
-
-- `go vet ./...` dan `go test -race ./...` lulus; suite produk diulang tiga kali (`-count=3`) tanpa kegagalan atau data race.
-- Test HTTP lewat driver Fiber mencakup otorisasi per role (baca untuk Admin, Analyst, Approver, Auditor; tulis hanya Admin; API consumer ditolak), validasi field, field tak dikenal, perubahan `code` lewat PATCH (ditolak), pagination, filter status, 404, dan 409.
-- Konkurensi: 10 create bersamaan dengan kode sama menghasilkan tepat satu produk; update bersamaan ke field berbeda tidak saling menimpa (`SELECT ... FOR UPDATE`).
-- Constraint database menolak kode tidak valid, nama kosong, status tidak dikenal, dan kode duplikat walau service dilewati.
-- `api/openapi/openapi.yaml` lolos `redocly lint` (CLI 2.79.0). Tiga peringatan tersisa: belum ada objek `license`, dan dua endpoint health memang tidak punya respons 4xx.
-- Smoke test dengan server sungguhan: list, create (201 + `Location`), 403 untuk Analyst, PATCH status, dan 422 untuk filter tidak valid cocok dengan kontrak.
+[MIT](LICENSE). Portions derive from the Goravel application scaffold (MIT).

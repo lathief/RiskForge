@@ -8,10 +8,10 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/facades"
 	"goravel/app/http/responses"
 	"goravel/app/modules/catalog/application"
 	"goravel/app/modules/catalog/domain"
+	"goravel/app/platform/logging"
 )
 
 const (
@@ -55,8 +55,9 @@ func (c *ProductController) Index(ctx http.Context) http.Response {
 	filter := application.ListFilter{}
 
 	var ok bool
-	if filter.Page, ok = queryInt(ctx, "page", 1); !ok {
-		details = append(details, responses.Detail{Field: "page", Issue: "must_be_positive_integer"})
+	// Bounding page keeps (page-1)*per_page far from integer overflow and negative offsets.
+	if filter.Page, ok = queryInt(ctx, "page", 1); !ok || filter.Page > application.MaxPage {
+		details = append(details, responses.Detail{Field: "page", Issue: "must_be_between_1_and_10000"})
 	}
 	if filter.PerPage, ok = queryInt(ctx, "per_page", application.DefaultPerPage); !ok || filter.PerPage > application.MaxPerPage {
 		details = append(details, responses.Detail{Field: "per_page", Issue: "must_be_between_1_and_100"})
@@ -74,7 +75,7 @@ func (c *ProductController) Index(ctx http.Context) http.Response {
 
 	page, err := c.service.List(ctx.Context(), filter)
 	if err != nil {
-		facades.Log().Errorf("products: list failed: %v", err)
+		logging.Default().Error(ctx.Context(), "products: list failed", err)
 		return responses.Internal(ctx)
 	}
 	data := make([]productResponse, 0, len(page.Items))
@@ -167,7 +168,7 @@ func (c *ProductController) serviceError(ctx http.Context, op string, err error)
 	case errors.Is(err, application.ErrCodeTaken):
 		return responses.Conflict(ctx, codeProductCodeConflict, "a product with this code already exists")
 	default:
-		facades.Log().Errorf("products: %s failed: %v", op, err)
+		logging.Default().Error(ctx.Context(), "products: "+op+" failed", err)
 		return responses.Internal(ctx)
 	}
 }

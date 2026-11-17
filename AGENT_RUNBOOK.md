@@ -51,12 +51,15 @@ Perintah (jalankan lewat container `api`, lihat bagian di atas untuk prefix `doc
 ./artisan make:migration nama  # membuat file migration baru di database/migrations
 ```
 
-Migration baru harus didaftarkan di `bootstrap/migrations.go`. `Down()` tidak boleh memakai `CASCADE`, supaya rollback tidak menghapus data diam-diam.
+Migration baru harus didaftarkan di `bootstrap/migrations.go`.
+
+**Rollback menghapus data.** `Down()` pada migration tabel menjalankan `DROP TABLE`, yang menghapus seluruh baris tabel itu. Larangan `CASCADE` hanya mencegah rollback ikut menghapus objek lain yang bergantung (misalnya `DROP SCHEMA` gagal jika schema masih berisi tabel); larangan itu tidak melindungi isi tabel. Jangan menjalankan `migrate:rollback` pada database yang datanya ingin dipertahankan; backup terlebih dahulu.
 
 ### Reset database lokal
 
 - **Test (`rf-test-*`):** hapus seluruh project dengan `docker compose -p rf-test-<tiket> --env-file .env.agent down -v --remove-orphans`, lalu buat ulang.
-- **Development (`rf-dev`):** `docker compose -p rf-dev ... exec -T api ./artisan migrate:fresh` menghapus semua tabel dan menjalankan ulang migration. Perintah ini destruktif; jalankan hanya jika Anda memang ingin menghapus data `rf-dev`.
+- **Development (`rf-dev`):** `docker compose -p rf-dev --env-file .env.agent exec -T api sh -c './artisan migrate:reset && ./artisan migrate && ./artisan db:seed'`. Destruktif; jalankan hanya jika Anda memang ingin menghapus data `rf-dev`.
+- **Jangan pakai `./artisan migrate:fresh`.** Perintah itu hanya menghapus tabel di schema `public`, lalu migration gagal (`relation "roles" already exists`) sambil tetap mencetak "success", sehingga database tertinggal setengah jadi. `migrate:reset` menjalankan `Down()` setiap migration secara terbalik dan menangani schema per modul dengan benar. Jika database sudah telanjur rusak oleh `migrate:fresh`, pakai `down -v`.
 
 ### Pola akses data dan transaksi
 
@@ -68,7 +71,7 @@ Migration baru harus didaftarkan di `bootstrap/migrations.go`. `Down()` tidak bo
 
 ## Identity, login, dan RBAC
 
-User demo sintetis (`demo_admin`, `demo_analyst`, `demo_approver_1`, `demo_approver_2`, `demo_auditor`, `demo_los`) memakai satu password bersama dari `DEMO_USER_PASSWORD` di `.env.agent`. Seeder hanya jalan jika `APP_ENV` bernilai `local` atau `testing`, dan tidak menimpa user yang sudah ada.
+User demo sintetis (`demo_admin`, `demo_analyst`, `demo_approver_1`, `demo_approver_2`, `demo_auditor`, `demo_loan_application`) memakai satu password bersama dari `DEMO_USER_PASSWORD` di `.env.agent`. Seeder hanya jalan jika `APP_ENV` bernilai `local` atau `testing`, dan tidak menimpa user yang sudah ada.
 
 ```sh
 docker compose -p rf-dev --env-file .env.agent exec -T api ./artisan db:seed --seeder DemoUsersSeeder
@@ -84,6 +87,9 @@ Aturan untuk endpoint baru (keputusan lengkap di `docs/adr/0002-authentication-a
 
 - Lindungi route dengan `middleware.NewAuthenticate(...)` lalu `middleware.NewRequirePermission(domain.Perm...)`. Cek permission, jangan nama role.
 - Tambahkan permission baru di `app/modules/identity/domain/permission.go`, dan pastikan `TestSeparationOfDuties` masih mencerminkan larangan di `SYSTEM_DESIGN.md` bagian 4.
+- Route khusus test didaftarkan di `tests/routes.go`, **jangan** di `SetupSuite`. Driver Fiber memasang handler 404 (fallback) sebagai catch-all pada request pertama; route yang didaftarkan setelah itu tertutup dan selalu menghasilkan 404.
+- Panic ditangani `middleware.Recover`, yang menulis ke `error.log` hanya request ID, module, method, path, nilai panic, dan stack trace. Jangan kembalikan handler bawaan Goravel; handler itu melog header (token) dan body (password).
+- Handler yang bisa lama wajib berhenti saat `ctx.Context()` selesai (timeout 3 detik) dan tidak menulis respons sesudahnya. Driver Fiber sudah menulis 408 ke context request dan meninggalkannya; menulis respons setelahnya adalah data race (lihat ADR 0004).
 - Teruskan `ctx.Context()` ke use case, **bukan** `http.Context`. Driver Fiber mengembalikan `http.Context` ke pool setelah handler selesai, sehingga meneruskannya ke query database menyebabkan data race.
 - Error dikembalikan dengan helper di `app/http/responses` agar format dan `request_id` konsisten.
 
@@ -99,9 +105,59 @@ docker run --rm -v "$PWD/api/openapi:/spec:ro" redocly/cli:2.79.0 lint /spec/ope
 
 Di Git Bash Windows, jalankan dengan `MSYS_NO_PATHCONV=1` dan ganti `$PWD` dengan `$(pwd -W)`.
 
+## Structured logs
+
+File di `storage/logs` (JSON per baris): `activity.log`, `error.log`, `lifetime.log`, `query.log`. Detail format: `SYSTEM_DESIGN.md` bagian 15.4 dan `docs/adr/0004-structured-logging.md`.
+
+```sh
+# Semua jejak satu request di empat file:
+grep -h '"requestID":"<id>"' storage/logs/{activity,error,query}.log
+# Query lambat:
+grep '"slow":true' storage/logs/query.log
+# Siklus hidup container:
+cat storage/logs/lifetime.log
+```
+
+Pengaturan (env, default di `config/logging.go`): `LOG_PRINT` (salin ke stdout), `LOG_FILES` (tulis empat file; default `true`, image release `false`), `LOG_HTTP_BODIES` (default `true`, image release `false`), `LOG_MAX_BODY_BYTES` (default 8192), `LOG_SLOW_QUERY_MS` (default 200).
+
+Aturan untuk kode baru:
+
+- Error di controller/middleware: `logging.Default().Error(ctx.Context(), "pesan", err)` (atau `Warn`), bukan `facades.Log()`, supaya `requestID` dan `module` ikut tercatat.
+- Grup route modul baru diberi `middleware.NewModule("<modul>")`, dan repository-nya menerima `dbManager.WithModule("<modul>")`.
+- Field body yang berisi rahasia harus memakai nama yang dikenali redaksi (`password`, `*_token`, `secret`, `api_key`, ...). Jika tidak bisa, tambahkan nama key di `app/platform/logging/redact.go` beserta test-nya.
+- Query lewat query builder (`Querier(ctx).Table(...)`) belum tercatat di `query.log`; gunakan SQL mentah berparameter seperti repository yang ada.
+- Container dev menjalankan binary hasil `go build` (bukan `go run`), supaya SIGTERM dari `docker compose stop` sampai ke aplikasi dan `lifetime.log` mencatat `stopped`.
+
+## Swagger UI, OpenAPI, dan Postman (DX-001)
+
+Container dev (`rf-dev`) menjalankan dokumentasi interaktif di `http://127.0.0.1:3000/swagger`; kontrak mentah di `/openapi.yaml`. Aktif hanya jika `DOCS_ENABLED=true` dan `APP_ENV` `local`/`testing` (default Compose). Detail: `SYSTEM_DESIGN.md` 5.6 dan `docs/adr/0005-swagger-ui-and-generated-postman.md`.
+
+Workflow wajib setiap tiket yang menambah, mengubah, atau menghapus endpoint:
+
+```sh
+# 1. Perbarui api/openapi/openapi.yaml (operationId unik, security, x-required-permission, contoh).
+#    Setiap schema yang dipakai respons perlu `example`, supaya hasil generate deterministik.
+# 2. Lint:
+docker run --rm -v "$PWD/api/openapi:/spec:ro" redocly/cli:2.79.0 lint /spec/openapi.yaml
+# 3. Regenerasi koleksi Postman, lalu commit api/postman/*.json:
+./scripts/generate-postman.sh
+# 4. Pastikan tidak ada drift (dipakai juga oleh CI RF-025):
+./scripts/generate-postman.sh --check
+# 4b. Jalankan koleksi terhadap stack yang berjalan dan sudah di-seed (default rf-dev):
+./scripts/smoke-postman.sh
+# 5. Jalankan test; ContractParityTestSuite membandingkan route, spec, dan koleksi:
+docker compose -p rf-test-<tiket> --env-file .env.agent run --rm --no-deps -e HASH_BCRYPT_ROUNDS=4 api go test ./tests/feature -run ContractParity
+```
+
+- Naikkan `expectedOperationCount` di `tests/feature/api_contract_test.go` saat menambah endpoint.
+- Jangan edit `api/postman/RiskForge.postman_collection.json` manual; selalu lewat generator.
+- Import ke Postman: koleksi + `api/postman/RiskForge.local.postman_environment.json`, login lewat request "Exchange username and password...", lalu salin `access_token` ke variabel `accessToken`.
+- Memperbarui Swagger UI: `SWAGGER_UI_VERSION=<5.x> SWAGGER_UI_INTEGRITY=<sha512-...> ./scripts/update-swagger-ui.sh`, tinjau diff, perbarui ADR 0005.
+- Penjelasan lengkap setiap skrip (mount, network, versi yang dipin): `docs/SCRIPTS.md`.
+
 ## Git workflow
 
-Satu tiket backlog = satu branch, dengan format `feature/RF-xxx-deskripsi-singkat`, dibuat dari `main`.
+Satu tiket backlog = satu branch, dibuat dari `main`, dengan format `feature/<TIKET>-deskripsi-singkat` (misalnya `feature/RF-005-data-dictionary`). Perbaikan memakai `fix/...` dan dokumentasi `docs/...`. Branch yang bergantung pada branch lain yang belum di-merge (misalnya `fix/M1-hardening`, yang menggabungkan LOG-001, DX-001, dan DOC-001) dibuat di atas branch tersebut dan di-merge berurutan.
 
 ## Catatan
 

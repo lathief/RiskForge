@@ -14,6 +14,7 @@ const TestBcryptRounds = 4
 
 func init() {
 	bootstrap.Boot()
+	registerTestRoutes()
 }
 
 type TestCase struct {

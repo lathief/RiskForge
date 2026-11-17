@@ -6,7 +6,10 @@ services:
     image: ${GO_IMAGE:-golang:1.25-bookworm}
     working_dir: /workspace
     init: true
-    command: ["go", "run", "."]
+    # Build, then exec the binary so it is PID 1's direct child and receives SIGTERM on
+    # `docker compose stop` (`go run` does not forward it). lifetime.log depends on this.
+    command: ["sh", "-c", "go build -o /tmp/riskforge . && exec /tmp/riskforge"]
+    stop_grace_period: 15s
     environment:
       APP_NAME: RiskForge
       APP_ENV: local
@@ -16,6 +19,8 @@ services:
       APP_KEY: ${APP_KEY:?Run ./scripts/init-agent-env.sh first}
       JWT_SECRET: ${JWT_SECRET:?Run ./scripts/init-agent-env.sh first}
       DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-}
+      # Swagger UI at /swagger and the contract at /openapi.yaml (dev/agent only).
+      DOCS_ENABLED: ${DOCS_ENABLED:-true}
       DB_CONNECTION: postgres
       DB_HOST: db
       DB_PORT: "5432"

@@ -1,0 +1,11 @@
+{
+  "name": "riskforge-postman-generator",
+  "private": true,
+  "description": "Pinned tools for scripts/generate-postman.sh. Install with npm ci only.",
+  "license": "MIT",
+  "dependencies": {
+    "js-yaml": "4.1.0",
+    "newman": "6.2.3",
+    "openapi-to-postmanv2": "6.3.3"
+  }
+}

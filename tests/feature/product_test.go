@@ -109,15 +109,15 @@ func detail(field, issue string) map[string]any {
 func (s *ProductTestSuite) TestAuthorization() {
 	create := `{"code":"AUTHZ_TEST","name":"x"}`
 	cases := []struct {
-		user          string
-		read, write   int
+		user        string
+		read, write int
 	}{
 		{"", http.StatusUnauthorized, http.StatusUnauthorized},
 		{"demo_admin", http.StatusOK, http.StatusCreated},
 		{"demo_analyst", http.StatusOK, http.StatusForbidden},
 		{"demo_approver_1", http.StatusOK, http.StatusForbidden},
 		{"demo_auditor", http.StatusOK, http.StatusForbidden},
-		{"demo_los", http.StatusForbidden, http.StatusForbidden},
+		{"demo_loan_application", http.StatusForbidden, http.StatusForbidden},
 	}
 	for _, c := range cases {
 		s.send(c.user, "GET", "/api/v1/products", "").AssertStatus(c.read)

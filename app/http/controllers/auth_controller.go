@@ -1,16 +1,17 @@
 package controllers
 
 import (
+	"context"
 	"errors"
 	"strings"
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/facades"
 	"goravel/app/http/auth"
 	"goravel/app/http/responses"
 	"goravel/app/modules/identity/application"
 	"goravel/app/modules/identity/domain"
+	"goravel/app/platform/logging"
 )
 
 const (
@@ -42,17 +43,29 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 	}
 
 	principal, err := c.service.Authenticate(ctx.Context(), req.Username, req.Password)
-	if errors.Is(err, application.ErrInvalidCredentials) {
+	switch {
+	case errors.Is(err, application.ErrInvalidCredentials):
 		return responses.InvalidCredentials(ctx)
-	}
-	if err != nil {
-		facades.Log().Errorf("login: authenticate failed: %v", err)
+	case errors.Is(err, application.ErrBusy):
+		// Hashing capacity is exhausted. Overload is never reported as wrong credentials.
+		logging.Default().Warn(ctx.Context(), "login rejected: password hashing saturated", err)
+		return responses.ServiceBusy(ctx, "1")
+	case errors.Is(err, context.DeadlineExceeded):
+		// The request deadline passed (while waiting for a hashing slot or in the database);
+		// the driver has already answered the client with 408.
+		logging.Default().Warn(ctx.Context(), "login aborted: request deadline exceeded", err)
+		return responses.ServiceBusy(ctx, "1")
+	case errors.Is(err, context.Canceled):
+		logging.Default().Warn(ctx.Context(), "login aborted: request cancelled", err)
+		return responses.ServiceBusy(ctx, "1")
+	case err != nil:
+		logging.Default().Error(ctx.Context(), "login: authenticate failed", err)
 		return responses.Internal(ctx)
 	}
 
 	token, ttl, err := auth.Issue(ctx, principal.UserID)
 	if err != nil {
-		facades.Log().Errorf("login: issue token failed: %v", err)
+		logging.Default().Error(ctx.Context(), "login: issue token failed", err)
 		return responses.Internal(ctx)
 	}
 

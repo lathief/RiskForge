@@ -17,6 +17,7 @@ var (
 const (
 	DefaultPerPage = 20
 	MaxPerPage     = 100
+	MaxPage        = 10000
 )
 
 // ListFilter selects a page of products ordered by code.

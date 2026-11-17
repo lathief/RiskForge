@@ -8,3 +8,7 @@ tmp
 .idea
 .vscode
 RF-*.md
+# API docs (Swagger UI, OpenAPI, Postman) are a local/testing aid and are not shipped in the
+# release image; the app refuses DOCS_ENABLED=true outside local/testing anyway.
+public/swagger
+api

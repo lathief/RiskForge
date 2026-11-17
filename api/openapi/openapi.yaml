@@ -1,18 +1,34 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.4.0
+  version: 0.4.2
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
-    Contract for the endpoints implemented so far (RF-001 to RF-004).
+    Contract for the endpoints implemented so far (RF-001 to RF-004, plus M1 hardening).
 
     - All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.
     - Authorization is permission-based. Each operation lists the required permission
       in `x-required-permission`; the role-to-permission matrix lives in
       `app/modules/identity/domain/permission.go`.
-    - Every response carries an `X-Request-ID` header. Error bodies repeat it as `request_id`.
+    - Every response produced by the application carries an `X-Request-ID` header, and JSON
+      error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver
+      and may not carry it.
     - Semantic validation errors use HTTP 422 consistently.
+    - Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.
+    - Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,
+      `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.
+      They never affect authorization; `X-Request-User` is informational only.
+    - `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so
+      their body is plain text, not the JSON error envelope. A 408 means the client stopped
+      waiting; the handler may still finish server-side, but its database work uses the
+      request deadline and is cancelled.
+      Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.
+  license:
+    name: MIT
+    identifier: MIT
 servers:
+  - url: /
+    description: Same origin as the page (Swagger UI at /swagger)
   - url: http://127.0.0.1:3000
     description: Local Compose environment (rf-dev)
 
@@ -40,6 +56,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/HealthStatus" }
               example: { status: ok }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
 
   /health/ready:
     get:
@@ -56,6 +73,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/HealthStatus" }
               example: { status: ok }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
         "503":
           description: A dependency is unreachable. The cause is not disclosed.
           headers:
@@ -70,8 +88,10 @@ paths:
       tags: [Auth]
       summary: Exchange username and password for an access token
       description: |
-        Unknown user, wrong password, and disabled account all return the same 401 body.
-        The response is sent with `Cache-Control: no-store`.
+        Unknown user, wrong password, malformed username, and disabled account all return
+        the same 401 body. Password checks share a bounded pool (`HASH_MAX_CONCURRENT`);
+        when it is saturated the server answers 503 with `Retry-After` instead of queueing.
+        The 200 response is sent with `Cache-Control: no-store`.
       operationId: login
       security: []
       requestBody:
@@ -90,16 +110,22 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TokenResponse" }
-              example: { access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..., token_type: Bearer, expires_in: 3600 }
+              example: { access_token: "<access_token>", token_type: Bearer, expires_in: 3600 }
         "401":
           description: Credentials rejected.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
               example:
                 error: { code: INVALID_CREDENTIALS, message: username or password is incorrect }
                 request_id: b9873824497dd1335aa351f4fd5338d0
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
+        "503": { $ref: "#/components/responses/ServiceBusy" }
 
   /api/v1/auth/me:
     get:
@@ -110,6 +136,8 @@ paths:
       responses:
         "200":
           description: The authenticated caller.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Me" }
@@ -119,6 +147,8 @@ paths:
                 roles: [RISK_ANALYST]
                 permissions: [product:read, dictionary:read, dictionary:write, policy:read, policy:write, policy:simulate, policy:submit]
         "401": { $ref: "#/components/responses/Unauthenticated" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /api/v1/products:
     get:
@@ -129,7 +159,7 @@ paths:
       parameters:
         - name: page
           in: query
-          schema: { type: integer, minimum: 1, default: 1 }
+          schema: { type: integer, minimum: 1, maximum: 10000, default: 1 }
         - name: per_page
           in: query
           schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
@@ -138,7 +168,9 @@ paths:
           schema: { $ref: "#/components/schemas/ProductStatus" }
       responses:
         "200":
-          description: One page of products ordered by code. An out-of-range page returns an empty `data` array.
+          description: One page of products ordered by code. A page past the end returns an empty `data` array.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ProductList" }
@@ -154,7 +186,9 @@ paths:
                 meta: { page: 1, per_page: 20, total: 1 }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
     post:
       tags: [Products]
       summary: Create a product
@@ -170,6 +204,7 @@ paths:
         "201":
           description: Created.
           headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
             Location:
               schema: { type: string }
               example: /api/v1/products/KPR_DEMO
@@ -178,15 +213,20 @@ paths:
               schema: { $ref: "#/components/schemas/Product" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
         "409":
           description: The code is already used.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
               example:
                 error: { code: PRODUCT_CODE_CONFLICT, message: a product with this code already exists }
                 request_id: 4f1c2d3e4a5b6c7d8e9f0a1b2c3d4e5f
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /api/v1/products/{code}:
     parameters:
@@ -202,12 +242,16 @@ paths:
       responses:
         "200":
           description: The product.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Product" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/ProductNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
     patch:
       tags: [Products]
       summary: Update name, description, or status
@@ -226,13 +270,18 @@ paths:
       responses:
         "200":
           description: The updated product.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Product" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/ProductNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
 security:
   - bearerAuth: []
@@ -260,8 +309,16 @@ components:
       type: object
       required: [username, password]
       properties:
-        username: { type: string, minLength: 1, maxLength: 64 }
-        password: { type: string, minLength: 1, maxLength: 72, format: password }
+        username:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Stored usernames match `^[A-Za-z0-9._-]{3,64}$`; anything else is rejected as invalid credentials.
+        password:
+          type: string
+          minLength: 1
+          format: password
+          description: At most 72 bytes when UTF-8 encoded (the bcrypt input limit). Longer values are a 422.
 
     TokenResponse:
       type: object
@@ -269,7 +326,7 @@ components:
       properties:
         access_token: { type: string }
         token_type: { type: string, const: Bearer }
-        expires_in: { type: integer, description: Lifetime in seconds. }
+        expires_in: { type: integer, minimum: 60, maximum: 86400, description: "Lifetime in seconds (JWT_TTL: 1 to 1440 minutes)." }
 
     Me:
       type: object
@@ -292,10 +349,19 @@ components:
     ProductStatus:
       type: string
       enum: [ACTIVE, INACTIVE]
+      example: ACTIVE
 
     Product:
       type: object
       required: [id, code, name, description, status, created_at, updated_at]
+      example:
+        id: 7d3f0c2e-4b1a-4a8e-9f3d-2c1b0a9e8d7f
+        code: KTA_DEMO
+        name: Kredit Tanpa Agunan (Demo)
+        description: Synthetic unsecured personal loan product for the RiskForge demo.
+        status: ACTIVE
+        created_at: "2026-11-17T08:00:00Z"
+        updated_at: "2026-11-17T08:00:00Z"
       properties:
         id: { type: string, format: uuid }
         code: { $ref: "#/components/schemas/ProductCode" }
@@ -311,8 +377,15 @@ components:
       required: [code, name]
       properties:
         code: { $ref: "#/components/schemas/ProductCode" }
-        name: { type: string, minLength: 1, maxLength: 100, description: Leading and trailing whitespace is trimmed. }
-        description: { type: string, maxLength: 500 }
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Leading and trailing whitespace is trimmed. Control characters are rejected.
+        description:
+          type: string
+          maxLength: 500
+          description: Tab and line breaks are allowed; other control characters (including NUL) are rejected.
         status: { $ref: "#/components/schemas/ProductStatus", default: ACTIVE }
 
     ProductUpdate:
@@ -337,7 +410,7 @@ components:
       type: object
       required: [page, per_page, total]
       properties:
-        page: { type: integer, minimum: 1 }
+        page: { type: integer, minimum: 1, maximum: 10000 }
         per_page: { type: integer, minimum: 1, maximum: 100 }
         total: { type: integer, minimum: 0 }
 
@@ -356,8 +429,10 @@ components:
                 - INVALID_CREDENTIALS
                 - FORBIDDEN
                 - INPUT_VALIDATION_ERROR
+                - ROUTE_NOT_FOUND
                 - PRODUCT_NOT_FOUND
                 - PRODUCT_CODE_CONFLICT
+                - SERVICE_BUSY
                 - INTERNAL_ERROR
             message: { type: string }
             details:
@@ -369,12 +444,14 @@ components:
                   field: { type: string }
                   issue:
                     type: string
-                    description: Stable issue code, e.g. required, too_long, invalid_format, invalid_value, must_be_string, not_allowed, no_changes.
+                    description: Stable issue code, e.g. required, too_long, invalid_format, invalid_value, invalid_characters, must_be_string, not_allowed, no_changes.
         request_id: { type: string }
 
   responses:
     Unauthenticated:
       description: Missing, malformed, tampered, or expired token, or the user is disabled.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
       content:
         application/json:
           schema: { $ref: "#/components/schemas/ErrorResponse" }
@@ -383,6 +460,8 @@ components:
             request_id: ab37401e16e0bcc7ddf3f61598024191
     Forbidden:
       description: The caller lacks the required permission.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
       content:
         application/json:
           schema: { $ref: "#/components/schemas/ErrorResponse" }
@@ -391,6 +470,8 @@ components:
             request_id: 0f9e8d7c6b5a49382716051f2e3d4c5b
     ValidationError:
       description: The request is well-formed HTTP but semantically invalid.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
       content:
         application/json:
           schema: { $ref: "#/components/schemas/ErrorResponse" }
@@ -404,9 +485,46 @@ components:
             request_id: 1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d
     ProductNotFound:
       description: No product has this code.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
       content:
         application/json:
           schema: { $ref: "#/components/schemas/ErrorResponse" }
           example:
             error: { code: PRODUCT_NOT_FOUND, message: product not found }
             request_id: 9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a49
+    InternalError:
+      description: Unexpected failure. The cause is logged server-side and never returned.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error: { code: INTERNAL_ERROR, message: an unexpected error occurred }
+            request_id: 5e4d3c2b1a0f9e8d7c6b5a493827160f
+    ServiceBusy:
+      description: Password hashing capacity is saturated. Retry after the given number of seconds.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+        Retry-After:
+          schema: { type: integer }
+          example: 1
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error: { code: SERVICE_BUSY, message: "the service is busy, retry shortly" }
+            request_id: 6f5e4d3c2b1a0f9e8d7c6b5a49382716
+    RequestTimeout:
+      description: The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.
+      content:
+        text/plain:
+          schema: { type: string }
+          example: Request Timeout
+    PayloadTooLarge:
+      description: The request body exceeds 64 KiB. Produced by the HTTP driver; plain-text body.
+      content:
+        text/plain:
+          schema: { type: string }
+          example: Request Entity Too Large

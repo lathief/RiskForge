@@ -14,6 +14,8 @@ const (
 	CodeForbidden           = "FORBIDDEN"
 	CodeInputValidation     = "INPUT_VALIDATION_ERROR"
 	CodeInternal            = "INTERNAL_ERROR"
+	CodeRouteNotFound       = "ROUTE_NOT_FOUND"
+	CodeServiceBusy         = "SERVICE_BUSY"
 	genericInternalMessage  = "an unexpected error occurred"
 	genericForbiddenMessage = "you do not have permission to perform this action"
 )
@@ -66,6 +68,12 @@ func Conflict(ctx http.Context, code, message string) http.AbortableResponse {
 
 func ValidationError(ctx http.Context, message string, details ...Detail) http.AbortableResponse {
 	return Error(ctx, http.StatusUnprocessableEntity, CodeInputValidation, message, details...)
+}
+
+// ServiceBusy tells the client to retry shortly. Used when a bounded resource is saturated.
+func ServiceBusy(ctx http.Context, retryAfterSeconds string) http.AbortableResponse {
+	ctx.Response().Header("Retry-After", retryAfterSeconds)
+	return Error(ctx, http.StatusServiceUnavailable, CodeServiceBusy, "the service is busy, retry shortly")
 }
 
 // Internal hides the cause from the client; callers must log it separately.

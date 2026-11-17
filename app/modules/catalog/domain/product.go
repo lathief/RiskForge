@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -152,11 +153,22 @@ func validateName(verr *ValidationError, name string) {
 		verr.add("name", "required")
 	case n > MaxNameLength:
 		verr.add("name", "too_long")
+	case !utf8.ValidString(name) || strings.IndexFunc(name, unicode.IsControl) >= 0:
+		verr.add("name", "invalid_characters")
 	}
 }
 
+// Descriptions may span lines, so tab and newlines are allowed; other control characters,
+// including NUL (which PostgreSQL text cannot store), are rejected.
 func validateDescription(verr *ValidationError, description string) {
-	if utf8.RuneCountInString(description) > MaxDescriptionLength {
+	switch {
+	case utf8.RuneCountInString(description) > MaxDescriptionLength:
 		verr.add("description", "too_long")
+	case !utf8.ValidString(description) || strings.IndexFunc(description, isDisallowedInText) >= 0:
+		verr.add("description", "invalid_characters")
 	}
+}
+
+func isDisallowedInText(r rune) bool {
+	return unicode.IsControl(r) && r != '\n' && r != '\r' && r != '\t'
 }

@@ -26,6 +26,15 @@ func init() {
 			"rounds": config.Env("HASH_BCRYPT_ROUNDS", 12),
 		},
 
+		// RiskForge: bounds on concurrent password hashing (login). Each bcrypt check is
+		// CPU-bound, so without a cap a burst of logins can starve every other request.
+		// max_concurrent: 0 means the number of CPUs.
+		// queue_timeout_ms: how long a login waits for a slot before answering 503.
+		"limits": map[string]any{
+			"max_concurrent":   config.Env("HASH_MAX_CONCURRENT", 0),
+			"queue_timeout_ms": config.Env("HASH_QUEUE_TIMEOUT_MS", 1000),
+		},
+
 		// Argon2id Hashing Options
 		// memory: A memory cost, which defines the memory usage, given in kibibytes.
 		// time: A time cost, which defines the amount of computation

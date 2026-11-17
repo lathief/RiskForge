@@ -1,9 +1,10 @@
 package config
 
 import (
+	"goravel/app/facades"
+
 	fiberfacades "github.com/goravel/fiber/facades"
 	"github.com/goravel/framework/contracts/route"
-	"goravel/app/facades"
 )
 
 func init() {
@@ -17,8 +18,9 @@ func init() {
 				// WARNING: This option is dangerous. Only change it if you fully understand the potential consequences.
 				"immutable": true,
 				// prefork mode, see https://docs.gofiber.io/api/fiber/#config
-				"prefork":      false,
-				"body_limit":   4096,
+				"prefork": false,
+				// Unit is KiB (the Fiber driver shifts it left by 10). All RiskForge payloads are small JSON.
+				"body_limit":   64,
 				"header_limit": 4096,
 				"route": func() (route.Route, error) {
 					return fiberfacades.Route("fiber"), nil
