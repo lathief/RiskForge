@@ -13,6 +13,7 @@ import (
 func Boot() contractsfoundation.Application {
 	return foundation.Setup().
 		WithMigrations(Migrations).
+		WithSeeders(Seeders).
 		WithMiddleware(func(handler contractsconfiguration.Middleware) {
 			handler.Prepend(middleware.NewRequestID())
 		}).

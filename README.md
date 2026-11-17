@@ -21,8 +21,9 @@ Perintah migration dan test ada di [AGENT_RUNBOOK.md](AGENT_RUNBOOK.md).
 | Tiket | Status |
 |---|---|
 | RF-001 Bootstrap Goravel + Fiber + Compose | Selesai (merged ke `main`, PR #1) |
-| RF-002 PostgreSQL foundation | Selesai di branch `feature/RF-002-goravel-postgres-foundation` |
-| RF-003 dan seterusnya | Belum dimulai |
+| RF-002 PostgreSQL foundation | Selesai (merged ke `main`, PR #2) |
+| RF-003 Identity + RBAC | Selesai di branch `feature/RF-003-identity-rbac` |
+| RF-004 dan seterusnya | Belum dimulai |
 
 ### Bukti verifikasi RF-001
 
@@ -41,3 +42,12 @@ Dijalankan di container, project Compose `rf-test-rf002` dengan PostgreSQL 18 ny
 - `./artisan migrate`, `migrate:rollback`, lalu `migrate` lagi berhasil. Pemanggilan `migrate` berulang menghasilkan "Nothing to migrate".
 - Tujuh schema logis (`identity`, `catalog`, `dictionary`, `policy`, `approval`, `decision`, `audit`) terbentuk. Tabel milik tiap schema dibuat di milestone masing-masing.
 - Tidak ada port database yang dipublikasikan ke host.
+
+### Bukti verifikasi RF-003
+
+Dijalankan di container, project Compose `rf-test-rf003` dengan PostgreSQL 18 nyata (project sudah dihapus):
+
+- `go vet ./...` dan `go test -race -count=1 ./...` (dengan `HASH_BCRYPT_ROUNDS=4`) lulus tiga kali berturut-turut tanpa data race.
+- Test HTTP lewat driver Fiber memeriksa setiap kombinasi 6 user demo x 15 permission (200 atau 403), akses anonim (401), token rusak, tanpa tanda tangan (`alg=none`), dan kedaluwarsa (401), serta respons login gagal yang identik.
+- Menonaktifkan user atau mencabut role berlaku seketika untuk token yang sudah diterbitkan.
+- Smoke test dengan server sungguhan: `db:seed`, login, dan `/api/v1/auth/me` berhasil. Password demo tidak muncul di log.

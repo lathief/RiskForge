@@ -6,13 +6,13 @@ import (
 	"regexp"
 
 	"github.com/goravel/framework/contracts/http"
+
+	"goravel/app/http/ctxkeys"
 )
 
 const (
 	// RequestIDHeader is the header used to receive and return the correlation ID.
 	RequestIDHeader = "X-Request-ID"
-	// RequestIDKey is the context key under which the request ID is stored.
-	RequestIDKey = "request_id"
 )
 
 // A client-supplied ID is accepted only if it is short and made of safe characters,
@@ -35,7 +35,7 @@ func (r *RequestID) Handle(ctx http.Context) {
 		id = newRequestID()
 	}
 
-	ctx.WithValue(RequestIDKey, id)
+	ctx.WithValue(ctxkeys.RequestID, id)
 	ctx.Response().Header(RequestIDHeader, id)
 	ctx.Request().Next()
 }

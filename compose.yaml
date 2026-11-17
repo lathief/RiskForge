@@ -14,6 +14,8 @@ services:
       APP_HOST: "0.0.0.0"
       APP_PORT: "3000"
       APP_KEY: ${APP_KEY:?Run ./scripts/init-agent-env.sh first}
+      JWT_SECRET: ${JWT_SECRET:?Run ./scripts/init-agent-env.sh first}
+      DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-}
       DB_CONNECTION: postgres
       DB_HOST: db
       DB_PORT: "5432"
