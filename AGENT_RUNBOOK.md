@@ -12,7 +12,7 @@ Semua perintah Go, migration, dan test dijalankan **di container**, bukan di hos
 ## Setup awal (sekali)
 
 ```sh
-./scripts/init-agent-env.sh        # membuat .env.agent (git-ignored) dengan APP_KEY dan DB_PASSWORD acak
+./scripts/init-agent-env.sh        # membuat/melengkapi .env.agent (git-ignored); nilai yang ada tidak ditimpa
 docker compose -p rf-dev --env-file .env.agent config --quiet
 ```
 
@@ -35,9 +35,11 @@ P=rf-test-rf001
 docker compose -p $P --env-file .env.agent up -d db
 docker compose -p $P --env-file .env.agent run --rm --no-deps api ./artisan migrate
 docker compose -p $P --env-file .env.agent run --rm --no-deps api go vet ./...
-docker compose -p $P --env-file .env.agent run --rm --no-deps api go test -race -count=1 ./...
+docker compose -p $P --env-file .env.agent run --rm --no-deps -e HASH_BCRYPT_ROUNDS=4 api go test -race -count=1 ./...
 docker compose -p $P --env-file .env.agent down -v --remove-orphans   # hanya project ini
 ```
+
+`HASH_BCRYPT_ROUNDS=4` wajib untuk test. Dengan cost produksi (12), login di bawah race detector melewati timeout request 3 detik dan test gagal dengan 408. Test `TestPasswordsAreStoredHashed` gagal dengan pesan yang jelas jika flag ini terlupa. Jika database test sudah berisi hash cost 12 dari run sebelumnya, hapus project test dengan `down -v` terlebih dahulu.
 
 ## Database dan migrations
 
@@ -63,6 +65,27 @@ Migration baru harus didaftarkan di `bootstrap/migrations.go`. `Down()` tidak bo
 - `WithinTransaction(ctx, fn)` melakukan commit jika `fn` mengembalikan `nil`, dan rollback jika `fn` mengembalikan error atau panic. Panic diubah Goravel menjadi error. Pemanggilan bersarang dengan `ctx` yang sama bergabung ke transaksi luar (tanpa savepoint).
 - SQL mentah (`Insert`, `Select`, `Statement`) memakai placeholder PostgreSQL `$1, $2, ...`, bukan `?`.
 - Contoh pola dan test atomicity ada di `tests/feature/database_test.go`.
+
+## Identity, login, dan RBAC
+
+User demo sintetis (`demo_admin`, `demo_analyst`, `demo_approver_1`, `demo_approver_2`, `demo_auditor`, `demo_los`) memakai satu password bersama dari `DEMO_USER_PASSWORD` di `.env.agent`. Seeder hanya jalan jika `APP_ENV` bernilai `local` atau `testing`, dan tidak menimpa user yang sudah ada.
+
+```sh
+docker compose -p rf-dev --env-file .env.agent exec -T api ./artisan db:seed --seeder DemoUsersSeeder
+
+PW=$(sed -n 's/^DEMO_USER_PASSWORD=//p' .env.agent)
+curl -s -X POST http://127.0.0.1:3000/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d "{\"username\":\"demo_analyst\",\"password\":\"$PW\"}"
+curl -s http://127.0.0.1:3000/api/v1/auth/me -H "Authorization: Bearer <access_token>"
+```
+
+Aturan untuk endpoint baru (keputusan lengkap di `docs/adr/0002-authentication-and-rbac.md`):
+
+- Lindungi route dengan `middleware.NewAuthenticate(...)` lalu `middleware.NewRequirePermission(domain.Perm...)`. Cek permission, jangan nama role.
+- Tambahkan permission baru di `app/modules/identity/domain/permission.go`, dan pastikan `TestSeparationOfDuties` masih mencerminkan larangan di `SYSTEM_DESIGN.md` bagian 4.
+- Teruskan `ctx.Context()` ke use case, **bukan** `http.Context`. Driver Fiber mengembalikan `http.Context` ke pool setelah handler selesai, sehingga meneruskannya ke query database menyebabkan data race.
+- Error dikembalikan dengan helper di `app/http/responses` agar format dan `request_id` konsisten.
 
 ## Git workflow
 
