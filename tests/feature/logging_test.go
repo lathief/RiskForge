@@ -116,7 +116,7 @@ func (s *LoggingTestSuite) oneActivity(id string) map[string]any {
 func (s *LoggingTestSuite) TestLoginActivityRedactsCredentialsBothWays() {
 	id := newRequestID("log-login")
 	s.req(id).
-		withHeader("X-App", "los-simulator").
+		withHeader("X-App", "loan-application-simulator").
 		withHeader("X-Path-Gateway", "/gw/login").
 		withHeader("X-Request-From", "gateway").
 		withHeader("X-Request-User", "claimed-user").
@@ -130,7 +130,7 @@ func (s *LoggingTestSuite) TestLoginActivityRedactsCredentialsBothWays() {
 	s.Equal("POST", e["method"])
 	s.Equal("/api/v1/auth/login", e["path"])
 	s.EqualValues(200, e["httpCode"])
-	s.Equal("los-simulator", e["clientapp"])
+	s.Equal("loan-application-simulator", e["clientapp"])
 	s.Equal("/gw/login", e["path_alias"])
 	s.Equal("gateway", e["requestFrom"])
 	s.Equal("claimed-user", e["requestUser"])

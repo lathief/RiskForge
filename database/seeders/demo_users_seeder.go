@@ -25,7 +25,7 @@ var DemoUsers = []DemoUser{
 	{"demo_approver_1", []domain.Role{domain.RoleRiskApprover}},
 	{"demo_approver_2", []domain.Role{domain.RoleRiskApprover}},
 	{"demo_auditor", []domain.Role{domain.RoleAuditor}},
-	{"demo_los", []domain.Role{domain.RoleAPIConsumer}},
+	{"demo_loan_application", []domain.Role{domain.RoleAPIConsumer}},
 }
 
 // DemoUsersSeeder creates the demo accounts. It refuses to run outside local/testing and

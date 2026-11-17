@@ -248,11 +248,11 @@ func (s *IdentityTestSuite) TestExpiredTokenIsRejected() {
 }
 
 func (s *IdentityTestSuite) TestDisabledUserLosesAccessImmediately() {
-	token := s.tokens["demo_los"]
+	token := s.tokens["demo_loan_application"]
 	s.get("/api/v1/auth/me", token).AssertOk()
 
-	s.setActive("demo_los", false)
-	defer s.setActive("demo_los", true)
+	s.setActive("demo_loan_application", false)
+	defer s.setActive("demo_loan_application", true)
 	s.get("/api/v1/auth/me", token).AssertUnauthorized()
 }
 
@@ -321,6 +321,6 @@ func (s *IdentityTestSuite) TestSeparationOfDutiesOverHTTP() {
 	s.get(rbacPath(domain.PermPolicyWrite), s.tokens["demo_approver_1"]).AssertForbidden()
 	s.get(rbacPath(domain.PermPolicyWrite), s.tokens["demo_auditor"]).AssertForbidden()
 	// API consumers cannot touch governance endpoints.
-	s.get(rbacPath(domain.PermPolicyRead), s.tokens["demo_los"]).AssertForbidden()
-	s.get(rbacPath(domain.PermDecisionEval), s.tokens["demo_los"]).AssertOk()
+	s.get(rbacPath(domain.PermPolicyRead), s.tokens["demo_loan_application"]).AssertForbidden()
+	s.get(rbacPath(domain.PermDecisionEval), s.tokens["demo_loan_application"]).AssertOk()
 }

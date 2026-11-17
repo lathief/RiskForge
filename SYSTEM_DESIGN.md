@@ -48,7 +48,7 @@ Dokumen ini adalah **single source of truth untuk scope, desain, dan perilaku Ri
 
 ## 1. Executive Summary
 
-**RiskForge** adalah platform backend **berbasis Goravel (Go) dengan Fiber HTTP driver** untuk membuat, mengelola, menguji, menyetujui, dan mengeksekusi kebijakan keputusan kredit secara dinamis. Aplikasi eksternal seperti Loan Origination System (LOS) mengirim data pengajuan; RiskForge mengevaluasi **Risk Acceptance Criteria (RAC)**, menghitung **Scorecard**, memetakan skor dengan **Decision Matrix**, lalu mengembalikan keputusan dan jejak audit.
+**RiskForge** adalah platform backend **berbasis Goravel (Go) dengan Fiber HTTP driver** untuk membuat, mengelola, menguji, menyetujui, dan mengeksekusi kebijakan keputusan kredit secara dinamis. Aplikasi eksternal seperti Loan Application mengirim data pengajuan; RiskForge mengevaluasi **Risk Acceptance Criteria (RAC)**, menghitung **Scorecard**, memetakan skor dengan **Decision Matrix**, lalu mengembalikan keputusan dan jejak audit.
 
 Perubahan aturan dilakukan melalui **policy draft → simulation → parameterized multi-level approval → publish**. Tim risk dapat memperbarui policy tanpa mengubah source code aplikasi, sementara keputusan historis tetap dapat ditelusuri ke versi kebijakan yang digunakan.
 
@@ -65,7 +65,7 @@ Menunjukkan kemampuan seorang Backend Engineer melalui:
 
 ### Sukses MVP
 
-Seorang **Risk Analyst** dapat membuat policy untuk produk kredit sintetis, menguji contoh pengajuan, mengirimnya ke approval, dan menerbitkan policy setelah semua approver setuju. **LOS simulator** dapat memanggil API keputusan dan memperoleh respons `APPROVE`, `REFER`, atau `REJECT` yang dapat ditelusuri ke policy version dan decision trace.
+Seorang **Risk Analyst** dapat membuat policy untuk produk kredit sintetis, menguji contoh pengajuan, mengirimnya ke approval, dan menerbitkan policy setelah semua approver setuju. **Loan Application Simulator** dapat memanggil API keputusan dan memperoleh respons `APPROVE`, `REFER`, atau `REJECT` yang dapat ditelusuri ke policy version dan decision trace.
 
 ---
 
@@ -103,7 +103,7 @@ Seorang **Risk Analyst** dapat membuat policy untuk produk kredit sintetis, meng
 - ML scoring, real credit bureau/SLIK/Dukcapil integration, KYC/AML.
 - Multi-tenant SaaS, multi-region deployment, microservices.
 - Advanced champion-challenger, production batch backtesting, real-time streaming.
-- Online loan application/LOS lengkap, loan servicing, collection, atau core banking.
+- Sistem Loan Application lengkap (online origination), loan servicing, collection, atau core banking.
 - Perhitungan pricing/limit kompleks; boleh menambahkan **output konfigurasi statis** di matrix sebagai demonstrasi, bukan engine pricing penuh.
 
 **Prinsip scope:** implementasikan satu produk demonstrasi `KTA_DEMO` dahulu. Desainnya mendukung penambahan produk lain melalui konfigurasi, tanpa harus langsung membuat KPR, leasing, atau semua jenis kredit.
@@ -175,7 +175,7 @@ Seorang **Risk Analyst** dapat membuat policy untuk produk kredit sintetis, meng
 5. Analyst mengirim draft untuk persetujuan berjenjang.
 6. Approver melihat perubahan policy dibandingkan versi aktif dan memutuskan approve/reject.
 7. Approval terakhir memicu publikasi atomik versi baru.
-8. LOS mengirim pengajuan dengan `Idempotency-Key` dan mendapatkan hasil keputusan.
+8. Loan Application mengirim pengajuan dengan `Idempotency-Key` dan mendapatkan hasil keputusan.
 9. Auditor mencari hasil evaluasi beserta input sintetis, applied policy version, dan rule trace.
 
 ---
@@ -184,7 +184,7 @@ Seorang **Risk Analyst** dapat membuat policy untuk produk kredit sintetis, meng
 
 ```mermaid
 flowchart TB
-  LOS[LOS Simulator / API Consumer]
+  LoanApp[Loan Application Simulator / API Consumer]
   ADMIN[Risk Analyst / Approver / Admin]
   API[Goravel Router / Fiber HTTP Driver / Auth Middleware]
   subgraph APP[RiskForge - Single Goravel Modular Monolith]
@@ -207,7 +207,7 @@ flowchart TB
     SHARED[Goravel Bootstrap / Providers / DB / Observability]
   end
   DB[(PostgreSQL 18 via Goravel Postgres Driver)]
-  LOS --> API
+  LoanApp --> API
   ADMIN --> API
   API --> CONTROL
   API --> ORCH
@@ -621,7 +621,7 @@ Untuk demo, gunakan **data sintetis**. Jika suatu hari digunakan untuk data prib
 
 ## 8. Data Dictionary & Feature Builder
 
-**Input dictionary** adalah kontrak antara LOS dan engine. Definisi input di-version bersama policy atau direferensikan secara immutable agar keputusan dapat direplay.
+**Input dictionary** adalah kontrak antara Loan Application dan engine. Definisi input di-version bersama policy atau direferensikan secara immutable agar keputusan dapat direplay.
 
 | Variable | Type | Required | Example | Definition |
 |---|---|---|---|---|
@@ -885,13 +885,13 @@ Untuk setiap operasi, wajib memperbarui **OpenAPI 3.1 → Swagger UI → Postman
 ```http
 POST /api/v1/decisions/evaluate
 Authorization: Bearer <API_CONSUMER_TOKEN>
-Idempotency-Key: los-demo-application-001-v1
+Idempotency-Key: loan-application-demo-001-v1
 Content-Type: application/json
 ```
 
 ```json
 {
-  "application_id": "LOS-DEMO-0001",
+  "application_id": "LOAN-APP-DEMO-0001",
   "product_code": "KTA_DEMO",
   "applicant": {
     "age_years": 29,
@@ -911,7 +911,7 @@ Content-Type: application/json
 ```json
 {
   "decision_id": "dec_demo_0001",
-  "application_id": "LOS-DEMO-0001",
+  "application_id": "LOAN-APP-DEMO-0001",
   "product_code": "KTA_DEMO",
   "policy_version": "1.0",
   "status": "COMPLETED",
@@ -997,22 +997,22 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-  participant LOS
+  participant LoanApp as Loan Application
   participant API
   participant DB as PostgreSQL
   participant Engine as Pure Decision Engine
-  LOS->>API: Evaluate + Idempotency-Key
+  LoanApp->>API: Evaluate + Idempotency-Key
   API->>DB: Find prior request by client/key
   alt Existing key and same payload
     DB-->>API: Stored response
-    API-->>LOS: Same decision response
+    API-->>LoanApp: Same decision response
   else New request
     API->>DB: Resolve active policy version
     API->>Engine: Compiled policy + validated facts
     Engine-->>API: Evaluation + trace
     API->>DB: Commit request + run + result + audit
     DB-->>API: Committed
-    API-->>LOS: Decision response
+    API-->>LoanApp: Decision response
   end
 ```
 

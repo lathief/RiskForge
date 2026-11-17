@@ -16,7 +16,7 @@ RF-003 membutuhkan login user demo, guard Goravel, permission matrix, dan test o
 4. **Fail closed:** `RequirePermission` tanpa `Authenticate` di depannya mengembalikan 401.
 5. **Login tidak membocorkan informasi:** user tidak dikenal, password salah, dan akun nonaktif menghasilkan respons 401 yang identik. User tidak dikenal tetap menjalankan satu perbandingan bcrypt agar waktu respons serupa.
 6. **Password:** bcrypt lewat `facades.Hash()`, cost minimal 10 (divalidasi saat startup), maksimal 72 byte.
-7. **API consumer** untuk MVP adalah user dengan role `API_CONSUMER` (`demo_los`). Tabel `api_clients` dan token API terpisah ditunda sampai RF-014/RF-015 membutuhkannya untuk idempotency per client.
+7. **API consumer** untuk MVP adalah user dengan role `API_CONSUMER` (`demo_loan_application`). Tabel `api_clients` dan token API terpisah ditunda sampai RF-014/RF-015 membutuhkannya untuk idempotency per client.
 
 ## Alternatif yang ditolak
 
