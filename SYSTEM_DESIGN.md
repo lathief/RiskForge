@@ -288,7 +288,7 @@ riskforge/
 ├── api/
 │   ├── openapi/
 │   │   └── openapi.yaml           # Existing: OpenAPI 3.1 single source of truth
-│   └── postman/                   # Target DX-001, bukan fitur yang sudah ada
+│   └── postman/                   # DX-001 (implemented): generated, do not edit by hand
 │       ├── RiskForge.postman_collection.json    # Generated from OpenAPI; commit
 │       └── RiskForge.local.postman_environment.json # Template non-secret; optional
 ├── tests/                          # framework/integration/E2E tests
@@ -299,7 +299,9 @@ riskforge/
 ├── compose.yaml                    # Dev & agent runtime: api + db, per-project isolation
 ├── scripts/
 │   ├── init-agent-env.sh           # Generate untracked local secrets
-│   └── generate-postman.sh         # Target DX-001: deterministic one-shot generator
+│   ├── generate-postman.sh         # DX-001: deterministic one-shot generator (--check)
+│   ├── postman/normalize.js        # DX-001: normalization step used by the generator
+│   └── update-swagger-ui.sh        # DX-001: vendors pinned swagger-ui-dist into public/swagger
 ├── .env.agent.example              # Template non-secret; .env.agent generated/ignored
 ├── AGENT_RUNBOOK.md                # Commands for dev/test agent sessions
 ├── deployments/local/             # Future deployment artefacts (optional)
@@ -463,6 +465,8 @@ docker compose -p rf-test-rf012 --env-file .env.agent down -v --remove-orphans
 
 
 ### 5.6 Swagger UI, OpenAPI, dan Postman Collection
+
+> **Status implementasi DX-001 (17 November 2026, branch `fix/M1-hardening`):** selesai. `GET /swagger`, `GET /swagger/assets/{file}`, `GET /openapi.yaml` aktif bila `DOCS_ENABLED=true` (startup menolak nilai ini di luar `local`/`testing`); Swagger UI `swagger-ui-dist` **5.35.0** di-vendor ke `public/swagger/vendor`; generator `scripts/generate-postman.sh` memakai `openapi-to-postmanv2` **6.3.3** + `js-yaml` 4.1.0 dan menghasilkan koleksi v2.1 dengan **8 request** yang byte-identik antar-run (`--check`); parity `(METHOD, path)` antara route terdaftar, spec, dan koleksi diuji di `tests/feature/api_contract_test.go`. Keputusan dan batas: `docs/adr/0005-swagger-ui-and-generated-postman.md`. Penyimpangan kecil dari rencana di bawah: `/swagger` dilayani langsung (tanpa redirect ke `/swagger/`, karena router Fiber non-strict menganggap keduanya sama), dan aset berada di `/swagger/assets/{file}` dengan whitelist tiga file.
 
 **Keputusan wajib mulai setelah Milestone 1:** dokumentasi HTTP API harus selalu sinkron dengan implementasi. **Single source of truth** ialah OpenAPI **3.1** pada `api/openapi/openapi.yaml` (file **sudah tersedia** di branch `main` sejak RF-004). Swagger UI membaca file tersebut; Postman Collection **dihasilkan dari file yang sama**, bukan ditulis ulang secara manual. Perubahan ini merupakan *developer experience requirement*, tidak mengubah jumlah layanan aktif: **tetap `api` + `db`**.
 
@@ -1151,7 +1155,7 @@ Review independen atas RF-001..RF-004 tidak menemukan cacat severity high pada a
 
 ### M2 — Policy Configuration
 
-- [ ] **DX-001 Swagger UI + generated Postman Collection (cross-cutting prerequisite).** Gunakan `api/openapi/openapi.yaml` yang **sudah ada**; sajikan `/swagger` dan `/openapi.yaml` di Goravel/Fiber dengan docs hanya pada local/test; buat `scripts/generate-postman.sh`, baseline collection v2.1 untuk tepat 8 operations M1, template environment tanpa secret, verifikasi parity/determinism, dan dokumentasi di `AGENT_RUNBOOK.md`. Tidak membuat container/service ketiga; tidak mengubah schema database.
+- [x] **DX-001 Swagger UI + generated Postman Collection (cross-cutting prerequisite).** Gunakan `api/openapi/openapi.yaml` yang **sudah ada**; sajikan `/swagger` dan `/openapi.yaml` di Goravel/Fiber dengan docs hanya pada local/test; buat `scripts/generate-postman.sh`, baseline collection v2.1 untuk tepat 8 operations M1, template environment tanpa secret, verifikasi parity/determinism, dan dokumentasi di `AGENT_RUNBOOK.md`. Tidak membuat container/service ketiga; tidak mengubah schema database.
 - [ ] **RF-005 Data dictionary.** Typed variables, required/null handling, unit, range; schema version.
 - [ ] **RF-006 Policy package/version model.** Create draft, clone, immutable snapshot on submit; cannot edit frozen versions.
 - [ ] **RF-007 RAC management & validation.** Expressions, deterministic order, action, reason code, type/syntax check.
@@ -1434,4 +1438,4 @@ Setiap ADR mencatat **context, decision, alternatives, consequences, date**.
 - [ ] Agent dapat menjalankan stack dari Compose `api + db`, menguji dengan `rf-test-*` terisolasi, dan membersihkan test project tanpa menghapus volume development.
 - [ ] Tidak ada data pribadi sesungguhnya, keys, atau credentials di repo.
 
-**Status kini: M1/RF-001..RF-004 selesai di `main`. Langkah berikutnya: `DX-001 Swagger UI + generated Postman Collection`, lalu `RF-005 Data Dictionary`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.
+**Status kini: M1/RF-001..RF-004 selesai di `main`. M1 hardening (17.1), LOG-001 structured logs (15.4), dan DX-001 Swagger UI + generated Postman Collection (5.6) selesai di branch `fix/M1-hardening`, menunggu review dan merge ke `main`. Langkah berikutnya: `RF-005 Data Dictionary`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.

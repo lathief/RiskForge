@@ -126,6 +126,30 @@ Aturan untuk kode baru:
 - Query lewat query builder (`Querier(ctx).Table(...)`) belum tercatat di `query.log`; gunakan SQL mentah berparameter seperti repository yang ada.
 - Container dev menjalankan binary hasil `go build` (bukan `go run`), supaya SIGTERM dari `docker compose stop` sampai ke aplikasi dan `lifetime.log` mencatat `stopped`.
 
+## Swagger UI, OpenAPI, dan Postman (DX-001)
+
+Container dev (`rf-dev`) menjalankan dokumentasi interaktif di `http://127.0.0.1:3000/swagger`; kontrak mentah di `/openapi.yaml`. Aktif hanya jika `DOCS_ENABLED=true` dan `APP_ENV` `local`/`testing` (default Compose). Detail: `SYSTEM_DESIGN.md` 5.6 dan `docs/adr/0005-swagger-ui-and-generated-postman.md`.
+
+Workflow wajib setiap tiket yang menambah, mengubah, atau menghapus endpoint:
+
+```sh
+# 1. Perbarui api/openapi/openapi.yaml (operationId unik, security, x-required-permission, contoh).
+#    Setiap schema yang dipakai respons perlu `example`, supaya hasil generate deterministik.
+# 2. Lint:
+docker run --rm -v "$PWD/api/openapi:/spec:ro" redocly/cli:2.79.0 lint /spec/openapi.yaml
+# 3. Regenerasi koleksi Postman, lalu commit api/postman/*.json:
+./scripts/generate-postman.sh
+# 4. Pastikan tidak ada drift (dipakai juga oleh CI RF-025):
+./scripts/generate-postman.sh --check
+# 5. Jalankan test; ContractParityTestSuite membandingkan route, spec, dan koleksi:
+docker compose -p rf-test-<tiket> --env-file .env.agent run --rm --no-deps -e HASH_BCRYPT_ROUNDS=4 api go test ./tests/feature -run ContractParity
+```
+
+- Naikkan `expectedOperationCount` di `tests/feature/api_contract_test.go` saat menambah endpoint.
+- Jangan edit `api/postman/RiskForge.postman_collection.json` manual; selalu lewat generator.
+- Import ke Postman: koleksi + `api/postman/RiskForge.local.postman_environment.json`, login lewat request "Exchange username and password...", lalu salin `access_token` ke variabel `accessToken`.
+- Memperbarui Swagger UI: `SWAGGER_UI_VERSION=<5.x> ./scripts/update-swagger-ui.sh`, tinjau diff, perbarui ADR 0005.
+
 ## Git workflow
 
 Satu tiket backlog = satu branch, dengan format `feature/RF-xxx-deskripsi-singkat`, dibuat dari `main`.

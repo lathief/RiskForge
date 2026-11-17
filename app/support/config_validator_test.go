@@ -51,6 +51,27 @@ func TestValidateConfigSecretsNeverEchoed(t *testing.T) {
 	assert.NotContains(t, err.Error(), "weak-secret")
 }
 
+func TestDocsOnlyInLocalOrTesting(t *testing.T) {
+	assert.True(t, DocsAllowedIn("local"))
+	assert.True(t, DocsAllowedIn("testing"))
+	for _, env := range []string{"production", "staging", "", "LOCAL"} {
+		assert.False(t, DocsAllowedIn(env), env)
+	}
+
+	values := validValues()
+	values["docs.enabled"] = "true"
+	values["app.env"] = "production"
+	err := ValidateConfig(func(k string) string { return values[k] })
+	assert.ErrorContains(t, err, "DOCS_ENABLED")
+
+	values["app.env"] = "local"
+	assert.NoError(t, ValidateConfig(func(k string) string { return values[k] }))
+
+	values["app.env"] = "production"
+	values["docs.enabled"] = "false"
+	assert.NoError(t, ValidateConfig(func(k string) string { return values[k] }))
+}
+
 func TestValidateConfigBounds(t *testing.T) {
 	cases := map[string][]string{
 		"hashing.bcrypt.rounds":           {"9", "15", "", "abc"},

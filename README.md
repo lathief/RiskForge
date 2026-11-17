@@ -25,10 +25,16 @@ Perintah migration dan test ada di [AGENT_RUNBOOK.md](AGENT_RUNBOOK.md).
 | RF-003 Identity + RBAC | Selesai (merged ke `main`, PR #3) |
 | RF-004 Product catalog | Selesai (merged ke `main`, PR #4) |
 | M1 hardening (hasil review) | Selesai di branch `fix/M1-hardening` (lihat `SYSTEM_DESIGN.md` bagian 17.1) |
-| LOG-001 Structured logs (activity, error, lifetime, query) | Selesai di branch `feature/LOG-001-structured-logging` (lihat `SYSTEM_DESIGN.md` bagian 15.4) |
-| DX-001 lalu RF-005 dan seterusnya | Belum dimulai |
+| LOG-001 Structured logs (activity, error, lifetime, query) | Selesai, digabung ke `fix/M1-hardening` (lihat `SYSTEM_DESIGN.md` bagian 15.4) |
+| DX-001 Swagger UI + Postman Collection | Selesai, digabung ke `fix/M1-hardening` (lihat `SYSTEM_DESIGN.md` bagian 5.6) |
+| RF-005 dan seterusnya | Belum dimulai |
 
-Kontrak API: [api/openapi/openapi.yaml](api/openapi/openapi.yaml).
+## Dokumentasi API
+
+- Kontrak (sumber tunggal): [api/openapi/openapi.yaml](api/openapi/openapi.yaml), OpenAPI 3.1.
+- Swagger UI interaktif saat `rf-dev` berjalan: <http://127.0.0.1:3000/swagger> (kontrak mentah di `/openapi.yaml`). Hanya aktif di `APP_ENV` `local`/`testing`.
+- Postman: import [api/postman/RiskForge.postman_collection.json](api/postman/RiskForge.postman_collection.json) dan environment [api/postman/RiskForge.local.postman_environment.json](api/postman/RiskForge.local.postman_environment.json). Koleksi dihasilkan dari kontrak dengan `./scripts/generate-postman.sh`; jangan edit manual.
+- Workflow perubahan endpoint: [AGENT_RUNBOOK.md](AGENT_RUNBOOK.md) bagian "Swagger UI, OpenAPI, dan Postman".
 
 ### Bukti verifikasi RF-001
 
@@ -87,3 +93,14 @@ Dijalankan di container, project Compose `rf-test-log` dengan PostgreSQL 18 nyat
 - Unit test: redaksi bertingkat dan case-insensitive, body yang bukan JSON atau terlalu besar tidak pernah dicatat isinya, nilai argumen SQL tidak dicatat, 1000 penulisan paralel menghasilkan 1000 baris JSON utuh.
 - Siklus container dev: `docker compose up` lalu `stop` menghasilkan `starting`, `signal_received` (`terminated`), dan `stopped` di `lifetime.log`; stop selesai graceful dalam 1,5 detik.
 - Image release: keempat tipe log tampil di `docker logs`; password demo dan JWT tidak muncul di output.
+
+### Bukti verifikasi DX-001
+
+Dijalankan di container, project Compose `rf-test-dx` dengan PostgreSQL 18 nyata (project sudah dihapus):
+
+- `go vet ./...` dan `go test -race ./...` lulus, termasuk `DocsTestSuite` (7 test) dan `ContractParityTestSuite` (3 test).
+- Parity: route Goravel yang terdaftar, `api/openapi/openapi.yaml`, dan koleksi Postman berisi himpunan `(METHOD, path)` yang sama, tepat 8 operasi; `operationId` unik; endpoint publik `noauth`, endpoint terproteksi bearer. Uji mutasi: mengganti satu path di koleksi membuat test gagal dengan diff yang jelas.
+- Generator `./scripts/generate-postman.sh` menghasilkan file byte-identik pada tiga run berturut-turut; `--check` lulus.
+- Container dev: `/swagger`, ketiga aset, dan `/openapi.yaml` menjawab 200 dengan content type yang benar; file di luar whitelist (mis. `LICENSE`, path traversal) 404; `/api/v1/products` tanpa token tetap 401.
+- Image release tidak berisi `public/swagger` maupun `api/`; `DOCS_ENABLED=true` dengan `APP_ENV=production` ditolak saat startup (`startup_failed` di `lifetime.log`).
+- `api/openapi/openapi.yaml` lolos `redocly lint` tanpa peringatan; HTML, initializer, dan spec tidak memuat password demo, `JWT_SECRET`, `APP_KEY`, maupun JWT.

@@ -19,6 +19,8 @@ services:
       APP_KEY: ${APP_KEY:?Run ./scripts/init-agent-env.sh first}
       JWT_SECRET: ${JWT_SECRET:?Run ./scripts/init-agent-env.sh first}
       DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-}
+      # Swagger UI at /swagger and the contract at /openapi.yaml (dev/agent only).
+      DOCS_ENABLED: ${DOCS_ENABLED:-true}
       DB_CONNECTION: postgres
       DB_HOST: db
       DB_PORT: "5432"

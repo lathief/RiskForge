@@ -16,12 +16,14 @@ import (
 	identityinfra "goravel/app/modules/identity/infrastructure"
 	"goravel/app/platform/database"
 	"goravel/app/platform/logging"
+	"goravel/app/support"
 )
 
 // Module labels used in every log type.
 const (
 	moduleIdentity = "identity"
 	moduleCatalog  = "catalog"
+	moduleDocs     = "docs"
 )
 
 func Api() {
@@ -36,6 +38,20 @@ func Api() {
 	facades.Route().Get("/health/live", health.Live)
 	facades.Route().Get("/health/ready", health.Ready)
 	facades.Route().Fallback(middleware.NotFound)
+
+	// DX-001: Swagger UI and the raw contract, local/testing only (enforced at startup).
+	// These tooling routes are not part of the API contract and are excluded from the
+	// OpenAPI/Postman parity check (tests/feature/api_contract_test.go).
+	if facades.Config().GetBool("docs.enabled", false) && support.DocsAllowedIn(facades.Config().GetString("app.env")) {
+		docs := controllers.NewDocsController(
+			facades.App().BasePath("api", "openapi", "openapi.yaml"),
+			facades.App().PublicPath("swagger"),
+		)
+		docsModule := middleware.NewModule(moduleDocs)
+		facades.Route().Middleware(docsModule).Get("/swagger", docs.Swagger)
+		facades.Route().Middleware(docsModule).Get("/swagger/assets/{file}", docs.Asset)
+		facades.Route().Middleware(docsModule).Get("/openapi.yaml", docs.Spec)
+	}
 
 	// One shared hasher: its semaphore bounds password hashing across all requests.
 	hasher := identityinfra.NewPasswordHasher(

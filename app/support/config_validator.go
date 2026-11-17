@@ -33,6 +33,17 @@ var boundedSettings = []intRange{
 	{"hashing.limits.queue_timeout_ms", 1, 2500, "wait for a hashing slot in milliseconds"},
 }
 
+// DocsAllowedIn reports whether Swagger UI and /openapi.yaml may be served in env.
+// The docs expose the full API surface and a try-it-out console, so they are a
+// development aid only (SYSTEM_DESIGN.md 5.6.1).
+func DocsAllowedIn(env string) bool {
+	switch strings.TrimSpace(env) {
+	case "local", "testing":
+		return true
+	}
+	return false
+}
+
 // requiredConfigKeys are the settings the API cannot run without.
 // They are config keys as registered in the config/ package.
 var requiredConfigKeys = []string{
@@ -62,6 +73,9 @@ func ValidateConfig(get func(key string) string) error {
 	}
 	if len(get("jwt.secret")) < minJWTSecretLength {
 		return fmt.Errorf("invalid configuration, jwt.secret must be at least %d characters", minJWTSecretLength)
+	}
+	if strings.EqualFold(strings.TrimSpace(get("docs.enabled")), "true") && !DocsAllowedIn(get("app.env")) {
+		return fmt.Errorf("invalid configuration, docs.enabled (DOCS_ENABLED) may only be true when APP_ENV is local or testing")
 	}
 	for _, s := range boundedSettings {
 		n, err := strconv.Atoi(strings.TrimSpace(get(s.key)))
