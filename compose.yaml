@@ -1,0 +1,67 @@
+# RiskForge developer/agent environment (not a production deployment).
+# Start each worktree/session with a UNIQUE Compose project name (-p).
+# Keep the original Goravel scaffold and app entrypoint; do not create a second Fiber server.
+services:
+  api:
+    image: ${GO_IMAGE:-golang:1.25-bookworm}
+    working_dir: /workspace
+    init: true
+    command: ["go", "run", "."]
+    environment:
+      APP_NAME: RiskForge
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_HOST: "0.0.0.0"
+      APP_PORT: "3000"
+      APP_KEY: ${APP_KEY:?Run ./scripts/init-agent-env.sh first}
+      DB_CONNECTION: postgres
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_DATABASE: ${DB_DATABASE:-riskforge}
+      DB_USERNAME: ${DB_USERNAME:-riskforge}
+      DB_PASSWORD: ${DB_PASSWORD:?Run ./scripts/init-agent-env.sh first}
+    volumes:
+      - ./:/workspace
+      - go_modules:/go/pkg/mod
+      - go_build:/root/.cache/go-build
+    ports:
+      - "127.0.0.1:${RISKFORGE_HOST_PORT:-3000}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  db:
+    image: ${POSTGRES_IMAGE:-postgres:18}
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-riskforge}
+      POSTGRES_USER: ${DB_USERNAME:-riskforge}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Run ./scripts/init-agent-env.sh first}
+    volumes:
+      # PostgreSQL 18+ uses /var/lib/postgresql, not /var/lib/postgresql/data.
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    networks:
+      - backend
+    # Intentionally no `ports:`: PostgreSQL is reachable only inside this Compose network.
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  go_modules:
+  go_build:
