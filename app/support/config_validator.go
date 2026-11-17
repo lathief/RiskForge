@@ -6,6 +6,9 @@ import (
 	"strings"
 )
 
+// appKeyLength is the key size Goravel's crypt and session features expect.
+const appKeyLength = 32
+
 // requiredConfigKeys are the settings the API cannot run without.
 // They are config keys as registered in the config/ package.
 var requiredConfigKeys = []string{
@@ -28,6 +31,9 @@ func ValidateConfig(get func(key string) string) error {
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("invalid configuration, missing required keys: %s", strings.Join(missing, ", "))
+	}
+	if len(get("app.key")) != appKeyLength {
+		return fmt.Errorf("invalid configuration, app.key must be %d characters", appKeyLength)
 	}
 	return nil
 }

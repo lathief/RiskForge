@@ -4,7 +4,7 @@
 > **Document status:** Design baseline v1.2 — Goravel + Fiber + isolated Docker Compose agent workspace  
 > **Updated:** 16 November 2026  
 > **Primary language:** Bahasa Indonesia  
-> **Core stack:** Go 1.27.x · Goravel v1.18 (Fiber HTTP driver) · PostgreSQL 18.x (Goravel Postgres driver) · Modular Monolith · REST API · Docker Compose (agent isolation)  
+> **Core stack:** Go 1.25.x (lihat docs/adr/0001-go-version.md; target awal 1.27.x) · Goravel v1.18 (Fiber HTTP driver) · PostgreSQL 18.x (Goravel Postgres driver) · Modular Monolith · REST API · Docker Compose (agent isolation)  
 > **Implementation principle:** Selesaikan satu vertical slice yang berjalan dan teruji sebelum menambah fitur baru.
 
 ---
@@ -127,7 +127,7 @@ Seorang **Risk Analyst** dapat membuat policy untuk produk kredit sintetis, meng
 | Admin UI | Tidak dibangun dulu | API-first + OpenAPI cukup untuk portofolio backend. |
 | Financial precision | PostgreSQL `NUMERIC` dan decimal representation di domain Go | Menghindari kesalahan pembulatan floating point. |
 
-> **Pin versions:** Saat membuat repository, kunci versi framework Goravel, package `goravel/fiber`, `goravel/postgres`, Go, dan PostgreSQL yang kompatibel dalam `go.mod`, image Docker, dan CI. Target awal mengikuti dokumentasi Goravel v1.18 dan Go 1.27.x / PostgreSQL 18.x; validasi kompatibilitas aktual lewat `go mod tidy`, build, dan integration tests. Jangan mengasumsikan package `@latest` selalu saling kompatibel.
+> **Pin versions:** Saat membuat repository, kunci versi framework Goravel, package `goravel/fiber`, `goravel/postgres`, Go, dan PostgreSQL yang kompatibel dalam `go.mod`, image Docker, dan CI. Target awal mengikuti dokumentasi Goravel v1.18 dan Go 1.25.x (lihat docs/adr/0001-go-version.md; target awal 1.27.x) / PostgreSQL 18.x; validasi kompatibilitas aktual lewat `go mod tidy`, build, dan integration tests. Jangan mengasumsikan package `@latest` selalu saling kompatibel.
 
 **Keputusan yang sengaja ditunda:** format UI, dukungan multi-tenant, real external integrations, policy linting lanjutan, output pricing/limit kompleks, dan target SLA produksi final. Tidak perlu mengunci desain fitur-fitur tersebut sebelum MVP tervalidasi.
 
@@ -338,7 +338,7 @@ flowchart LR
 # Keep the original Goravel scaffold and app entrypoint; do not create a second Fiber server.
 services:
   api:
-    image: ${GO_IMAGE:-golang:1.27-bookworm}
+    image: ${GO_IMAGE:-golang:1.25-bookworm}
     working_dir: /workspace
     init: true
     command: ["go", "run", "."]
