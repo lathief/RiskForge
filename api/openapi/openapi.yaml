@@ -13,6 +13,9 @@ info:
     - Every response carries an `X-Request-ID` header. JSON error bodies repeat it as `request_id`.
     - Semantic validation errors use HTTP 422 consistently.
     - Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.
+    - Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,
+      `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.
+      They never affect authorization; `X-Request-User` is informational only.
     - `408 Request Timeout` and `413 Payload Too Large` are produced by the HTTP driver
       before application code runs, so their body is plain text, not the JSON error envelope.
       Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.

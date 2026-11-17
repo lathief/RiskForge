@@ -65,7 +65,7 @@ func registerTestRoutes() {
 	}
 	route.Middleware(middleware.NewRequirePermission(domain.PermProductRead)).Get(RBACWithoutAuthenticatePath, ok)
 
-	down := controllers.NewHealthController(func() error { return errors.New("database unreachable") })
+	down := controllers.NewHealthController(func(context.Context) error { return errors.New("database unreachable") })
 	route.Get(ReadyDownPath, down.Ready)
 
 	route.Post(PanicPath, func(ctx http.Context) http.Response { panic(PanicMessage) })

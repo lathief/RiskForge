@@ -5,11 +5,11 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/facades"
 	"goravel/app/http/auth"
 	"goravel/app/http/ctxkeys"
 	"goravel/app/http/responses"
 	"goravel/app/modules/identity/application"
+	"goravel/app/platform/logging"
 )
 
 // Authenticate requires a valid bearer token and attaches the caller to the request.
@@ -45,7 +45,7 @@ func (m *Authenticate) Handle(ctx http.Context) {
 		_ = responses.Unauthenticated(ctx).Abort()
 		return
 	case err != nil:
-		facades.Log().Errorf("authenticate: resolve principal failed: %v", err)
+		logging.Default().Error(ctx.Context(), "authenticate: resolve principal failed", err)
 		_ = responses.Internal(ctx).Abort()
 		return
 	}

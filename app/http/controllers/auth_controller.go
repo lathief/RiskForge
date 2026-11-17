@@ -7,11 +7,11 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/facades"
 	"goravel/app/http/auth"
 	"goravel/app/http/responses"
 	"goravel/app/modules/identity/application"
 	"goravel/app/modules/identity/domain"
+	"goravel/app/platform/logging"
 )
 
 const (
@@ -50,16 +50,16 @@ func (c *AuthController) Login(ctx http.Context) http.Response {
 		errors.Is(err, context.DeadlineExceeded),
 		errors.Is(err, context.Canceled):
 		// Hashing capacity is exhausted. Overload is never reported as wrong credentials.
-		facades.Log().Warningf("login: rejected, password hashing saturated: %v", err)
+		logging.Default().Warn(ctx.Context(), "login rejected: password hashing saturated", err)
 		return responses.ServiceBusy(ctx, "1")
 	case err != nil:
-		facades.Log().Errorf("login: authenticate failed: %v", err)
+		logging.Default().Error(ctx.Context(), "login: authenticate failed", err)
 		return responses.Internal(ctx)
 	}
 
 	token, ttl, err := auth.Issue(ctx, principal.UserID)
 	if err != nil {
-		facades.Log().Errorf("login: issue token failed: %v", err)
+		logging.Default().Error(ctx.Context(), "login: issue token failed", err)
 		return responses.Internal(ctx)
 	}
 

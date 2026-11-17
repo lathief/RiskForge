@@ -25,6 +25,7 @@ Perintah migration dan test ada di [AGENT_RUNBOOK.md](AGENT_RUNBOOK.md).
 | RF-003 Identity + RBAC | Selesai (merged ke `main`, PR #3) |
 | RF-004 Product catalog | Selesai (merged ke `main`, PR #4) |
 | M1 hardening (hasil review) | Selesai di branch `fix/M1-hardening` (lihat `SYSTEM_DESIGN.md` bagian 17.1) |
+| LOG-001 Structured logs (activity, error, lifetime, query) | Selesai di branch `feature/LOG-001-structured-logging` (lihat `SYSTEM_DESIGN.md` bagian 15.4) |
 | DX-001 lalu RF-005 dan seterusnya | Belum dimulai |
 
 Kontrak API: [api/openapi/openapi.yaml](api/openapi/openapi.yaml).
@@ -76,3 +77,13 @@ Dijalankan di container, project Compose `rf-test-hard` dengan PostgreSQL 18 nya
 - Image release (`docker build .`) dijalankan dengan `APP_ENV=production`: body 70 KB menghasilkan 413, log error tampil di `docker logs` tanpa token, dan proses berjalan sebagai user `app` serta bisa menulis `storage/logs`.
 - `api/openapi/openapi.yaml` 0.4.1 lolos `redocly lint` tanpa peringatan.
 - `govulncheck` belum dapat dijalankan karena `vuln.go.dev` tidak dapat diakses dari mesin pengembangan.
+
+### Bukti verifikasi LOG-001
+
+Dijalankan di container, project Compose `rf-test-log` dengan PostgreSQL 18 nyata (project sudah dihapus):
+
+- `go vet ./...` dan `go test -race ./...` lulus; suite feature diulang tiga kali (`-count=3`, 177 subtest) tanpa kegagalan atau data race.
+- Test HTTP lewat driver Fiber memastikan: satu entri `activity.log` per request (200, 401, 404, 500); header gateway tercatat; password dan `access_token` disensor di body request dan response; `Authorization` disensor; `userID` dari token terverifikasi; panic tercatat di `error.log` dengan stack trace; `query.log` memuat query modul `identity` dan `catalog` dengan durasi, jumlah argumen, dan hasil `COMMIT` transaksi.
+- Unit test: redaksi bertingkat dan case-insensitive, body yang bukan JSON atau terlalu besar tidak pernah dicatat isinya, nilai argumen SQL tidak dicatat, 1000 penulisan paralel menghasilkan 1000 baris JSON utuh.
+- Siklus container dev: `docker compose up` lalu `stop` menghasilkan `starting`, `signal_received` (`terminated`), dan `stopped` di `lifetime.log`; stop selesai graceful dalam 1,5 detik.
+- Image release: keempat tipe log tampil di `docker logs`; password demo dan JWT tidak muncul di output.

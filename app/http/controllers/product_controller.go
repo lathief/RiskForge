@@ -8,10 +8,10 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/facades"
 	"goravel/app/http/responses"
 	"goravel/app/modules/catalog/application"
 	"goravel/app/modules/catalog/domain"
+	"goravel/app/platform/logging"
 )
 
 const (
@@ -75,7 +75,7 @@ func (c *ProductController) Index(ctx http.Context) http.Response {
 
 	page, err := c.service.List(ctx.Context(), filter)
 	if err != nil {
-		facades.Log().Errorf("products: list failed: %v", err)
+		logging.Default().Error(ctx.Context(), "products: list failed", err)
 		return responses.Internal(ctx)
 	}
 	data := make([]productResponse, 0, len(page.Items))
@@ -168,7 +168,7 @@ func (c *ProductController) serviceError(ctx http.Context, op string, err error)
 	case errors.Is(err, application.ErrCodeTaken):
 		return responses.Conflict(ctx, codeProductCodeConflict, "a product with this code already exists")
 	default:
-		facades.Log().Errorf("products: %s failed: %v", op, err)
+		logging.Default().Error(ctx.Context(), "products: "+op+" failed", err)
 		return responses.Internal(ctx)
 	}
 }

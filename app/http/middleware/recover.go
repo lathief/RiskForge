@@ -3,18 +3,16 @@ package middleware
 import (
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/facades"
-	"goravel/app/http/ctxkeys"
 	"goravel/app/http/responses"
+	"goravel/app/platform/logging"
 )
 
 // Recover replaces Goravel's default panic handler, which logs the full request including
-// headers (bearer tokens) and the parsed body (login passwords). Only non-sensitive request
-// metadata and the panic value are logged; the client gets the standard 500 envelope.
+// headers (bearer tokens) and the parsed body (login passwords). error.log receives only the
+// request ID, module, method, path, the panic value, and the stack trace; the client gets
+// the standard 500 envelope.
 func Recover(ctx http.Context, err any) {
-	requestID, _ := ctx.Value(ctxkeys.RequestID).(string)
-	facades.Log().Errorf("panic recovered: request_id=%s method=%s path=%s: %v",
-		requestID, ctx.Request().Method(), ctx.Request().Path(), err)
+	logging.Default().Panic(ctx.Context(), ctx.Request().Method(), ctx.Request().Path(), err)
 	_ = responses.Internal(ctx).Abort()
 }
 
