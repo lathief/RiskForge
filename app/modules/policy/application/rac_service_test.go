@@ -151,7 +151,7 @@ func TestReplaceRulesRefusesFrozenAndMissingVersions(t *testing.T) {
 	f := newFixture()
 	raceDictionary(f)
 	_, v := f.create(t)
-	_, err := f.svc.Submit(context.Background(), "u", v.ID)
+	_, err := f.submit(t, "u", v.ID)
 	require.NoError(t, err)
 	_, _, err = f.svc.ReplaceRules(context.Background(), v.ID, demoRules())
 	assert.ErrorIs(t, err, ErrVersionFrozen)
@@ -196,7 +196,7 @@ func TestSubmitFreezesTheRulesIntoTheSnapshotInOrder(t *testing.T) {
 	_, _, err := f.svc.ReplaceRules(context.Background(), v.ID, demoRules())
 	require.NoError(t, err)
 
-	got, err := f.svc.Submit(context.Background(), "u", v.ID)
+	got, err := f.submit(t, "u", v.ID)
 	require.NoError(t, err)
 	var doc struct {
 		RACRules []struct {
@@ -230,11 +230,11 @@ func TestRulesChangeTheChecksum(t *testing.T) {
 	_, _, err = f.svc.ReplaceRules(context.Background(), v3.ID, []domain.RuleInput{
 		{RuleCode: "RAC_MIN_AGE", ReasonCode: "AGE_BELOW_MINIMUM", Action: "REJECT", Expression: "age_years >= 25"}})
 	require.NoError(t, err)
-	a, err := f.svc.Submit(context.Background(), "", v1.ID)
+	a, err := f.submit(t, "", v1.ID)
 	require.NoError(t, err)
-	b, err := f.svc.Submit(context.Background(), "", v2.ID)
+	b, err := f.submit(t, "", v2.ID)
 	require.NoError(t, err)
-	c, err := f.svc.Submit(context.Background(), "", v3.ID)
+	c, err := f.submit(t, "", v3.ID)
 	require.NoError(t, err)
 	assert.NotEqual(t, a.Checksum, b.Checksum)
 	assert.NotEqual(t, b.Checksum, c.Checksum)
@@ -251,7 +251,7 @@ func TestSubmitRefusesRulesThatNoLongerCompile(t *testing.T) {
 	// The dictionary moves on and loses a variable the copied rules use.
 	f.dict.vars = f.dict.vars[:2]
 
-	_, err = f.svc.Submit(context.Background(), "u", v2.ID)
+	_, err = f.submit(t, "u", v2.ID)
 	var invalid *InvalidPolicyError
 	require.ErrorAs(t, err, &invalid)
 	var fields []string

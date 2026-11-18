@@ -7,6 +7,7 @@ import (
 	catalogapp "goravel/app/modules/catalog/application"
 	catalogdomain "goravel/app/modules/catalog/domain"
 	dictionaryapp "goravel/app/modules/dictionary/application"
+	dictionarydomain "goravel/app/modules/dictionary/domain"
 	"goravel/app/modules/policy/application"
 	"goravel/app/modules/policy/domain"
 )
@@ -47,6 +48,25 @@ func NewDictionaryVersions(service *dictionaryapp.VariableService) *DictionaryVe
 
 func (d *DictionaryVersions) CurrentSchemaVersion(ctx context.Context) (int64, error) {
 	return d.service.CurrentSchemaVersion(ctx)
+}
+
+// CheckInput runs the dictionary module's input validation (dictionary/domain.ValidateInput)
+// over the policy's frozen copy of the variables, so test cases are judged by the same rules
+// as a real request.
+func (d *DictionaryVersions) CheckInput(vars []domain.DictionaryVariable, facts map[string]any) []domain.FieldError {
+	defs := make([]dictionarydomain.Variable, 0, len(vars))
+	for _, v := range vars {
+		defs = append(defs, dictionarydomain.Variable{
+			Code: v.Code, Origin: dictionarydomain.Origin(v.Origin), Type: dictionarydomain.ValueType(v.Type),
+			Required: v.Required, Nullable: v.Nullable, Scale: v.Scale, MinValue: v.MinValue, MaxValue: v.MaxValue,
+		})
+	}
+	issues := dictionarydomain.ValidateInput(defs, facts)
+	out := make([]domain.FieldError, 0, len(issues))
+	for _, f := range issues {
+		out = append(out, domain.FieldError{Field: f.Field, Issue: f.Issue})
+	}
+	return out
 }
 
 func (d *DictionaryVersions) Snapshot(ctx context.Context, schemaVersion int64) ([]domain.DictionaryVariable, error) {

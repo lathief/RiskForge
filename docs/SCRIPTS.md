@@ -102,7 +102,10 @@ ok   403 DELETE Remove the scorecard of a draft
 ok   200 GET Get the decision matrix of a version
 ok   403 PUT Replace the decision matrix of a draft
 ok   403 DELETE Remove the decision matrix of a draft
-postman smoke: 27/27 requests as expected
+ok   200 GET List the test cases of a version
+ok   403 PUT Replace the test cases of a draft
+ok   403 POST Validate a whole policy version
+postman smoke: 30/30 requests as expected
 ```
 
 The stack must be up, migrated, and seeded with the current `DEMO_USER_PASSWORD`. A test project whose users were created by the Go test suite has a different password, so login fails there.

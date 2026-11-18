@@ -1,6 +1,6 @@
 # Decision engine
 
-> **Status: Planned behavior.** Nothing on this page is implemented yet. It is the engineering specification for milestone M3 (RF-011 to RF-016), distilled from `SYSTEM_DESIGN.md` sections 8, 10, 12, and 20. Implemented pieces will be marked here as tickets land. `app/modules/ruleengine` is currently an empty placeholder.
+> **Status: Planned behavior.** Evaluation is not implemented yet. This page is the engineering specification for milestone M3 (RF-011 to RF-016), distilled from `SYSTEM_DESIGN.md` sections 8, 10, 12, and 20. The configuration side is implemented and marked where it applies: RAC expressions are checked by `app/modules/ruleengine` (RF-007), scorecard bins and matrix rows are validated (RF-008, RF-009), and golden test cases are stored and checked statically (RF-010).
 
 The engine turns one loan application plus one immutable policy version into one decision and a complete trace. It is the part of RiskForge that is not CRUD: correctness, determinism, and explainability matter more than speed.
 
@@ -192,7 +192,9 @@ From `SYSTEM_DESIGN.md` 12 (golden cases for `KTA_DEMO`):
 5. Total score exactly on each matrix boundary (499.99/500.00, 649.99/650.00, 900.00).
 6. Missing, `null`, or wrong-type input → validation error.
 7. `monthly_income = 0` → validation error, no division by zero.
-8. Overlapping bins or a matrix gap → policy fails validation and cannot be published.
+8. Overlapping bins or a matrix gap → policy fails validation and cannot be published. (Implemented: RF-008 to RF-010.)
+
+**Storing the golden cases (implemented, RF-010).** Cases 1 to 4, 6, and 7 are stored with the demo policy as test cases (`GET`/`PUT /api/v1/policy-versions/{version_id}/test-cases`) with their expected outcome. Today each case is checked statically: its references must exist and its input is run against the data dictionary, so a validation-error case must really fail validation and a decision case must pass it. `POST .../validate` and submit report the comparison of expected and actual decisions as the pending check `golden_test_execution`; RF-013 runs the cases through this engine and makes failing required cases block submit.
 9. Simulating a draft does not affect decisions made with the active version.
 10. Re-evaluating the same input and policy snapshot gives the same output.
 

@@ -96,18 +96,3 @@ func (s *PolicyService) RemoveScorecard(ctx context.Context, versionID string) e
 		return s.repo.TouchDraft(ctx, versionID)
 	})
 }
-
-// scorecardInput turns a stored scorecard back into input, for re-validation at submit.
-func scorecardInput(sc *domain.Scorecard) domain.ScorecardInput {
-	in := domain.ScorecardInput{BaseScore: sc.BaseScore}
-	for _, c := range sc.Characteristics {
-		ci := domain.CharacteristicInput{
-			Code: c.Code, Variable: c.Variable, Description: c.Description, MissingPoints: c.MissingPoints,
-		}
-		for _, b := range c.Bins {
-			ci.Bins = append(ci.Bins, domain.BinInput{MinValue: b.MinValue, MaxValue: b.MaxValue, Points: b.Points, Label: b.Label})
-		}
-		in.Characteristics = append(in.Characteristics, ci)
-	}
-	return in
-}

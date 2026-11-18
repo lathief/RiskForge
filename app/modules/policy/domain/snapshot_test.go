@@ -125,7 +125,7 @@ func TestVerifySnapshotSurvivesJSONBReordering(t *testing.T) {
 	require.NoError(t, json.Unmarshal(canonical, &generic))
 	reordered := []byte(`{ "version_number": ` + string(generic["version_number"]) + `, "format": ` + string(generic["format"]) +
 		`, "package": ` + string(generic["package"]) + `, "evaluator_version": ` + string(generic["evaluator_version"]) +
-		`, "dictionary": ` + string(generic["dictionary"]) + `, "rac_rules": [], "scorecard": null, "decision_matrix": [] }`)
+		`, "dictionary": ` + string(generic["dictionary"]) + `, "rac_rules": [], "scorecard": null, "test_cases": [], "decision_matrix": [] }`)
 	assert.True(t, VerifySnapshot(reordered, sum))
 
 	tampered := []byte(string(canonical[:len(canonical)-1]) + `,"extra":1}`)

@@ -252,10 +252,14 @@ func (s *PolicyTestSuite) TestSubmitFreezesTheMatrixIntoTheSnapshot() {
 	s.True(policydomain.VerifySnapshot(raw, body["checksum"].(string)), "a complete policy (RAC, scorecard, matrix) freezes and verifies")
 }
 
-func (s *PolicyTestSuite) TestSubmitWithoutAMatrixFreezesAnEmptySection() {
+// Since RF-010 a version cannot be submitted without a decision matrix.
+func (s *PolicyTestSuite) TestSubmitWithoutAMatrixIsRefused() {
 	_, v1 := s.createPolicy(`{"product_code":"KTA_DEMO"}`)
-	snap := s.json(s.submit(v1).AssertOk())["snapshot"].(map[string]any)
-	s.Equal([]any{}, snap["decision_matrix"])
+	s.complete(v1)
+	s.matrixRequest("demo_analyst", "DELETE", v1, "").AssertNoContent()
+	resp := s.submitRaw(v1)
+	resp.AssertStatus(http.StatusUnprocessableEntity)
+	s.Equal([]string{"decision_matrix:missing_section"}, s.issuePairs(resp))
 }
 
 func (s *PolicyTestSuite) TestSubmitRefusesAMatrixThatNoLongerCoversTheScorecard() {
@@ -322,9 +326,10 @@ func (s *PolicyTestSuite) TestConcurrentMatrixReplacesLeaveOneWholeMatrix() {
 
 func (s *PolicyTestSuite) TestSubmitRacingWithAMatrixReplaceKeepsTheSnapshotAndTableTogether() {
 	for round := 0; round < 5; round++ {
-		s.Require().NoError(facades.DB().Statement("TRUNCATE TABLE policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
+		s.Require().NoError(facades.DB().Statement("TRUNCATE TABLE policy.test_cases, policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
 		_, v1 := s.createPolicy(`{"product_code":"KTA_DEMO"}`)
 		s.putMatrix(v1, demoMatrixBody).AssertOk()
+		s.complete(v1)
 		var wg sync.WaitGroup
 		wg.Add(2)
 		go func() {

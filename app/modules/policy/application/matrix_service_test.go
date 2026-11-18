@@ -130,7 +130,7 @@ func TestRemoveMatrix(t *testing.T) {
 func TestMatrixOfFrozenAndMissingVersions(t *testing.T) {
 	f := newFixture()
 	_, v := f.create(t)
-	_, err := f.svc.Submit(context.Background(), "u", v.ID)
+	_, err := f.submit(t, "u", v.ID)
 	require.NoError(t, err)
 	_, err = f.svc.ReplaceMatrix(context.Background(), v.ID, demoMatrix())
 	assert.ErrorIs(t, err, ErrVersionFrozen)
@@ -181,7 +181,7 @@ func TestSubmitFreezesTheMatrix(t *testing.T) {
 	_, v := f.create(t)
 	_, err := f.svc.ReplaceMatrix(context.Background(), v.ID, demoMatrix())
 	require.NoError(t, err)
-	got, err := f.svc.Submit(context.Background(), "u", v.ID)
+	got, err := f.submit(t, "u", v.ID)
 	require.NoError(t, err)
 	var doc struct {
 		Matrix []struct {
@@ -212,7 +212,7 @@ func TestSubmitRefusesAMatrixThatNoLongerCoversTheScorecard(t *testing.T) {
 	_, _, err = f.svc.ReplaceScorecard(context.Background(), v.ID, higher)
 	require.NoError(t, err)
 
-	_, err = f.svc.Submit(context.Background(), "u", v.ID)
+	_, err = f.submit(t, "u", v.ID)
 	var invalid *InvalidPolicyError
 	require.ErrorAs(t, err, &invalid)
 	require.Len(t, invalid.Fields, 1)
@@ -235,9 +235,9 @@ func TestMatrixChangesTheChecksum(t *testing.T) {
 	changed[1].Decision = "REJECT"
 	_, err = f.svc.ReplaceMatrix(context.Background(), v3.ID, changed)
 	require.NoError(t, err)
-	a, err := f.svc.Submit(context.Background(), "", v2.ID)
+	a, err := f.submit(t, "", v2.ID)
 	require.NoError(t, err)
-	b, err := f.svc.Submit(context.Background(), "", v3.ID)
+	b, err := f.submit(t, "", v3.ID)
 	require.NoError(t, err)
 	assert.NotEqual(t, a.Checksum, b.Checksum)
 }

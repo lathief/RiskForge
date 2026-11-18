@@ -3,6 +3,7 @@ package feature
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"sort"
 	"strings"
@@ -76,7 +77,7 @@ func (s *PolicyTestSuite) SetupSuite() {
 // fire the append-only triggers, so it is the supported way to reset a disposable database.
 func (s *PolicyTestSuite) SetupTest() {
 	db := facades.DB()
-	s.Require().NoError(db.Statement("TRUNCATE TABLE policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
+	s.Require().NoError(db.Statement("TRUNCATE TABLE policy.test_cases, policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
 	s.Require().NoError(db.Statement("TRUNCATE TABLE dictionary.variable_versions, dictionary.variables"))
 	s.Require().NoError(db.Statement("UPDATE dictionary.schema_state SET current_version = 0"))
 	s.Require().NoError(seeders.SeedDemoProducts())
@@ -135,8 +136,74 @@ func (s *PolicyTestSuite) clone(policyID, body string) map[string]any {
 	return s.json(resp)
 }
 
+// submit completes the draft with minimal content where a section is missing (see complete),
+// then submits it. Tests about the full policy validation itself use submitRaw.
 func (s *PolicyTestSuite) submit(versionID string) contractstesting.Response {
+	s.complete(versionID)
+	return s.submitRaw(versionID)
+}
+
+// submitRaw submits exactly what the draft has.
+func (s *PolicyTestSuite) submitRaw(versionID string) contractstesting.Response {
 	return s.send("demo_analyst", "POST", versionsPath+"/"+versionID+"/submit", "")
+}
+
+// complete gives a DRAFT the sections the full policy validation (RF-010) requires, where they
+// are missing: a one-bin scorecard over the first numeric variable of the draft's dictionary, an
+// open one-row matrix, and one required test case whose input passes that dictionary. Sections
+// the draft already has are left alone, so a test about a stale scorecard or matrix still sees
+// its own problem. Frozen versions are not touched.
+func (s *PolicyTestSuite) complete(versionID string) {
+	v := s.getVersion(versionID)
+	if v["status"] != "DRAFT" {
+		return
+	}
+	schema := int(v["dictionary_schema_version"].(float64))
+	vars := s.json(s.send("demo_auditor", "GET", fmt.Sprintf("/api/v1/dictionary/variables?per_page=100&schema_version=%d", schema), "").AssertOk())["data"].([]any)
+
+	if s.getScorecard(versionID)["scorecard"] == nil {
+		numeric := ""
+		for _, item := range vars {
+			m := item.(map[string]any)
+			if m["type"] == "INTEGER" || m["type"] == "DECIMAL" {
+				numeric = m["code"].(string)
+				break
+			}
+		}
+		s.Require().NotEmpty(numeric, "the draft's dictionary has no numeric variable")
+		s.putScorecard(versionID, `{"base_score":"0","characteristics":[{"characteristic_code":"filler","variable":"`+numeric+`","bins":[{"points":"0"}]}]}`).AssertOk()
+	}
+	if s.getMatrix(versionID)["decision_matrix"] == nil {
+		s.putMatrix(versionID, `{"rows":[{"grade":"A","decision":"REFER"}]}`).AssertOk()
+	}
+	if len(s.getTestCases(versionID)["test_cases"].([]any)) == 0 {
+		facts := map[string]any{}
+		for _, item := range vars {
+			m := item.(map[string]any)
+			if m["origin"] != "INPUT" {
+				continue
+			}
+			switch m["type"] {
+			case "INTEGER":
+				if lo, ok := m["min_value"].(string); ok {
+					facts[m["code"].(string)] = json.Number(lo)
+				} else {
+					facts[m["code"].(string)] = 0
+				}
+			case "DECIMAL":
+				if lo, ok := m["min_value"].(string); ok {
+					facts[m["code"].(string)] = lo
+				} else {
+					facts[m["code"].(string)] = "0"
+				}
+			default:
+				facts[m["code"].(string)] = false
+			}
+		}
+		input, err := json.Marshal(facts)
+		s.Require().NoError(err)
+		s.putTestCases(versionID, `{"test_cases":[{"case_code":"FILLER_CASE","input":`+string(input)+`,"expected":{"outcome":"DECISION","decision":"REFER"}}]}`).AssertOk()
+	}
 }
 
 func (s *PolicyTestSuite) getVersion(versionID string) map[string]any {
@@ -567,6 +634,7 @@ func (s *PolicyTestSuite) TestConcurrentCreatesOfTheSamePolicyYieldExactlyOne() 
 
 func (s *PolicyTestSuite) TestConcurrentSubmitsFreezeOnce() {
 	_, v1 := s.createPolicy(`{"product_code":"KTA_DEMO"}`)
+	s.complete(v1)
 	const workers = 8
 	var (
 		wg       sync.WaitGroup
@@ -603,8 +671,9 @@ func (s *PolicyTestSuite) TestConcurrentSubmitsFreezeOnce() {
 
 func (s *PolicyTestSuite) TestSubmitAndEditRaceNeverLosesTheFrozenContent() {
 	for round := 0; round < 5; round++ {
-		s.Require().NoError(facades.DB().Statement("TRUNCATE TABLE policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
+		s.Require().NoError(facades.DB().Statement("TRUNCATE TABLE policy.test_cases, policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
 		_, v1 := s.createPolicy(`{"product_code":"KTA_DEMO","description":"base"}`)
+		s.complete(v1)
 		var wg sync.WaitGroup
 		wg.Add(2)
 		go func() {

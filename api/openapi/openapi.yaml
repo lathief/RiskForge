@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.9.0
+  version: 0.10.0
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
-    Contract for the endpoints implemented so far (RF-001 to RF-009, plus M1 hardening).
+    Contract for the endpoints implemented so far (RF-001 to RF-010, plus M1 hardening).
 
     - All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.
     - Authorization is permission-based. Each operation lists the required permission
@@ -659,11 +659,15 @@ paths:
         it was written against, stores its SHA-256 checksum, and moves the version to
         `PENDING_APPROVAL`. After this nothing about the version changes: edits and a second
         submit are 409 `POLICY_VERSION_FROZEN`. No request body.
-        Before freezing, the RAC rules, the scorecard, and the decision matrix are checked again (against
-        the dictionary version the draft is pinned to, and the matrix against the scorecard range); if anything no longer validates, the answer is a 422 `POLICY_VALIDATION_FAILED`
-        listing every problem (paths start with `scorecard.` or `decision_matrix.` for those sections) and the draft stays a DRAFT. The
-        remaining check of SYSTEM_DESIGN.md 9.3 (golden tests) arrives with RF-010, and approving or rejecting a
-        pending version arrives with M4.
+        Before freezing, the full policy validation of `POST .../validate` runs (SYSTEM_DESIGN.md
+        9.3): completeness (a scorecard, a decision matrix, and at least one required test case),
+        the RAC rules, the scorecard, the decision matrix against the scorecard range, and the test
+        cases, all against the dictionary version the draft is pinned to. If any check fails, the
+        answer is a 422 `POLICY_VALIDATION_FAILED` listing every problem (paths start with
+        `scorecard.` or `decision_matrix.` for those sections) and the draft stays a DRAFT.
+        Executing the test cases against the policy (comparing expected and actual decisions) is
+        a pending check until the decision evaluator exists (RF-011 to RF-013); approving or
+        rejecting a pending version arrives with M4.
       operationId: submitPolicyVersion
       x-required-permission: policy:submit
       responses:
@@ -1009,6 +1013,149 @@ paths:
         "408": { $ref: "#/components/responses/RequestTimeout" }
         "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
         "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policy-versions/{version_id}/test-cases:
+    parameters:
+      - name: version_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyVersionId" }
+    get:
+      tags: [Policies]
+      summary: List the test cases of a version
+      description: The regression ("golden") cases of the version in order (SYSTEM_DESIGN.md 9.1 and 12). Works for any status.
+      operationId: getTestCases
+      x-required-permission: policy:read
+      responses:
+        "200":
+          description: The test cases, possibly none.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TestCaseSet" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
+    put:
+      tags: [Policies]
+      summary: Replace the test cases of a draft
+      description: |
+        Replaces the whole list. A test case is an applicant `input` (the same facts the decision
+        API will take: integers as JSON numbers, decimals as strings, booleans) and the result the
+        policy is expected to give: either a business `DECISION` (with `decision`, optional
+        `grade`, and optional `reason_codes`) or an `INPUT_VALIDATION_ERROR`. Cases are `required`
+        unless set to false; a version can only be submitted with at least one required case.
+
+        Each case is checked now, against the dictionary version the draft is pinned to and the
+        draft's current RAC rules and decision matrix:
+        input keys must be input variables of the dictionary (`unknown_variable`,
+        `derived_not_allowed`); `grade` must be a grade of the matrix (`unknown_grade`) and every
+        reason code a reason code of a RAC rule (`unknown_reason_code`); and the input is **run
+        against the data dictionary**: a `DECISION` case needs an input that passes it (the issue
+        of the dictionary is reported at `input.<variable>`), and an `INPUT_VALIDATION_ERROR` case
+        needs one that fails it (`validation_error_not_raised`). Whether the expected decision,
+        grade, and reason codes are what the policy gives is checked once the decision evaluator
+        exists (RF-011 to RF-013); `POST .../validate` lists that as a pending check.
+
+        Reason codes are a set and are returned sorted. Nothing is stored unless every case is
+        valid; every problem is reported with its path. Sending the list the draft already has
+        changes nothing; an empty list removes all cases. Only a DRAFT can change (409
+        `POLICY_VERSION_FROZEN`).
+      operationId: replaceTestCases
+      x-required-permission: policy:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TestCasesReplace" }
+            example:
+              test_cases:
+                - case_code: GOLDEN_HAPPY_PATH
+                  description: "Example applicant of section 20.4: score 685, grade A."
+                  input: { age_years: 29, monthly_income: "12000000.00", existing_installment: "2500000.00", employment_tenure_months: 36, slik_max_kol: 1, is_blacklisted: false }
+                  expected: { outcome: DECISION, decision: APPROVE, grade: A }
+                - case_code: GOLDEN_AGE_BELOW_MINIMUM
+                  input: { age_years: 19, monthly_income: "12000000.00", existing_installment: "2500000.00", employment_tenure_months: 36, slik_max_kol: 1, is_blacklisted: false }
+                  expected: { outcome: DECISION, decision: REJECT, reason_codes: [AGE_BELOW_MINIMUM] }
+                - case_code: GOLDEN_ZERO_INCOME
+                  input: { age_years: 29, monthly_income: "0.00", existing_installment: "2500000.00", employment_tenure_months: 36, slik_max_kol: 1, is_blacklisted: false }
+                  expected: { outcome: INPUT_VALIDATION_ERROR }
+      responses:
+        "200":
+          description: The test cases as stored.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TestCaseSet" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422":
+          description: The list is invalid. Nothing was stored.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error:
+                  code: INPUT_VALIDATION_ERROR
+                  message: invalid policy
+                  details:
+                    - { field: "test_cases[0].input.monthly_income", issue: below_min_value, message: "the expected outcome is a decision, so the input must pass the data dictionary" }
+                    - { field: "test_cases[1].expected.reason_codes[0]", issue: unknown_reason_code, message: "no RAC rule of this version has reason code \"NOT_A_REASON\"" }
+                request_id: 7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policy-versions/{version_id}/validate:
+    parameters:
+      - name: version_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyVersionId" }
+    post:
+      tags: [Policies]
+      summary: Validate a whole policy version
+      description: |
+        Runs the full policy validation of SYSTEM_DESIGN.md 9.3 and returns a report; nothing
+        changes. Submit runs the same checks and refuses the version (422
+        `POLICY_VALIDATION_FAILED`, same `issues`) when any fails, so this is the dry run of
+        submit and needs the same permission. Works for any status; a frozen version is checked
+        again against the dictionary version it is pinned to. No request body.
+
+        Checks: **completeness** (a scorecard, a decision matrix, and at least one required test
+        case: `missing_section`, `no_required_test_cases`; RAC rules are optional); every **RAC
+        expression** compiles and type-checks; the **scorecard** variables exist and are numeric
+        and its bins cover each variable exactly once; the **decision matrix** covers the
+        scorecard's score range; every **test case** references existing variables, grades, and
+        reason codes, and its input passes or fails the data dictionary as its expected outcome
+        says. Paths are those of the editing endpoints, prefixed `scorecard.` and
+        `decision_matrix.` for those sections.
+
+        `pending_checks` lists what cannot run yet: comparing each test case's expected decision,
+        grade, and reason codes with the policy's actual result needs the decision evaluator
+        (RF-011 to RF-013). `valid: true` therefore means "every check that exists passed", and
+        the pending check is always listed so it is never mistaken for a pass.
+      operationId: validatePolicyVersion
+      x-required-permission: policy:submit
+      responses:
+        "200":
+          description: The validation report.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationReport" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
 security:
   - bearerAuth: []
 
@@ -1336,10 +1483,13 @@ components:
         Frozen content of a submitted version in canonical form (keys sorted, no whitespace
         outside strings). `checksum` is the SHA-256 of exactly this form.
         `rac_rules` lists the RAC rules in evaluation order (RF-007), `scorecard` is the scorecard
-        without the derived `score_range` or null (RF-008), and `decision_matrix` lists the matrix rows in ascending order, or is empty (RF-009).
+        without the derived `score_range` or null (RF-008), `decision_matrix` lists the matrix rows in ascending order, or is empty (RF-009),
+        and `test_cases` lists the test cases in order (RF-010). `format` is 2 since RF-010
+        (snapshots taken by RF-006 to RF-009 are format 1, are returned as stored, and have no
+        `test_cases`; a stored snapshot is never rewritten because its checksum covers it).
       required: [format, evaluator_version, package, version_number, dictionary, rac_rules, scorecard, decision_matrix]
       example:
-        format: 1
+        format: 2
         evaluator_version: "1"
         package: { product_code: KTA_DEMO, scope: DEFAULT }
         version_number: 1
@@ -1361,6 +1511,7 @@ components:
         rac_rules: []
         scorecard: null
         decision_matrix: []
+        test_cases: []
       properties:
         format: { type: integer }
         evaluator_version: { type: string }
@@ -1378,6 +1529,7 @@ components:
         rac_rules: { type: array, items: { type: object } }
         scorecard: { type: [object, "null"] }
         decision_matrix: { type: array, items: { type: object } }
+        test_cases: { type: array, items: { type: object } }
     PolicyVersion:
       allOf:
         - $ref: "#/components/schemas/PolicyVersionSummary"
@@ -1409,10 +1561,11 @@ components:
             variables: []
           decision_matrix: []
           evaluator_version: "1"
-          format: 1
+          format: 2
           package: { product_code: KTA_DEMO, scope: DEFAULT }
           rac_rules: []
           scorecard: null
+          test_cases: []
           version_number: 1
     PolicyCreate:
       type: object
@@ -1811,6 +1964,147 @@ components:
                   items: { $ref: "#/components/schemas/DecisionMatrixRow" }
             - type: "null"
           description: Null when no matrix is configured.
+    TestOutcome:
+      type: string
+      enum: [DECISION, INPUT_VALIDATION_ERROR]
+      description: DECISION means the input is valid and the policy gives a business decision; INPUT_VALIDATION_ERROR means the input is refused before any rule runs.
+      example: DECISION
+    TestCaseExpectedInput:
+      type: object
+      additionalProperties: false
+      required: [outcome]
+      properties:
+        outcome: { $ref: "#/components/schemas/TestOutcome" }
+        decision: { $ref: "#/components/schemas/MatrixDecision", description: "Required for DECISION; not allowed otherwise." }
+        grade: { type: string, pattern: "^[A-Z][A-Z0-9_]{0,15}$", description: "Optional for DECISION: a grade of the decision matrix." }
+        reason_codes:
+          type: array
+          maxItems: 20
+          items: { type: string, pattern: "^[A-Z][A-Z0-9_]{2,63}$" }
+          description: "Optional for DECISION: reason codes of the version's RAC rules, as a set."
+    TestCaseInput:
+      type: object
+      additionalProperties: false
+      required: [case_code, input, expected]
+      properties:
+        case_code: { type: string, pattern: "^[A-Z][A-Z0-9_]{2,63}$", example: GOLDEN_HAPPY_PATH, description: Unique within the version. }
+        description: { type: string, maxLength: 200 }
+        required: { type: boolean, default: true, description: Required cases must pass before submit; at least one is needed. }
+        input:
+          type: object
+          additionalProperties: true
+          description: Applicant facts keyed by input variable code; at most 8 KiB as canonical JSON.
+        expected: { $ref: "#/components/schemas/TestCaseExpectedInput" }
+    TestCasesReplace:
+      type: object
+      additionalProperties: false
+      required: [test_cases]
+      properties:
+        test_cases:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/TestCaseInput" }
+    TestCase:
+      type: object
+      required: [order, case_code, description, required, input, expected]
+      properties:
+        order: { type: integer, minimum: 1 }
+        case_code: { type: string }
+        description: { type: string }
+        required: { type: boolean }
+        input: { type: object, additionalProperties: true }
+        expected:
+          type: object
+          required: [outcome, decision, grade, reason_codes]
+          properties:
+            outcome: { $ref: "#/components/schemas/TestOutcome" }
+            decision:
+              oneOf: [{ $ref: "#/components/schemas/MatrixDecision" }, { type: "null" }]
+            grade: { type: [string, "null"] }
+            reason_codes: { type: array, items: { type: string } }
+    TestCaseSet:
+      type: object
+      required: [policy_version_id, status, dictionary_schema_version, updated_at, test_cases]
+      example:
+        policy_version_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+        status: DRAFT
+        dictionary_schema_version: 8
+        updated_at: "2026-11-25T08:00:00Z"
+        test_cases:
+          - order: 1
+            case_code: GOLDEN_HAPPY_PATH
+            description: "Example applicant of section 20.4: score 685, grade A."
+            required: true
+            input: { age_years: 29, employment_tenure_months: 36, existing_installment: "2500000.00", is_blacklisted: false, monthly_income: "12000000.00", slik_max_kol: 1 }
+            expected: { outcome: DECISION, decision: APPROVE, grade: A, reason_codes: [] }
+          - order: 2
+            case_code: GOLDEN_ZERO_INCOME
+            description: "monthly_income 0: validation error, never a division by zero."
+            required: true
+            input: { age_years: 29, employment_tenure_months: 36, existing_installment: "2500000.00", is_blacklisted: false, monthly_income: "0.00", slik_max_kol: 1 }
+            expected: { outcome: INPUT_VALIDATION_ERROR, decision: null, grade: null, reason_codes: [] }
+      properties:
+        policy_version_id: { $ref: "#/components/schemas/PolicyVersionId" }
+        status: { $ref: "#/components/schemas/PolicyStatus" }
+        dictionary_schema_version: { type: integer, minimum: 0 }
+        updated_at: { type: string, format: date-time }
+        test_cases:
+          type: array
+          items: { $ref: "#/components/schemas/TestCase" }
+    ValidationReport:
+      type: object
+      required: [policy_version_id, status, dictionary_schema_version, valid, summary, score_range, issues, pending_checks]
+      example:
+        policy_version_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+        status: DRAFT
+        dictionary_schema_version: 8
+        valid: false
+        summary: { rac_rules: 3, scorecard_characteristics: 3, decision_matrix_rows: 3, test_cases: 0, required_test_cases: 0 }
+        score_range: { min: "420.00", max: "685.00" }
+        issues:
+          - { field: test_cases, issue: no_required_test_cases, message: "a policy needs at least one required test case (SYSTEM_DESIGN.md 9.3)" }
+        pending_checks:
+          - check: golden_test_execution
+            reason: "evaluating the expected decision, grade, and reason codes of a test case needs the decision evaluator (RF-011 to RF-013); test cases are checked statically and their inputs are run against the data dictionary"
+      properties:
+        policy_version_id: { $ref: "#/components/schemas/PolicyVersionId" }
+        status: { $ref: "#/components/schemas/PolicyStatus" }
+        dictionary_schema_version: { type: integer, minimum: 0 }
+        valid: { type: boolean, description: True when every check that exists passed; submit would succeed. }
+        summary:
+          type: object
+          required: [rac_rules, scorecard_characteristics, decision_matrix_rows, test_cases, required_test_cases]
+          properties:
+            rac_rules: { type: integer, minimum: 0 }
+            scorecard_characteristics: { type: integer, minimum: 0 }
+            decision_matrix_rows: { type: integer, minimum: 0 }
+            test_cases: { type: integer, minimum: 0 }
+            required_test_cases: { type: integer, minimum: 0 }
+        score_range:
+          oneOf:
+            - type: object
+              required: [min, max]
+              properties:
+                min: { $ref: "#/components/schemas/ScoreDecimal" }
+                max: { $ref: "#/components/schemas/ScoreDecimal" }
+            - type: "null"
+        issues:
+          type: array
+          items:
+            type: object
+            required: [field, issue]
+            properties:
+              field: { type: string }
+              issue: { type: string }
+              message: { type: string }
+        pending_checks:
+          type: array
+          items:
+            type: object
+            required: [check, reason]
+            properties:
+              check: { type: string }
+              reason: { type: string }
     ErrorResponse:
       type: object
       required: [error]
@@ -1848,7 +2142,7 @@ components:
                   field: { type: string }
                   issue:
                     type: string
-                    description: Stable issue code, e.g. required, too_long, invalid_format, invalid_value, invalid_characters, must_be_string, must_be_boolean, must_be_integer, not_allowed, no_changes, exceeds_scale, less_than_min_value, not_allowed_for_type, not_allowed_when_required, must_be_false_for_derived, exceeds_current_version, unknown_product, product_inactive, not_in_policy, must_be_a_non_negative_integer, must_be_array, must_be_object, too_many, duplicate, syntax_error, unsupported_syntax, unknown_variable, type_error, no_characteristics, no_bins, gap, overlap, min_not_less_than_max, does_not_cover_lower_bound, does_not_cover_upper_bound, must_be_integer, out_of_range, variable_not_numeric, variable_always_present, no_rows, does_not_cover_score_range.
+                    description: Stable issue code, e.g. required, too_long, invalid_format, invalid_value, invalid_characters, must_be_string, must_be_boolean, must_be_integer, not_allowed, no_changes, exceeds_scale, less_than_min_value, not_allowed_for_type, not_allowed_when_required, must_be_false_for_derived, exceeds_current_version, unknown_product, product_inactive, not_in_policy, must_be_a_non_negative_integer, must_be_array, must_be_object, too_many, duplicate, syntax_error, unsupported_syntax, unknown_variable, type_error, no_characteristics, no_bins, gap, overlap, min_not_less_than_max, does_not_cover_lower_bound, does_not_cover_upper_bound, must_be_integer, out_of_range, variable_not_numeric, variable_always_present, no_rows, does_not_cover_score_range, missing_section, no_required_test_cases, derived_not_allowed, unknown_grade, unknown_reason_code, validation_error_not_raised, not_allowed_for_outcome, invalid_json, too_large.
                   message:
                     type: string
                     description: Explanation in words for issues that need one, for example the position of a syntax error. Absent for most details.

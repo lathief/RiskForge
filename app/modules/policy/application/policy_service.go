@@ -47,6 +47,9 @@ type DictionaryReader interface {
 	CurrentSchemaVersion(ctx context.Context) (int64, error)
 	// Snapshot returns the variables as defined at schemaVersion.
 	Snapshot(ctx context.Context, schemaVersion int64) ([]domain.DictionaryVariable, error)
+	// CheckInput validates applicant facts against the given dictionary variables with the
+	// dictionary module's input rules and returns every problem, ordered by variable code.
+	CheckInput(dictionary []domain.DictionaryVariable, facts map[string]any) []domain.FieldError
 }
 
 // PackageSummary is a package with its newest version, for lists.
@@ -109,6 +112,12 @@ type PolicyRepository interface {
 	ReplaceMatrix(ctx context.Context, versionID string, m domain.DecisionMatrix) error
 	// CopyMatrix copies the decision matrix of one version onto another.
 	CopyMatrix(ctx context.Context, fromVersionID, toVersionID string) error
+	// ListTestCases returns the test cases of a version in order.
+	ListTestCases(ctx context.Context, versionID string) (domain.TestCases, error)
+	// ReplaceTestCases replaces the test cases of a DRAFT with cases (empty deletes them all).
+	ReplaceTestCases(ctx context.Context, versionID string, cases domain.TestCases) error
+	// CopyTestCases copies the test cases of one version onto another.
+	CopyTestCases(ctx context.Context, fromVersionID, toVersionID string) error
 	// TouchDraft records that a DRAFT changed, by moving its updated_at.
 	TouchDraft(ctx context.Context, versionID string) error
 }
@@ -234,7 +243,7 @@ func (s *PolicyService) Clone(ctx context.Context, actorID, packageID string, in
 		if err != nil {
 			return err
 		}
-		// The copy of the rules and the scorecard is exact. Neither is re-validated here: the draft may be written
+		// The copy of every content section (rules, scorecard, matrix, test cases) is exact. None is re-validated here: the draft may be written
 		// against a newer dictionary, and validation happens when the content is edited and
 		// again at submit.
 		if err := s.repo.CopyRules(ctx, source.ID, out.ID); err != nil {
@@ -243,7 +252,10 @@ func (s *PolicyService) Clone(ctx context.Context, actorID, packageID string, in
 		if err := s.repo.CopyScorecard(ctx, source.ID, out.ID); err != nil {
 			return err
 		}
-		return s.repo.CopyMatrix(ctx, source.ID, out.ID)
+		if err := s.repo.CopyMatrix(ctx, source.ID, out.ID); err != nil {
+			return err
+		}
+		return s.repo.CopyTestCases(ctx, source.ID, out.ID)
 	})
 	return out, err
 }
@@ -312,14 +324,12 @@ func (s *PolicyService) UpdateDraft(ctx context.Context, id string, c domain.Cha
 	return out, err
 }
 
-// Submit freezes a draft: it captures the canonical snapshot (including the dictionary
-// definitions the draft was written against), stores its checksum, and moves the version to
-// PENDING_APPROVAL. After this nothing about the version changes.
-//
-// Before freezing, the content gates of SYSTEM_DESIGN.md 9.3 that exist so far run against the
-// dictionary the draft is pinned to: RAC expressions (RF-007) and the scorecard (RF-008). The
-// decision matrix and golden tests follow with RF-009 and RF-010, and the approval workflow that
-// consumes a pending version arrives with RF-018 and RF-019.
+// Submit freezes a draft: it runs the full policy validation of SYSTEM_DESIGN.md 9.3 (RF-010,
+// see domain.ValidatePolicy) against the dictionary the draft is pinned to, and when it passes it
+// captures the canonical snapshot, stores its checksum, and moves the version to
+// PENDING_APPROVAL. After this nothing about the version changes. A failed validation returns an
+// InvalidPolicyError with every problem and leaves the draft as it is. The approval workflow
+// that consumes a pending version arrives with RF-018 and RF-019.
 func (s *PolicyService) Submit(ctx context.Context, actorID, id string) (domain.Version, error) {
 	if !domain.IsValidID(id) {
 		return domain.Version{}, ErrVersionNotFound
@@ -333,28 +343,12 @@ func (s *PolicyService) Submit(ctx context.Context, actorID, id string) (domain.
 		if current.Status.IsFrozen() {
 			return ErrVersionFrozen
 		}
-		dictionary, err := s.dict.Snapshot(ctx, current.DictionarySchemaVersion)
+		content, dictionary, err := s.loadContent(ctx, current)
 		if err != nil {
 			return err
 		}
-		rules, err := s.repo.ListRules(ctx, current.ID)
-		if err != nil {
-			return err
-		}
-		scorecard, err := s.repo.GetScorecard(ctx, current.ID)
-		if err != nil {
-			return err
-		}
-		matrix, err := s.repo.GetMatrix(ctx, current.ID)
-		if err != nil {
-			return err
-		}
-		content := domain.Content{Rules: rules, Scorecard: scorecard, Matrix: matrix}
-		// Content copied by clone, a dictionary version chosen after it was written, or a
-		// scorecard edited after the matrix, can be invalid now. Every problem of every section
-		// is reported together.
-		if fields := contentIssues(content, dictionary); len(fields) > 0 {
-			return &InvalidPolicyError{Fields: fields}
+		if report := s.validate(content, dictionary); !report.Valid() {
+			return &InvalidPolicyError{Fields: report.Issues}
 		}
 		snapshot, checksum, err := domain.BuildSnapshot(current, dictionary, content)
 		if err != nil {
@@ -366,33 +360,51 @@ func (s *PolicyService) Submit(ctx context.Context, actorID, id string) (domain.
 	return out, err
 }
 
-// contentIssues re-validates the stored content of a draft and returns every problem, with
-// the field paths of the editing endpoints ("rules[1].expression",
-// "scorecard.characteristics[0].bins[2].min_value", "decision_matrix.rows[0].min_score").
-func contentIssues(c domain.Content, dictionary []domain.DictionaryVariable) []domain.FieldError {
-	var out []domain.FieldError
-	collect := func(prefix string, err error) {
-		var verr *domain.ValidationError
-		if errors.As(err, &verr) {
-			for _, f := range verr.Fields {
-				f.Field = prefix + f.Field
-				out = append(out, f)
-			}
-		}
+// Validate runs the full policy validation on a version and returns the report without changing
+// anything. It works for any status: for a frozen version it re-checks the stored content
+// against the dictionary version it is pinned to.
+func (s *PolicyService) Validate(ctx context.Context, id string) (domain.Version, domain.Report, error) {
+	if !domain.IsValidID(id) {
+		return domain.Version{}, domain.Report{}, ErrVersionNotFound
 	}
-	if _, err := domain.ValidateRules(ruleInputs(c.Rules), domain.DictionaryEnvironment(dictionary)); err != nil {
-		collect("", err)
+	v, err := s.repo.FindVersion(ctx, id, false)
+	if err != nil {
+		return domain.Version{}, domain.Report{}, err
 	}
-	if c.Scorecard != nil {
-		if _, err := domain.ValidateScorecard(scorecardInput(c.Scorecard), dictionary); err != nil {
-			collect("scorecard.", err)
-		}
+	content, dictionary, err := s.loadContent(ctx, v)
+	if err != nil {
+		return domain.Version{}, domain.Report{}, err
 	}
-	if len(c.Matrix) > 0 {
-		// The matrix must cover the scores the scorecard of this version can produce.
-		if _, err := domain.ValidateMatrix(matrixInput(c.Matrix), domain.RangeOf(c.Scorecard)); err != nil {
-			collect("decision_matrix.", err)
-		}
+	return v, s.validate(content, dictionary), nil
+}
+
+func (s *PolicyService) validate(content domain.Content, dictionary []domain.DictionaryVariable) domain.Report {
+	return domain.ValidatePolicy(content, dictionary, func(facts map[string]any) []domain.FieldError {
+		return s.dict.CheckInput(dictionary, facts)
+	})
+}
+
+// loadContent reads every content section of a version and the dictionary it is pinned to.
+func (s *PolicyService) loadContent(ctx context.Context, v domain.Version) (domain.Content, []domain.DictionaryVariable, error) {
+	dictionary, err := s.dict.Snapshot(ctx, v.DictionarySchemaVersion)
+	if err != nil {
+		return domain.Content{}, nil, err
 	}
-	return out
+	rules, err := s.repo.ListRules(ctx, v.ID)
+	if err != nil {
+		return domain.Content{}, nil, err
+	}
+	scorecard, err := s.repo.GetScorecard(ctx, v.ID)
+	if err != nil {
+		return domain.Content{}, nil, err
+	}
+	matrix, err := s.repo.GetMatrix(ctx, v.ID)
+	if err != nil {
+		return domain.Content{}, nil, err
+	}
+	cases, err := s.repo.ListTestCases(ctx, v.ID)
+	if err != nil {
+		return domain.Content{}, nil, err
+	}
+	return domain.Content{Rules: rules, Scorecard: scorecard, Matrix: matrix, TestCases: cases}, dictionary, nil
 }

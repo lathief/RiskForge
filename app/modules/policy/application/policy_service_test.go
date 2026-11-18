@@ -37,11 +37,14 @@ type fakeRepo struct {
 	scorecardWrites int
 	matrices        map[string]domain.DecisionMatrix
 	matrixWrites    int
+	testCases       map[string]domain.TestCases
+	testCaseWrites  int
 }
 
 func newFakeRepo() *fakeRepo {
 	return &fakeRepo{packages: map[string]domain.Package{}, rules: map[string]domain.RuleSet{},
-		scorecards: map[string]*domain.Scorecard{}, matrices: map[string]domain.DecisionMatrix{}}
+		scorecards: map[string]*domain.Scorecard{}, matrices: map[string]domain.DecisionMatrix{},
+		testCases: map[string]domain.TestCases{}}
 }
 
 type repoState struct {
@@ -51,6 +54,7 @@ type repoState struct {
 	rules    map[string]domain.RuleSet
 	sc       map[string]*domain.Scorecard
 	matrices map[string]domain.DecisionMatrix
+	cases    map[string]domain.TestCases
 }
 
 func (f *fakeRepo) snapshot() repoState {
@@ -70,11 +74,16 @@ func (f *fakeRepo) snapshot() repoState {
 	for k, v := range f.matrices {
 		mx[k] = append(domain.DecisionMatrix(nil), v...)
 	}
-	return repoState{pk, append([]domain.Version(nil), f.versions...), f.seq, rs, sc, mx}
+	tc := map[string]domain.TestCases{}
+	for k, v := range f.testCases {
+		tc[k] = append(domain.TestCases(nil), v...)
+	}
+	return repoState{pk, append([]domain.Version(nil), f.versions...), f.seq, rs, sc, mx, tc}
 }
 
 func (f *fakeRepo) restore(s repoState) {
-	f.packages, f.versions, f.seq, f.rules, f.scorecards, f.matrices = s.packages, s.versions, s.seq, s.rules, s.sc, s.matrices
+	f.packages, f.versions, f.seq, f.rules, f.scorecards, f.matrices, f.testCases =
+		s.packages, s.versions, s.seq, s.rules, s.sc, s.matrices, s.cases
 }
 
 type fakeTx struct {
@@ -342,7 +351,7 @@ func TestCloneDefaultSourcePrefersActiveOtherwiseNewest(t *testing.T) {
 func TestCloneFromAFrozenVersionByID(t *testing.T) {
 	f := newFixture()
 	pkg, v1 := f.create(t)
-	_, err := f.svc.Submit(context.Background(), "user-1", v1.ID)
+	_, err := f.submit(t, "user-1", v1.ID)
 	require.NoError(t, err)
 	v2, err := f.svc.Clone(context.Background(), "", pkg.ID, CloneInput{SourceVersionID: v1.ID})
 	require.NoError(t, err)
@@ -394,7 +403,7 @@ func TestUpdateDraftWithoutChangeWritesNothing(t *testing.T) {
 func TestUpdateDraftRefusesFrozenVersions(t *testing.T) {
 	f := newFixture()
 	_, v := f.create(t)
-	_, err := f.svc.Submit(context.Background(), "user-1", v.ID)
+	_, err := f.submit(t, "user-1", v.ID)
 	require.NoError(t, err)
 	_, err = f.svc.UpdateDraft(context.Background(), v.ID, domain.Changes{Description: ptr("too late")})
 	assert.ErrorIs(t, err, ErrVersionFrozen)
@@ -422,7 +431,7 @@ func TestSubmitFreezesWithASnapshotOfTheDraftsDictionary(t *testing.T) {
 	_, err := f.svc.UpdateDraft(context.Background(), v.ID, domain.Changes{DictionarySchemaVersion: ptr(int64(3))})
 	require.NoError(t, err)
 
-	got, err := f.svc.Submit(context.Background(), "user-3", v.ID)
+	got, err := f.submit(t, "user-3", v.ID)
 	require.NoError(t, err)
 	assert.Equal(t, domain.StatusPendingApproval, got.Status)
 	assert.Equal(t, "user-3", got.SubmittedBy)
@@ -434,9 +443,9 @@ func TestSubmitFreezesWithASnapshotOfTheDraftsDictionary(t *testing.T) {
 func TestSubmitTwiceIsRefused(t *testing.T) {
 	f := newFixture()
 	_, v := f.create(t)
-	_, err := f.svc.Submit(context.Background(), "", v.ID)
+	_, err := f.submit(t, "", v.ID)
 	require.NoError(t, err)
-	_, err = f.svc.Submit(context.Background(), "", v.ID)
+	_, err = f.submit(t, "", v.ID)
 	assert.ErrorIs(t, err, ErrVersionFrozen)
 	assert.Equal(t, 1, f.repo.frozen)
 }
@@ -444,14 +453,14 @@ func TestSubmitTwiceIsRefused(t *testing.T) {
 func TestSubmitErrorsLeaveTheDraftAlone(t *testing.T) {
 	f := newFixture()
 	_, v := f.create(t)
-	_, err := f.svc.Submit(context.Background(), "", "bad-id")
+	_, err := f.submit(t, "", "bad-id")
 	assert.ErrorIs(t, err, ErrVersionNotFound)
-	_, err = f.svc.Submit(context.Background(), "", "99999999-9999-4999-8999-999999999999")
+	_, err = f.submit(t, "", "99999999-9999-4999-8999-999999999999")
 	assert.ErrorIs(t, err, ErrVersionNotFound)
 
 	boom := errors.New("dictionary unavailable")
 	f.dict.err = boom
-	_, err = f.svc.Submit(context.Background(), "", v.ID)
+	_, err = f.submit(t, "", v.ID)
 	assert.ErrorIs(t, err, boom)
 	f.dict.err = nil
 	stored, _ := f.repo.FindVersion(context.Background(), v.ID, false)
@@ -464,9 +473,9 @@ func TestSubmitIsDeterministicForEqualDrafts(t *testing.T) {
 	pkg, v1 := f.create(t)
 	v2, err := f.svc.Clone(context.Background(), "", pkg.ID, CloneInput{})
 	require.NoError(t, err)
-	a, err := f.svc.Submit(context.Background(), "", v1.ID)
+	a, err := f.submit(t, "", v1.ID)
 	require.NoError(t, err)
-	b, err := f.svc.Submit(context.Background(), "", v2.ID)
+	b, err := f.submit(t, "", v2.ID)
 	require.NoError(t, err)
 	assert.NotEqual(t, a.Checksum, b.Checksum, "the version number is part of the snapshot")
 }

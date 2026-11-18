@@ -7420,7 +7420,7 @@
                   "value": "/api/v1/policy-versions/9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"
                 }
               ],
-              "body": "{\n  \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"policy_id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"version_number\": 1,\n  \"status\": \"PENDING_APPROVAL\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\",\n  \"based_on_version_id\": null,\n  \"dictionary_schema_version\": 8,\n  \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\",\n  \"submitted_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"submitted_at\": \"2026-11-21T08:05:00Z\",\n  \"created_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"created_at\": \"2026-11-21T08:00:00Z\",\n  \"updated_at\": \"2026-11-21T08:05:00Z\",\n  \"snapshot\": {\n    \"dictionary\": {\n      \"schema_version\": 8,\n      \"variables\": []\n    },\n    \"decision_matrix\": [],\n    \"evaluator_version\": \"1\",\n    \"format\": 1,\n    \"package\": {\n      \"product_code\": \"KTA_DEMO\",\n      \"scope\": \"DEFAULT\"\n    },\n    \"rac_rules\": [],\n    \"scorecard\": null,\n    \"version_number\": 1\n  }\n}",
+              "body": "{\n  \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"policy_id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"version_number\": 1,\n  \"status\": \"PENDING_APPROVAL\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\",\n  \"based_on_version_id\": null,\n  \"dictionary_schema_version\": 8,\n  \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\",\n  \"submitted_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"submitted_at\": \"2026-11-21T08:05:00Z\",\n  \"created_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"created_at\": \"2026-11-21T08:00:00Z\",\n  \"updated_at\": \"2026-11-21T08:05:00Z\",\n  \"snapshot\": {\n    \"dictionary\": {\n      \"schema_version\": 8,\n      \"variables\": []\n    },\n    \"decision_matrix\": [],\n    \"evaluator_version\": \"1\",\n    \"format\": 2,\n    \"package\": {\n      \"product_code\": \"KTA_DEMO\",\n      \"scope\": \"DEFAULT\"\n    },\n    \"rac_rules\": [],\n    \"scorecard\": null,\n    \"test_cases\": [],\n    \"version_number\": 1\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -8087,7 +8087,7 @@
                   "value": ""
                 }
               ],
-              "body": "{\n  \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"policy_id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"version_number\": 1,\n  \"status\": \"PENDING_APPROVAL\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\",\n  \"based_on_version_id\": null,\n  \"dictionary_schema_version\": 8,\n  \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\",\n  \"submitted_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"submitted_at\": \"2026-11-21T08:05:00Z\",\n  \"created_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"created_at\": \"2026-11-21T08:00:00Z\",\n  \"updated_at\": \"2026-11-21T08:05:00Z\",\n  \"snapshot\": {\n    \"dictionary\": {\n      \"schema_version\": 8,\n      \"variables\": []\n    },\n    \"decision_matrix\": [],\n    \"evaluator_version\": \"1\",\n    \"format\": 1,\n    \"package\": {\n      \"product_code\": \"KTA_DEMO\",\n      \"scope\": \"DEFAULT\"\n    },\n    \"rac_rules\": [],\n    \"scorecard\": null,\n    \"version_number\": 1\n  }\n}",
+              "body": "{\n  \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"policy_id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"version_number\": 1,\n  \"status\": \"PENDING_APPROVAL\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\",\n  \"based_on_version_id\": null,\n  \"dictionary_schema_version\": 8,\n  \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\",\n  \"submitted_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"submitted_at\": \"2026-11-21T08:05:00Z\",\n  \"created_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"created_at\": \"2026-11-21T08:00:00Z\",\n  \"updated_at\": \"2026-11-21T08:05:00Z\",\n  \"snapshot\": {\n    \"dictionary\": {\n      \"schema_version\": 8,\n      \"variables\": []\n    },\n    \"decision_matrix\": [],\n    \"evaluator_version\": \"1\",\n    \"format\": 2,\n    \"package\": {\n      \"product_code\": \"KTA_DEMO\",\n      \"scope\": \"DEFAULT\"\n    },\n    \"rac_rules\": [],\n    \"scorecard\": null,\n    \"test_cases\": [],\n    \"version_number\": 1\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -8559,7 +8559,7 @@
                   "value": ""
                 }
               ],
-              "body": "{\n  \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"policy_id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"version_number\": 1,\n  \"status\": \"PENDING_APPROVAL\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\",\n  \"based_on_version_id\": null,\n  \"dictionary_schema_version\": 8,\n  \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\",\n  \"submitted_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"submitted_at\": \"2026-11-21T08:05:00Z\",\n  \"created_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"created_at\": \"2026-11-21T08:00:00Z\",\n  \"updated_at\": \"2026-11-21T08:05:00Z\",\n  \"snapshot\": {\n    \"dictionary\": {\n      \"schema_version\": 8,\n      \"variables\": []\n    },\n    \"decision_matrix\": [],\n    \"evaluator_version\": \"1\",\n    \"format\": 1,\n    \"package\": {\n      \"product_code\": \"KTA_DEMO\",\n      \"scope\": \"DEFAULT\"\n    },\n    \"rac_rules\": [],\n    \"scorecard\": null,\n    \"version_number\": 1\n  }\n}",
+              "body": "{\n  \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"policy_id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"version_number\": 1,\n  \"status\": \"PENDING_APPROVAL\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\",\n  \"based_on_version_id\": null,\n  \"dictionary_schema_version\": 8,\n  \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\",\n  \"submitted_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"submitted_at\": \"2026-11-21T08:05:00Z\",\n  \"created_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"created_at\": \"2026-11-21T08:00:00Z\",\n  \"updated_at\": \"2026-11-21T08:05:00Z\",\n  \"snapshot\": {\n    \"dictionary\": {\n      \"schema_version\": 8,\n      \"variables\": []\n    },\n    \"decision_matrix\": [],\n    \"evaluator_version\": \"1\",\n    \"format\": 2,\n    \"package\": {\n      \"product_code\": \"KTA_DEMO\",\n      \"scope\": \"DEFAULT\"\n    },\n    \"rac_rules\": [],\n    \"scorecard\": null,\n    \"test_cases\": [],\n    \"version_number\": 1\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -9188,7 +9188,7 @@
           "request": {
             "name": "Freeze a draft for approval",
             "description": {
-              "content": "Captures the canonical snapshot of the draft, including the data dictionary definitions\nit was written against, stores its SHA-256 checksum, and moves the version to\n`PENDING_APPROVAL`. After this nothing about the version changes: edits and a second\nsubmit are 409 `POLICY_VERSION_FROZEN`. No request body.\nBefore freezing, the RAC rules, the scorecard, and the decision matrix are checked again (against\nthe dictionary version the draft is pinned to, and the matrix against the scorecard range); if anything no longer validates, the answer is a 422 `POLICY_VALIDATION_FAILED`\nlisting every problem (paths start with `scorecard.` or `decision_matrix.` for those sections) and the draft stays a DRAFT. The\nremaining check of SYSTEM_DESIGN.md 9.3 (golden tests) arrives with RF-010, and approving or rejecting a\npending version arrives with M4.\n",
+              "content": "Captures the canonical snapshot of the draft, including the data dictionary definitions\nit was written against, stores its SHA-256 checksum, and moves the version to\n`PENDING_APPROVAL`. After this nothing about the version changes: edits and a second\nsubmit are 409 `POLICY_VERSION_FROZEN`. No request body.\nBefore freezing, the full policy validation of `POST .../validate` runs (SYSTEM_DESIGN.md\n9.3): completeness (a scorecard, a decision matrix, and at least one required test case),\nthe RAC rules, the scorecard, the decision matrix against the scorecard range, and the test\ncases, all against the dictionary version the draft is pinned to. If any check fails, the\nanswer is a 422 `POLICY_VALIDATION_FAILED` listing every problem (paths start with\n`scorecard.` or `decision_matrix.` for those sections) and the draft stays a DRAFT.\nExecuting the test cases against the policy (comparing expected and actual decisions) is\na pending check until the decision evaluator exists (RF-011 to RF-013); approving or\nrejecting a pending version arrives with M4.\n",
               "type": "text/plain"
             },
             "url": {
@@ -9300,7 +9300,7 @@
                   "value": ""
                 }
               ],
-              "body": "{\n  \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"policy_id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"version_number\": 1,\n  \"status\": \"PENDING_APPROVAL\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\",\n  \"based_on_version_id\": null,\n  \"dictionary_schema_version\": 8,\n  \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\",\n  \"submitted_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"submitted_at\": \"2026-11-21T08:05:00Z\",\n  \"created_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"created_at\": \"2026-11-21T08:00:00Z\",\n  \"updated_at\": \"2026-11-21T08:05:00Z\",\n  \"snapshot\": {\n    \"dictionary\": {\n      \"schema_version\": 8,\n      \"variables\": []\n    },\n    \"decision_matrix\": [],\n    \"evaluator_version\": \"1\",\n    \"format\": 1,\n    \"package\": {\n      \"product_code\": \"KTA_DEMO\",\n      \"scope\": \"DEFAULT\"\n    },\n    \"rac_rules\": [],\n    \"scorecard\": null,\n    \"version_number\": 1\n  }\n}",
+              "body": "{\n  \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"policy_id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"version_number\": 1,\n  \"status\": \"PENDING_APPROVAL\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\",\n  \"based_on_version_id\": null,\n  \"dictionary_schema_version\": 8,\n  \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\",\n  \"submitted_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"submitted_at\": \"2026-11-21T08:05:00Z\",\n  \"created_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"created_at\": \"2026-11-21T08:00:00Z\",\n  \"updated_at\": \"2026-11-21T08:05:00Z\",\n  \"snapshot\": {\n    \"dictionary\": {\n      \"schema_version\": 8,\n      \"variables\": []\n    },\n    \"decision_matrix\": [],\n    \"evaluator_version\": \"1\",\n    \"format\": 2,\n    \"package\": {\n      \"product_code\": \"KTA_DEMO\",\n      \"scope\": \"DEFAULT\"\n    },\n    \"rac_rules\": [],\n    \"scorecard\": null,\n    \"test_cases\": [],\n    \"version_number\": 1\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -14475,6 +14475,1687 @@
           "protocolProfileBehavior": {
             "disableBodyPruning": true
           }
+        },
+        {
+          "name": "List the test cases of a version",
+          "request": {
+            "name": "List the test cases of a version",
+            "description": {
+              "content": "The regression (\"golden\") cases of the version in order (SYSTEM_DESIGN.md 9.1 and 12). Works for any status.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policy-versions",
+                ":version_id",
+                "test-cases"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{versionId}}",
+                  "key": "version_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/test-cases"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The test cases, possibly none.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "test-cases"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/test-cases"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"policy_version_id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"status\": \"DRAFT\",\n  \"dictionary_schema_version\": 8,\n  \"updated_at\": \"2026-11-25T08:00:00Z\",\n  \"test_cases\": [\n    {\n      \"order\": 1,\n      \"case_code\": \"GOLDEN_HAPPY_PATH\",\n      \"description\": \"Example applicant of section 20.4: score 685, grade A.\",\n      \"required\": true,\n      \"input\": {\n        \"age_years\": 29,\n        \"employment_tenure_months\": 36,\n        \"existing_installment\": \"2500000.00\",\n        \"is_blacklisted\": false,\n        \"monthly_income\": \"12000000.00\",\n        \"slik_max_kol\": 1\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"APPROVE\",\n        \"grade\": \"A\",\n        \"reason_codes\": []\n      }\n    },\n    {\n      \"order\": 2,\n      \"case_code\": \"GOLDEN_ZERO_INCOME\",\n      \"description\": \"monthly_income 0: validation error, never a division by zero.\",\n      \"required\": true,\n      \"input\": {\n        \"age_years\": 29,\n        \"employment_tenure_months\": 36,\n        \"existing_installment\": \"2500000.00\",\n        \"is_blacklisted\": false,\n        \"monthly_income\": \"0.00\",\n        \"slik_max_kol\": 1\n      },\n      \"expected\": {\n        \"outcome\": \"INPUT_VALIDATION_ERROR\",\n        \"decision\": null,\n        \"grade\": null,\n        \"reason_codes\": []\n      }\n    }\n  ]\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "test-cases"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/test-cases"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "test-cases"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/test-cases"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No policy version has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "test-cases"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/test-cases"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_NOT_FOUND\",\n    \"message\": \"policy version not found\"\n  },\n  \"request_id\": \"9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "test-cases"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/test-cases"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "test-cases"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/test-cases"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "name": "Replace the test cases of a draft",
+          "request": {
+            "name": "Replace the test cases of a draft",
+            "description": {
+              "content": "Replaces the whole list. A test case is an applicant `input` (the same facts the decision\nAPI will take: integers as JSON numbers, decimals as strings, booleans) and the result the\npolicy is expected to give: either a business `DECISION` (with `decision`, optional\n`grade`, and optional `reason_codes`) or an `INPUT_VALIDATION_ERROR`. Cases are `required`\nunless set to false; a version can only be submitted with at least one required case.\n\nEach case is checked now, against the dictionary version the draft is pinned to and the\ndraft's current RAC rules and decision matrix:\ninput keys must be input variables of the dictionary (`unknown_variable`,\n`derived_not_allowed`); `grade` must be a grade of the matrix (`unknown_grade`) and every\nreason code a reason code of a RAC rule (`unknown_reason_code`); and the input is **run\nagainst the data dictionary**: a `DECISION` case needs an input that passes it (the issue\nof the dictionary is reported at `input.<variable>`), and an `INPUT_VALIDATION_ERROR` case\nneeds one that fails it (`validation_error_not_raised`). Whether the expected decision,\ngrade, and reason codes are what the policy gives is checked once the decision evaluator\nexists (RF-011 to RF-013); `POST .../validate` lists that as a pending check.\n\nReason codes are a set and are returned sorted. Nothing is stored unless every case is\nvalid; every problem is reported with its path. Sending the list the draft already has\nchanges nothing; an empty list removes all cases. Only a DRAFT can change (409\n`POLICY_VERSION_FROZEN`).\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policy-versions",
+                ":version_id",
+                "test-cases"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{versionId}}",
+                  "key": "version_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/test-cases"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "PUT",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"test_cases\": [\n    {\n      \"case_code\": \"GOLDEN_HAPPY_PATH\",\n      \"description\": \"Example applicant of section 20.4: score 685, grade A.\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"APPROVE\",\n        \"grade\": \"A\"\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_AGE_BELOW_MINIMUM\",\n      \"input\": {\n        \"age_years\": 19,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"REJECT\",\n        \"reason_codes\": [\n          \"AGE_BELOW_MINIMUM\"\n        ]\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_ZERO_INCOME\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"0.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"INPUT_VALIDATION_ERROR\"\n      }\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The test cases as stored.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "test-cases"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/test-cases"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"test_cases\": [\n    {\n      \"case_code\": \"GOLDEN_HAPPY_PATH\",\n      \"description\": \"Example applicant of section 20.4: score 685, grade A.\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"APPROVE\",\n        \"grade\": \"A\"\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_AGE_BELOW_MINIMUM\",\n      \"input\": {\n        \"age_years\": 19,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"REJECT\",\n        \"reason_codes\": [\n          \"AGE_BELOW_MINIMUM\"\n        ]\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_ZERO_INCOME\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"0.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"INPUT_VALIDATION_ERROR\"\n      }\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"policy_version_id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"status\": \"DRAFT\",\n  \"dictionary_schema_version\": 8,\n  \"updated_at\": \"2026-11-25T08:00:00Z\",\n  \"test_cases\": [\n    {\n      \"order\": 1,\n      \"case_code\": \"GOLDEN_HAPPY_PATH\",\n      \"description\": \"Example applicant of section 20.4: score 685, grade A.\",\n      \"required\": true,\n      \"input\": {\n        \"age_years\": 29,\n        \"employment_tenure_months\": 36,\n        \"existing_installment\": \"2500000.00\",\n        \"is_blacklisted\": false,\n        \"monthly_income\": \"12000000.00\",\n        \"slik_max_kol\": 1\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"APPROVE\",\n        \"grade\": \"A\",\n        \"reason_codes\": []\n      }\n    },\n    {\n      \"order\": 2,\n      \"case_code\": \"GOLDEN_ZERO_INCOME\",\n      \"description\": \"monthly_income 0: validation error, never a division by zero.\",\n      \"required\": true,\n      \"input\": {\n        \"age_years\": 29,\n        \"employment_tenure_months\": 36,\n        \"existing_installment\": \"2500000.00\",\n        \"is_blacklisted\": false,\n        \"monthly_income\": \"0.00\",\n        \"slik_max_kol\": 1\n      },\n      \"expected\": {\n        \"outcome\": \"INPUT_VALIDATION_ERROR\",\n        \"decision\": null,\n        \"grade\": null,\n        \"reason_codes\": []\n      }\n    }\n  ]\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "test-cases"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/test-cases"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"test_cases\": [\n    {\n      \"case_code\": \"GOLDEN_HAPPY_PATH\",\n      \"description\": \"Example applicant of section 20.4: score 685, grade A.\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"APPROVE\",\n        \"grade\": \"A\"\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_AGE_BELOW_MINIMUM\",\n      \"input\": {\n        \"age_years\": 19,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"REJECT\",\n        \"reason_codes\": [\n          \"AGE_BELOW_MINIMUM\"\n        ]\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_ZERO_INCOME\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"0.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"INPUT_VALIDATION_ERROR\"\n      }\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "test-cases"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/test-cases"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"test_cases\": [\n    {\n      \"case_code\": \"GOLDEN_HAPPY_PATH\",\n      \"description\": \"Example applicant of section 20.4: score 685, grade A.\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"APPROVE\",\n        \"grade\": \"A\"\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_AGE_BELOW_MINIMUM\",\n      \"input\": {\n        \"age_years\": 19,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"REJECT\",\n        \"reason_codes\": [\n          \"AGE_BELOW_MINIMUM\"\n        ]\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_ZERO_INCOME\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"0.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"INPUT_VALIDATION_ERROR\"\n      }\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No policy version has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "test-cases"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/test-cases"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"test_cases\": [\n    {\n      \"case_code\": \"GOLDEN_HAPPY_PATH\",\n      \"description\": \"Example applicant of section 20.4: score 685, grade A.\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"APPROVE\",\n        \"grade\": \"A\"\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_AGE_BELOW_MINIMUM\",\n      \"input\": {\n        \"age_years\": 19,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"REJECT\",\n        \"reason_codes\": [\n          \"AGE_BELOW_MINIMUM\"\n        ]\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_ZERO_INCOME\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"0.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"INPUT_VALIDATION_ERROR\"\n      }\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_NOT_FOUND\",\n    \"message\": \"policy version not found\"\n  },\n  \"request_id\": \"9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "test-cases"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/test-cases"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"test_cases\": [\n    {\n      \"case_code\": \"GOLDEN_HAPPY_PATH\",\n      \"description\": \"Example applicant of section 20.4: score 685, grade A.\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"APPROVE\",\n        \"grade\": \"A\"\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_AGE_BELOW_MINIMUM\",\n      \"input\": {\n        \"age_years\": 19,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"REJECT\",\n        \"reason_codes\": [\n          \"AGE_BELOW_MINIMUM\"\n        ]\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_ZERO_INCOME\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"0.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"INPUT_VALIDATION_ERROR\"\n      }\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The version is not a DRAFT, so it can no longer be edited or submitted.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "test-cases"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/test-cases"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"test_cases\": [\n    {\n      \"case_code\": \"GOLDEN_HAPPY_PATH\",\n      \"description\": \"Example applicant of section 20.4: score 685, grade A.\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"APPROVE\",\n        \"grade\": \"A\"\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_AGE_BELOW_MINIMUM\",\n      \"input\": {\n        \"age_years\": 19,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"REJECT\",\n        \"reason_codes\": [\n          \"AGE_BELOW_MINIMUM\"\n        ]\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_ZERO_INCOME\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"0.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"INPUT_VALIDATION_ERROR\"\n      }\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_FROZEN\",\n    \"message\": \"only a DRAFT version can be changed or submitted\"\n  },\n  \"request_id\": \"0d9c8b7a6e5f4a3b2c1d0e9f8a7b6c5d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request body exceeds 64 KiB. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "test-cases"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/test-cases"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"test_cases\": [\n    {\n      \"case_code\": \"GOLDEN_HAPPY_PATH\",\n      \"description\": \"Example applicant of section 20.4: score 685, grade A.\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"APPROVE\",\n        \"grade\": \"A\"\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_AGE_BELOW_MINIMUM\",\n      \"input\": {\n        \"age_years\": 19,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"REJECT\",\n        \"reason_codes\": [\n          \"AGE_BELOW_MINIMUM\"\n        ]\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_ZERO_INCOME\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"0.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"INPUT_VALIDATION_ERROR\"\n      }\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Entity Too Large",
+              "code": 413,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Entity Too Large",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The list is invalid. Nothing was stored.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "test-cases"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/test-cases"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"test_cases\": [\n    {\n      \"case_code\": \"GOLDEN_HAPPY_PATH\",\n      \"description\": \"Example applicant of section 20.4: score 685, grade A.\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"APPROVE\",\n        \"grade\": \"A\"\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_AGE_BELOW_MINIMUM\",\n      \"input\": {\n        \"age_years\": 19,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"REJECT\",\n        \"reason_codes\": [\n          \"AGE_BELOW_MINIMUM\"\n        ]\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_ZERO_INCOME\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"0.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"INPUT_VALIDATION_ERROR\"\n      }\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INPUT_VALIDATION_ERROR\",\n    \"message\": \"invalid policy\",\n    \"details\": [\n      {\n        \"field\": \"test_cases[0].input.monthly_income\",\n        \"issue\": \"below_min_value\",\n        \"message\": \"the expected outcome is a decision, so the input must pass the data dictionary\"\n      },\n      {\n        \"field\": \"test_cases[1].expected.reason_codes[0]\",\n        \"issue\": \"unknown_reason_code\",\n        \"message\": \"no RAC rule of this version has reason code \\\"NOT_A_REASON\\\"\"\n      }\n    ]\n  },\n  \"request_id\": \"7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "test-cases"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/test-cases"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"test_cases\": [\n    {\n      \"case_code\": \"GOLDEN_HAPPY_PATH\",\n      \"description\": \"Example applicant of section 20.4: score 685, grade A.\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"APPROVE\",\n        \"grade\": \"A\"\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_AGE_BELOW_MINIMUM\",\n      \"input\": {\n        \"age_years\": 19,\n        \"monthly_income\": \"12000000.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"DECISION\",\n        \"decision\": \"REJECT\",\n        \"reason_codes\": [\n          \"AGE_BELOW_MINIMUM\"\n        ]\n      }\n    },\n    {\n      \"case_code\": \"GOLDEN_ZERO_INCOME\",\n      \"input\": {\n        \"age_years\": 29,\n        \"monthly_income\": \"0.00\",\n        \"existing_installment\": \"2500000.00\",\n        \"employment_tenure_months\": 36,\n        \"slik_max_kol\": 1,\n        \"is_blacklisted\": false\n      },\n      \"expected\": {\n        \"outcome\": \"INPUT_VALIDATION_ERROR\"\n      }\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "name": "Validate a whole policy version",
+          "request": {
+            "name": "Validate a whole policy version",
+            "description": {
+              "content": "Runs the full policy validation of SYSTEM_DESIGN.md 9.3 and returns a report; nothing\nchanges. Submit runs the same checks and refuses the version (422\n`POLICY_VALIDATION_FAILED`, same `issues`) when any fails, so this is the dry run of\nsubmit and needs the same permission. Works for any status; a frozen version is checked\nagain against the dictionary version it is pinned to. No request body.\n\nChecks: **completeness** (a scorecard, a decision matrix, and at least one required test\ncase: `missing_section`, `no_required_test_cases`; RAC rules are optional); every **RAC\nexpression** compiles and type-checks; the **scorecard** variables exist and are numeric\nand its bins cover each variable exactly once; the **decision matrix** covers the\nscorecard's score range; every **test case** references existing variables, grades, and\nreason codes, and its input passes or fails the data dictionary as its expected outcome\nsays. Paths are those of the editing endpoints, prefixed `scorecard.` and\n`decision_matrix.` for those sections.\n\n`pending_checks` lists what cannot run yet: comparing each test case's expected decision,\ngrade, and reason codes with the policy's actual result needs the decision evaluator\n(RF-011 to RF-013). `valid: true` therefore means \"every check that exists passed\", and\nthe pending check is always listed so it is never mistaken for a pass.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policy-versions",
+                ":version_id",
+                "validate"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{versionId}}",
+                  "key": "version_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/validate"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The validation report.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "validate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/validate"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"policy_version_id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"status\": \"DRAFT\",\n  \"dictionary_schema_version\": 8,\n  \"valid\": false,\n  \"summary\": {\n    \"rac_rules\": 3,\n    \"scorecard_characteristics\": 3,\n    \"decision_matrix_rows\": 3,\n    \"test_cases\": 0,\n    \"required_test_cases\": 0\n  },\n  \"score_range\": {\n    \"min\": \"420.00\",\n    \"max\": \"685.00\"\n  },\n  \"issues\": [\n    {\n      \"field\": \"test_cases\",\n      \"issue\": \"no_required_test_cases\",\n      \"message\": \"a policy needs at least one required test case (SYSTEM_DESIGN.md 9.3)\"\n    }\n  ],\n  \"pending_checks\": [\n    {\n      \"check\": \"golden_test_execution\",\n      \"reason\": \"evaluating the expected decision, grade, and reason codes of a test case needs the decision evaluator (RF-011 to RF-013); test cases are checked statically and their inputs are run against the data dictionary\"\n    }\n  ]\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "validate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/validate"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "validate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/validate"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {}
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No policy version has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "validate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/validate"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {}
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_NOT_FOUND\",\n    \"message\": \"policy version not found\"\n  },\n  \"request_id\": \"9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "validate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/validate"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {}
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "validate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/validate"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
         }
       ]
     }
@@ -14501,7 +16182,7 @@
     "name": "RiskForge API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": {
-      "content": "Contract for the endpoints implemented so far (RF-001 to RF-009, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; the role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
+      "content": "Contract for the endpoints implemented so far (RF-001 to RF-010, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; the role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
       "type": "text/plain"
     },
     "_postman_id": "4b6e2f0a-9c3d-4e51-8a7b-1f2e3d4c5b6a"

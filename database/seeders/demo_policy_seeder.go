@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"goravel/app/facades"
 	catalogapp "goravel/app/modules/catalog/application"
@@ -75,9 +76,9 @@ var DemoRacRules = []domain.RuleInput{
 		Expression: "slik_max_kol <= 2", Description: "Worse collectability goes to manual review."},
 }
 
-// seedDemoRules gives the demo policy's first draft the example RAC rules, scorecard, and decision
-// matrix, each only while the draft has none. Edits are never overwritten; removing a section
-// makes the seeder add its example again.
+// seedDemoRules gives the demo policy's first draft the example RAC rules, scorecard, decision matrix,
+// and test cases, each only while the draft has none. Edits are never overwritten; removing a section
+// makes the seeder add its example again. The seeded draft passes the full policy validation.
 func seedDemoRules(service *policyapp.PolicyService) error {
 	ctx := context.Background()
 	page, err := service.List(ctx, policyapp.ListFilter{ProductCode: DemoProductCode, PerPage: policyapp.MaxPerPage})
@@ -116,8 +117,56 @@ func seedDemoRules(service *policyapp.PolicyService) error {
 				return fmt.Errorf("seed demo decision matrix: %w", err)
 			}
 		}
+		_, cases, err := service.GetTestCases(ctx, latest.ID)
+		if err != nil {
+			return fmt.Errorf("seed demo test cases: %w", err)
+		}
+		if len(cases) == 0 {
+			if _, _, err := service.ReplaceTestCases(ctx, latest.ID, DemoTestCases()); err != nil {
+				return fmt.Errorf("seed demo test cases: %w", err)
+			}
+		}
 	}
 	return nil
+}
+
+// DemoApplicant is the example applicant of SYSTEM_DESIGN.md 13.2 and 20.4.
+const DemoApplicant = `{"age_years":29,"monthly_income":"12000000.00","existing_installment":"2500000.00",` +
+	`"employment_tenure_months":36,"slik_max_kol":1,"is_blacklisted":false}`
+
+// DemoTestCases are the golden cases of SYSTEM_DESIGN.md section 12 that the demo dictionary,
+// RAC rules, scorecard, and matrix can express: the happy path (APPROVE, grade A, 685), the hard
+// rejects for age and blacklist, the soft refer for SLIK, and the two input validation errors.
+// The boundary, overlap, and simulation cases of section 12 are covered by the validation and
+// evaluator tests instead.
+func DemoTestCases() []domain.TestCaseInput {
+	with := func(change string) []byte {
+		return []byte(strings.Replace(DemoApplicant, change[:strings.Index(change, ":")+1]+demoValue(change), change, 1))
+	}
+	return []domain.TestCaseInput{
+		{Code: "GOLDEN_HAPPY_PATH", Description: "Example applicant of section 20.4: score 685, grade A.",
+			Input: []byte(DemoApplicant), Outcome: "DECISION", Decision: "APPROVE", Grade: "A"},
+		{Code: "GOLDEN_AGE_BELOW_MINIMUM", Description: "age_years below the RAC threshold: hard reject.",
+			Input: with(`"age_years":19`), Outcome: "DECISION", Decision: "REJECT", ReasonCodes: []string{"AGE_BELOW_MINIMUM"}},
+		{Code: "GOLDEN_BLACKLISTED", Description: "is_blacklisted true: hard reject.",
+			Input: with(`"is_blacklisted":true`), Outcome: "DECISION", Decision: "REJECT", ReasonCodes: []string{"BLACKLISTED"}},
+		{Code: "GOLDEN_SLIK_REFER", Description: "Soft RAC fail: REFER even though the score is high.",
+			Input: with(`"slik_max_kol":3`), Outcome: "DECISION", Decision: "REFER", Grade: "A", ReasonCodes: []string{"SLIK_REVIEW_REQUIRED"}},
+		{Code: "GOLDEN_MISSING_INCOME", Description: "Required input null: validation error, not a REJECT.",
+			Input: with(`"monthly_income":null`), Outcome: "INPUT_VALIDATION_ERROR"},
+		{Code: "GOLDEN_ZERO_INCOME", Description: "monthly_income 0: validation error, never a division by zero.",
+			Input: with(`"monthly_income":"0.00"`), Outcome: "INPUT_VALIDATION_ERROR"},
+	}
+}
+
+// demoValue returns the value DemoApplicant has for the key of change ("key":value).
+func demoValue(change string) string {
+	key := change[:strings.Index(change, ":")+1]
+	rest := DemoApplicant[strings.Index(DemoApplicant, key)+len(key):]
+	if end := strings.IndexAny(rest, ",}"); end >= 0 {
+		return rest[:end]
+	}
+	return rest
 }
 
 // DemoMatrix is the illustrative decision matrix of SYSTEM_DESIGN.md 20.3 for the score domain

@@ -288,12 +288,14 @@ func (s *PolicyTestSuite) TestSubmitFreezesTheScorecardIntoTheSnapshot() {
 	s.True(policydomain.VerifySnapshot(raw, body["checksum"].(string)))
 }
 
-func (s *PolicyTestSuite) TestSubmitWithoutAScorecardFreezesANullSection() {
+// Since RF-010 a version cannot be submitted without a scorecard.
+func (s *PolicyTestSuite) TestSubmitWithoutAScorecardIsRefused() {
 	_, v1 := s.createPolicy(`{"product_code":"KTA_DEMO"}`)
-	body := s.json(s.submit(v1).AssertOk())
-	snap := body["snapshot"].(map[string]any)
-	s.Contains(snap, "scorecard")
-	s.Nil(snap["scorecard"])
+	s.complete(v1)
+	s.scorecardRequest("demo_analyst", "DELETE", v1, "").AssertNoContent()
+	resp := s.submitRaw(v1)
+	resp.AssertStatus(http.StatusUnprocessableEntity)
+	s.Equal([]string{"scorecard:missing_section"}, s.issuePairs(resp))
 }
 
 func (s *PolicyTestSuite) TestCloneCopiesTheScorecardIndependently() {
@@ -368,9 +370,10 @@ func (s *PolicyTestSuite) TestConcurrentScorecardReplacesLeaveOneWholeScorecard(
 
 func (s *PolicyTestSuite) TestSubmitRacingWithAScorecardReplaceKeepsTheSnapshotAndTablesTogether() {
 	for round := 0; round < 5; round++ {
-		s.Require().NoError(facades.DB().Statement("TRUNCATE TABLE policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
+		s.Require().NoError(facades.DB().Statement("TRUNCATE TABLE policy.test_cases, policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
 		_, v1 := s.createPolicy(`{"product_code":"KTA_DEMO"}`)
 		s.putScorecard(v1, demoScorecardBody).AssertOk()
+		s.complete(v1)
 		var wg sync.WaitGroup
 		wg.Add(2)
 		go func() {

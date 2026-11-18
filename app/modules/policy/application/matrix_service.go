@@ -120,14 +120,3 @@ func (s *PolicyService) RemoveMatrix(ctx context.Context, versionID string) erro
 		return s.repo.TouchDraft(ctx, versionID)
 	})
 }
-
-// matrixInput turns stored rows back into input, for re-validation at submit.
-func matrixInput(m domain.DecisionMatrix) []domain.MatrixRowInput {
-	out := make([]domain.MatrixRowInput, 0, len(m))
-	for _, r := range m {
-		out = append(out, domain.MatrixRowInput{
-			MinScore: r.MinScore, MaxScore: r.MaxScore, Grade: r.Grade, Decision: string(r.Decision), Label: r.Label,
-		})
-	}
-	return out
-}

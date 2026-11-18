@@ -156,7 +156,7 @@ func TestScorecardOfFrozenAndMissingVersions(t *testing.T) {
 	f := newFixture()
 	scorecardDictionary(f)
 	_, v := f.create(t)
-	_, err := f.svc.Submit(context.Background(), "u", v.ID)
+	_, err := f.submit(t, "u", v.ID)
 	require.NoError(t, err)
 	_, _, err = f.svc.ReplaceScorecard(context.Background(), v.ID, demoScorecard())
 	assert.ErrorIs(t, err, ErrVersionFrozen)
@@ -194,7 +194,7 @@ func TestSubmitFreezesTheScorecard(t *testing.T) {
 	_, v := f.create(t)
 	_, _, err := f.svc.ReplaceScorecard(context.Background(), v.ID, demoScorecard())
 	require.NoError(t, err)
-	got, err := f.svc.Submit(context.Background(), "u", v.ID)
+	got, err := f.submit(t, "u", v.ID)
 	require.NoError(t, err)
 
 	var doc struct {
@@ -218,13 +218,18 @@ func TestSubmitFreezesTheScorecard(t *testing.T) {
 	assert.True(t, domain.VerifySnapshot(got.Snapshot, got.Checksum))
 }
 
-func TestSubmitWithoutScorecardHasANullSection(t *testing.T) {
+// Since RF-010 a draft without a scorecard cannot be submitted (TestSubmitRefusesAnIncompleteDraft),
+// so a frozen snapshot of format 2 always has one.
+func TestSubmitWithoutScorecardIsRefused(t *testing.T) {
 	f := newFixture()
 	scorecardDictionary(f)
 	_, v := f.create(t)
-	got, err := f.svc.Submit(context.Background(), "u", v.ID)
-	require.NoError(t, err)
-	assert.Contains(t, string(got.Snapshot), `"scorecard":null`)
+	f.complete(t, v.ID)
+	delete(f.repo.scorecards, v.ID)
+	_, err := f.svc.Submit(context.Background(), "u", v.ID)
+	var invalid *InvalidPolicyError
+	require.ErrorAs(t, err, &invalid)
+	assert.Equal(t, []string{"scorecard:missing_section"}, issueList(invalid.Fields))
 }
 
 func TestSubmitReportsRuleAndScorecardProblemsTogether(t *testing.T) {
@@ -241,7 +246,7 @@ func TestSubmitReportsRuleAndScorecardProblemsTogether(t *testing.T) {
 	// The dictionary loses dsr_ratio and slik_max_kol.
 	f.dict.vars = f.dict.vars[:1]
 
-	_, err = f.svc.Submit(context.Background(), "u", v2.ID)
+	_, err = f.submit(t, "u", v2.ID)
 	var invalid *InvalidPolicyError
 	require.ErrorAs(t, err, &invalid)
 	var fields []string
@@ -271,9 +276,9 @@ func TestScorecardChangesTheChecksum(t *testing.T) {
 	_, _, err = f.svc.ReplaceScorecard(context.Background(), v3.ID, changed)
 	require.NoError(t, err)
 
-	a, err := f.svc.Submit(context.Background(), "", v2.ID)
+	a, err := f.submit(t, "", v2.ID)
 	require.NoError(t, err)
-	b, err := f.svc.Submit(context.Background(), "", v3.ID)
+	b, err := f.submit(t, "", v3.ID)
 	require.NoError(t, err)
 	assert.NotEqual(t, a.Checksum, b.Checksum, "one point of difference is a different policy")
 }

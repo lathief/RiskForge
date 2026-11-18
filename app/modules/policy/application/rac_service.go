@@ -16,17 +16,6 @@ func (e *InvalidPolicyError) Error() string {
 	return "policy content is invalid"
 }
 
-func ruleInputs(rules domain.RuleSet) []domain.RuleInput {
-	out := make([]domain.RuleInput, 0, len(rules))
-	for _, r := range rules {
-		out = append(out, domain.RuleInput{
-			RuleCode: r.RuleCode, ReasonCode: r.ReasonCode, Expression: r.Expression,
-			Action: string(r.Action), Description: r.Description,
-		})
-	}
-	return out
-}
-
 // GetRules returns a version and its RAC rules in evaluation order.
 func (s *PolicyService) GetRules(ctx context.Context, versionID string) (domain.Version, domain.RuleSet, error) {
 	if !domain.IsValidID(versionID) {
