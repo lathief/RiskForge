@@ -41,6 +41,8 @@ Pure Go, no framework boot, no database. They cover rules that must never depend
 | `identity/application` | Login failures are indistinguishable; unknown users still spend one hash comparison; overload is never reported as wrong credentials; disabled users lose access immediately. |
 | `identity/infrastructure` | The bcrypt semaphore never exceeds its limit, fails fast with `ErrBusy`, and honours context cancellation. |
 | `catalog/domain`, `catalog/application` | Product validation (format, length in characters, control characters), immutable code, partial updates, paging limits, locked read-modify-write. |
+| `dictionary/domain` | Variable definition rules (code format, type-specific scale and bounds, decimal-string parsing, `required` vs `nullable`, derived variables), partial updates that re-validate the whole definition, no-op detection, and `ValidateInput`: missing and null, wrong types, inclusive range edges, decimal scale, integer forms. |
+| `dictionary/application` | A create locks the schema before writing, a failed create consumes no schema version, an update makes a new version, an unchanged update makes none, history by schema version, paging limits. |
 | `platform/logging` | Redaction at any depth and in headers; non-JSON or oversized bodies are never logged; 1000 concurrent writes produce 1000 whole JSON lines. |
 | `platform/database` | Every SQL statement is logged with kind, rows, duration, and module, and never with argument values. |
 | `support` | Startup refuses weak secrets, unsafe bcrypt cost, unbounded JWT lifetime, and docs outside local/testing. |
@@ -57,6 +59,7 @@ Each suite boots the real application once (`tests/test_case.go`), migrates the 
 | `DatabaseTestSuite` | Transaction boundary: commit across repositories, rollback on error, on constraint violation, and on panic, nested transactions, isolation of uncommitted writes. |
 | `IdentityTestSuite` | Login, token validation (tampered, `alg=none`, expired), the full role-by-permission matrix over HTTP, immediate effect of role removal and deactivation. |
 | `ProductTestSuite` | Authorization per role, validation, pagination, 404/409, concurrent creates of the same code, concurrent updates of different fields, database constraints enforced even when the service is bypassed. |
+| `DictionaryTestSuite` | Authorization per role, create/validation (every issue code), 404/409, versioning and history by `schema_version`, no-op updates, immutable identity, concurrent creates of one code, concurrent changes get gap-free schema versions, concurrent updates of different fields are both kept, database CHECK/FK constraints and the append-only triggers, seeder idempotence. |
 | `HardeningTestSuite` | Panics do not log credentials, body limit, NUL bytes never reach PostgreSQL, `503` on hashing overload, page cap, JSON 404. |
 | `LoggingTestSuite` | One `activity.log` entry per request with gateway headers and redaction, panics in `error.log`, per-module `query.log` with transaction outcome, timeouts logged as 408 (including a panic after the deadline), bodies off keeps headers, `Referer` query strings dropped. |
 | `DocsTestSuite` | Swagger page and assets, CSP, whitelist and path traversal, spec served byte for byte, no secrets in docs, docs do not bypass authorization. |
@@ -69,6 +72,8 @@ Concurrency is tested against the real database, under `-race`:
 
 - 10 goroutines create the same product code: exactly one succeeds, nine get `ErrCodeTaken`.
 - Two goroutines update different fields of one product, ten rounds: neither update is lost (`SELECT ... FOR UPDATE`).
+- 10 goroutines create the same variable code: one succeeds, nine get `ErrCodeTaken`, and the nine rolled back their schema version advance.
+- 8 creates and 8 updates run at once: the 17 stored versions carry schema versions 1..17 with no gap or duplicate (the schema row lock serializes writers).
 - The bcrypt semaphore is driven to saturation with blocking fakes.
 
 Planned (M3/M4): duplicate decision requests with one idempotency key, two approvers approving at the same moment, concurrent publish attempts (`SYSTEM_DESIGN.md` 16.1).
@@ -81,7 +86,7 @@ The HTTP contract has one source (`api/openapi/openapi.yaml`) and two derived ar
 docker run --rm -v "$PWD/api/openapi:/spec:ro" redocly/cli:2.79.0 lint /spec/openapi.yaml   # spec is valid
 ./scripts/generate-postman.sh --check                                                    # collection is current and deterministic
 ... api go test -run 'TestContract' ./tests/feature                                      # routes = spec = collection, and code enforces spec
-./scripts/smoke-postman.sh                                                               # the collection runs against a live stack (8/8)
+./scripts/smoke-postman.sh                                                               # the collection runs against a live stack (12/12)
 ```
 
 The contract tests cover operations, parameters, auth, and permissions. They do **not** compare request and response body schemas with the code; each endpoint's HTTP tests and code review keep those consistent.

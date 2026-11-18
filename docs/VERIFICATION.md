@@ -82,6 +82,17 @@ A review of the branch as published found, and this round fixed:
 - README claims tightened (redaction scope, what "immediate" revocation means).
 - Dockerfile base images pinned by digest.
 
+## RF-005 Data dictionary
+Run on branch `feature/RF-005-data-dictionary` in the disposable project `rf-test-rf005` (PostgreSQL 18), plus the `rf-dev` stack for the live checks.
+- `gofmt` and `go vet ./...` clean. `go test -race -count=1 ./...` passes for every package, including the contract suites at 12 operations.
+- `DictionaryTestSuite` repeated three times (`-race -count=3`) without failures or races. It covers authorization per role (anonymous 401, approver/auditor 403 on writes, loan application 403 on everything), every validation issue code, 404/409, versioning and history by `schema_version`, no-op updates, immutable identity, and the seeder.
+- Concurrency: 10 creates of one code give exactly one variable and leave the schema version at 1 (the nine losers rolled back); 8 creates plus 8 updates at once produce schema versions 1..17 with no gap or duplicate; concurrent updates of different fields of one variable are both kept over ten rounds.
+- Database: invalid rows (bad code, scale on an integer, bound with a fraction, min above max, range on a boolean, required derived variable, required and nullable, duplicate version or schema version, type differing from the variable) are rejected when inserted directly. `UPDATE` and `DELETE` on both tables are rejected by the append-only triggers.
+- `./artisan migrate`, `migrate:reset`, `migrate` again succeed; `Down()` drops the dictionary tables and function.
+- `redocly lint` reports the spec valid. `./scripts/generate-postman.sh` produced 12 requests, and `--check` reported the committed collection up to date.
+- Live on `rf-dev` after `migrate` and `db:seed`: `/swagger` returns 200 and `/openapi.yaml` contains the dictionary paths; `./scripts/smoke-postman.sh` reported 12/12 requests as expected. The curl responses in `docs/API_EXAMPLES.md` were captured from this stack.
+- Not covered: the smoke script uses the read-only auditor, so Postman has no end-to-end run of the dictionary write requests. The write paths are covered by the Go suites.
+
 ## Not verified yet
 
 | Item | Why | Planned in |

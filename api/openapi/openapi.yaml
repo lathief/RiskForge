@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.4.2
+  version: 0.5.0
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
-    Contract for the endpoints implemented so far (RF-001 to RF-004, plus M1 hardening).
+    Contract for the endpoints implemented so far (RF-001 to RF-005, plus M1 hardening).
 
     - All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.
     - Authorization is permission-based. Each operation lists the required permission
@@ -39,6 +39,8 @@ tags:
     description: Login and caller identity.
   - name: Products
     description: Credit product catalog (RF-004).
+  - name: Dictionary
+    description: Data dictionary of typed input and derived variables, with schema versions (RF-005).
 
 paths:
   /health/live:
@@ -282,6 +284,166 @@ paths:
         "413": { $ref: "#/components/responses/PayloadTooLarge" }
         "422": { $ref: "#/components/responses/ValidationError" }
         "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/dictionary/variables:
+    get:
+      tags: [Dictionary]
+      summary: List data dictionary variables
+      description: |
+        Returns the latest definition of every variable, ordered by `code`. `meta.schema_version`
+        is the dictionary schema version the page was read at. Pass `schema_version` to read
+        the dictionary as it was at an earlier version (history is append-only, so the answer
+        for a given version never changes).
+      operationId: listVariables
+      x-required-permission: dictionary:read
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 10000, default: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: origin
+          in: query
+          schema: { $ref: "#/components/schemas/VariableOrigin" }
+        - name: schema_version
+          in: query
+          description: Read the dictionary as of this schema version. 0 is the empty dictionary; a version newer than the current one is a 422.
+          schema: { type: integer, minimum: 0, example: 8 }
+      responses:
+        "200":
+          description: One page of variables. A page past the end returns an empty `data` array.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VariableList" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
+    post:
+      tags: [Dictionary]
+      summary: Define a variable
+      description: |
+        Creates version 1 of the variable and advances the dictionary schema version by one.
+        `code`, `origin`, and `type` can never change afterwards.
+        Defaults: `origin` INPUT; `required` true for INPUT and false for DERIVED; `nullable` false;
+        `scale` 2 for DECIMAL. Amounts and bounds are decimal strings, never JSON numbers.
+        Ranges are sanity limits on the data, not credit policy: eligibility limits belong in RAC rules.
+      operationId: createVariable
+      x-required-permission: dictionary:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VariableCreate" }
+            example:
+              code: monthly_income
+              type: DECIMAL
+              description: Verified (synthetic) monthly income. Must be positive.
+              unit: IDR
+              scale: 2
+              min_value: "0.01"
+              max_value: "1000000000000.00"
+      responses:
+        "201":
+          description: Created.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+            Location:
+              schema: { type: string }
+              example: /api/v1/dictionary/variables/monthly_income
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Variable" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409":
+          description: The code is already used.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error: { code: VARIABLE_CODE_CONFLICT, message: a variable with this code already exists }
+                request_id: 3b2a1c0d9e8f7a6b5c4d3e2f1a0b9c8d
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422":
+          description: The definition is invalid. Every problem is listed in `details`.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error:
+                  code: INPUT_VALIDATION_ERROR
+                  message: invalid variable
+                  details:
+                    - { field: code, issue: invalid_format }
+                    - { field: max_value, issue: less_than_min_value }
+                request_id: 1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/dictionary/variables/{variable_code}:
+    parameters:
+      - name: variable_code
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/VariableCode" }
+    get:
+      tags: [Dictionary]
+      summary: Get the latest definition of a variable
+      operationId: getVariable
+      x-required-permission: dictionary:read
+      responses:
+        "200":
+          description: The variable at its latest version.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Variable" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/VariableNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
+    patch:
+      tags: [Dictionary]
+      summary: Record a new version of a variable
+      description: |
+        Partial update. Omitted fields are unchanged, `null` clears `min_value` or `max_value`,
+        and an empty `unit` clears the unit. A change that alters something creates the next
+        version and advances the dictionary schema version; earlier versions stay readable via
+        `schema_version` on the list. Sending only values the variable already has changes
+        nothing: the response is the current version with no new version.
+        `code`, `origin`, and `type` are immutable and sending them is a 422. Variables are never deleted.
+      operationId: updateVariable
+      x-required-permission: dictionary:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VariableUpdate" }
+            example: { max_value: "2000000000000.00" }
+      responses:
+        "200":
+          description: The variable at its latest version (new, or unchanged when nothing differed).
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Variable" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/VariableNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
 security:
   - bearerAuth: []
@@ -414,6 +576,135 @@ components:
         per_page: { type: integer, minimum: 1, maximum: 100 }
         total: { type: integer, minimum: 0 }
 
+    VariableCode:
+      type: string
+      pattern: "^[a-z][a-z0-9_]{2,63}$"
+      example: monthly_income
+    VariableOrigin:
+      type: string
+      enum: [INPUT, DERIVED]
+      description: INPUT is supplied by the Loan Application; DERIVED is computed by the feature builder.
+      example: INPUT
+    VariableType:
+      type: string
+      enum: [INTEGER, DECIMAL, BOOLEAN]
+      description: On the wire INTEGER is a JSON number, DECIMAL is a decimal string, BOOLEAN is a JSON boolean.
+      example: DECIMAL
+    DecimalBound:
+      type: [string, "null"]
+      pattern: "^-?(0|[1-9][0-9]{0,17})(\\.[0-9]+)?$"
+      description: |
+        Inclusive bound as a decimal string (at most 18 integer digits, no exponent). For INTEGER
+        it must have no fraction. For DECIMAL it must fit `scale`. The response shows it with
+        exactly `scale` fraction digits. Not allowed for BOOLEAN.
+      example: "0.01"
+    Variable:
+      type: object
+      required: [id, code, origin, type, description, unit, required, nullable, scale, min_value, max_value, version, schema_version, created_at, updated_at]
+      example:
+        id: 0b9f1d4e-6a2c-4c8e-8d3a-5e7f9a1b2c3d
+        code: monthly_income
+        origin: INPUT
+        type: DECIMAL
+        description: Verified (synthetic) monthly income. Must be positive.
+        unit: IDR
+        required: true
+        nullable: false
+        scale: 2
+        min_value: "0.01"
+        max_value: "1000000000000.00"
+        version: 1
+        schema_version: 2
+        created_at: "2026-11-20T08:00:00Z"
+        updated_at: "2026-11-20T08:00:00Z"
+      properties:
+        id: { type: string, format: uuid }
+        code: { $ref: "#/components/schemas/VariableCode" }
+        origin: { $ref: "#/components/schemas/VariableOrigin" }
+        type: { $ref: "#/components/schemas/VariableType" }
+        description: { type: string, minLength: 1, maxLength: 500 }
+        unit: { type: string, maxLength: 20, description: Empty when the variable has no unit. }
+        required:
+          type: boolean
+          description: The input must be present and non-null. A missing key and an explicit null are both an input validation error, never a REJECT. Always false for DERIVED.
+        nullable:
+          type: boolean
+          description: An explicit null is an acceptable value. Never true together with `required`.
+        scale:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 8
+          description: Maximum fraction digits of a DECIMAL (display rounding scale for DERIVED). Null for other types.
+        min_value: { $ref: "#/components/schemas/DecimalBound" }
+        max_value: { $ref: "#/components/schemas/DecimalBound" }
+        version: { type: integer, minimum: 1, description: Version of this variable's definition. }
+        schema_version: { type: integer, minimum: 1, description: Dictionary schema version that introduced this version. }
+        created_at: { type: string, format: date-time, description: When version 1 was created. }
+        updated_at: { type: string, format: date-time, description: When this version was created. }
+    VariableCreate:
+      type: object
+      additionalProperties: false
+      required: [code, type, description]
+      properties:
+        code: { $ref: "#/components/schemas/VariableCode" }
+        origin: { $ref: "#/components/schemas/VariableOrigin", default: INPUT }
+        type: { $ref: "#/components/schemas/VariableType" }
+        description:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Leading and trailing whitespace is trimmed. Line breaks are allowed; other control characters (including NUL) are rejected.
+        unit: { type: string, maxLength: 20, description: "Single line, for example IDR, years, months, ratio." }
+        required: { type: boolean, description: "Default true for INPUT. DERIVED variables cannot be required." }
+        nullable: { type: boolean, default: false, description: Cannot be true when `required` is true. }
+        scale: { type: integer, minimum: 0, maximum: 8, description: "DECIMAL only; default 2." }
+        min_value: { $ref: "#/components/schemas/DecimalBound" }
+        max_value: { $ref: "#/components/schemas/DecimalBound" }
+    VariableUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        description: { type: string, minLength: 1, maxLength: 500 }
+        unit: { type: string, maxLength: 20 }
+        required: { type: boolean }
+        nullable: { type: boolean }
+        scale: { type: integer, minimum: 0, maximum: 8, description: DECIMAL only. Refused when an existing bound would need more fraction digits. }
+        min_value: { $ref: "#/components/schemas/DecimalBound" }
+        max_value: { $ref: "#/components/schemas/DecimalBound" }
+    VariableList:
+      type: object
+      required: [data, meta]
+      example:
+        data:
+          - id: 0b9f1d4e-6a2c-4c8e-8d3a-5e7f9a1b2c3d
+            code: monthly_income
+            origin: INPUT
+            type: DECIMAL
+            description: Verified (synthetic) monthly income. Must be positive.
+            unit: IDR
+            required: true
+            nullable: false
+            scale: 2
+            min_value: "0.01"
+            max_value: "1000000000000.00"
+            version: 1
+            schema_version: 2
+            created_at: "2026-11-20T08:00:00Z"
+            updated_at: "2026-11-20T08:00:00Z"
+        meta: { page: 1, per_page: 20, total: 1, schema_version: 8 }
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Variable" }
+        meta:
+          type: object
+          required: [page, per_page, total, schema_version]
+          properties:
+            page: { type: integer, minimum: 1, maximum: 10000 }
+            per_page: { type: integer, minimum: 1, maximum: 100 }
+            total: { type: integer, minimum: 0 }
+            schema_version: { type: integer, minimum: 0, description: The dictionary schema version this page was read at. }
     ErrorResponse:
       type: object
       required: [error]
@@ -432,6 +723,8 @@ components:
                 - ROUTE_NOT_FOUND
                 - PRODUCT_NOT_FOUND
                 - PRODUCT_CODE_CONFLICT
+                - VARIABLE_NOT_FOUND
+                - VARIABLE_CODE_CONFLICT
                 - SERVICE_BUSY
                 - INTERNAL_ERROR
             message: { type: string }
@@ -444,7 +737,7 @@ components:
                   field: { type: string }
                   issue:
                     type: string
-                    description: Stable issue code, e.g. required, too_long, invalid_format, invalid_value, invalid_characters, must_be_string, not_allowed, no_changes.
+                    description: Stable issue code, e.g. required, too_long, invalid_format, invalid_value, invalid_characters, must_be_string, must_be_boolean, must_be_integer, not_allowed, no_changes, exceeds_scale, less_than_min_value, not_allowed_for_type, not_allowed_when_required, must_be_false_for_derived, exceeds_current_version.
         request_id: { type: string }
 
   responses:
@@ -493,6 +786,16 @@ components:
           example:
             error: { code: PRODUCT_NOT_FOUND, message: product not found }
             request_id: 9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a49
+    VariableNotFound:
+      description: No variable has this code.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error: { code: VARIABLE_NOT_FOUND, message: variable not found }
+            request_id: 7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d
     InternalError:
       description: Unexpected failure. The cause is logged server-side and never returned.
       headers:

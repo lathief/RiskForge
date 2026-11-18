@@ -105,6 +105,15 @@ docker run --rm -v "$PWD/api/openapi:/spec:ro" redocly/cli:2.79.0 lint /spec/ope
 
 Di Git Bash Windows, jalankan dengan `MSYS_NO_PATHCONV=1` dan ganti `$PWD` dengan `$(pwd -W)`.
 
+## Data dictionary (RF-005)
+- `./artisan db:seed` juga menjalankan `DemoDictionarySeeder` (8 variabel dari `SYSTEM_DESIGN.md` bagian 8). Seeder tunggal: `--seeder DemoDictionarySeeder`. Seeder membuat variabel lewat service, jadi setiap variabel mendapat riwayat versi dan menaikkan schema version; variabel yang sudah ada tidak disentuh.
+- Endpoint: `/api/v1/dictionary/variables` (GET, POST) dan `/api/v1/dictionary/variables/{variable_code}` (GET, PATCH). Izin `dictionary:read` / `dictionary:write` (admin dan analyst boleh menulis).
+- Dictionary bersifat **append-only**: tidak ada DELETE, dan trigger PostgreSQL menolak UPDATE/DELETE pada `dictionary.variables` dan `dictionary.variable_versions`. Untuk mengosongkan database test gunakan `TRUNCATE` (tidak memicu trigger) atau `down -v`; di `rf-dev` gunakan `migrate:reset` (destruktif, lihat bagian reset).
+- Setiap penulisan dictionary harus lewat `VariableService`: ia mengunci `dictionary.schema_state` dulu (satu penulis pada satu waktu), sehingga schema version berurutan tanpa celah. Jangan menulis ke tabelnya langsung dari kode aplikasi lain.
+- `domain.ValidateInput(dictionary, input)` adalah validasi input applicant terhadap dictionary. Pakai fungsi ini di feature builder dan Decision API; jangan menulis ulang aturan tipe/rentang.
+- Test baru yang menyentuh tabel dictionary mengosongkannya dengan `TRUNCATE TABLE dictionary.variable_versions, dictionary.variables` dan `UPDATE dictionary.schema_state SET current_version = 0` (lihat `DictionaryTestSuite.SetupTest`).
+- Smoke Postman memakai token `demo_auditor` (role read-only). `demo_analyst` tidak dipakai karena boleh menulis dictionary, sehingga request tulis akan mengubah data. Variabel environment `variableCode` (default `age_years`) dipakai request `{variable_code}`.
+
 ## Structured logs
 
 File di `storage/logs` (JSON per baris): `activity.log`, `error.log`, `lifetime.log`, `query.log`. Detail format: `SYSTEM_DESIGN.md` bagian 15.4 dan `docs/adr/0004-structured-logging.md`.

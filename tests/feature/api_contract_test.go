@@ -34,8 +34,8 @@ var toolingRoutes = map[string]bool{
 	"GET /openapi.yaml":          true,
 }
 
-// expectedOperationCount is the M1 baseline: 2 health, 2 auth, 4 products.
-const expectedOperationCount = 8
+// expectedOperationCount is the current total: 2 health, 2 auth, 4 products, 4 dictionary (RF-005).
+const expectedOperationCount = 12
 
 type specOperation struct {
 	OperationID string                 `yaml:"operationId"`

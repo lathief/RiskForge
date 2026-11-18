@@ -38,7 +38,7 @@ Solid lines exist today. Dashed lines are planned and described in `SYSTEM_DESIG
 |---|---|---|---|
 | `identity` | Users, roles, permission matrix, login | Implemented (RF-003) | `app/modules/identity` |
 | `catalog` | Credit products (`KTA_DEMO`, ...) | Implemented (RF-004) | `app/modules/catalog` |
-| `dictionary` | Input variables and derived features | Planned (RF-005, RF-011) | |
+| `dictionary` | Input variables and derived features: typed definitions, append-only versions, one schema version | Implemented (RF-005); derived formulas planned (RF-011) | `app/modules/dictionary` |
 | `policy` | Policy packages, immutable versions, RAC, scorecard, matrix | Planned (RF-006..RF-010) | |
 | `ruleengine` | Pure compile/validate/evaluate | Planned (RF-012, RF-013) | `app/modules/ruleengine` (placeholder) |
 | `decision` | Decision API, idempotency, persisted runs and traces | Planned (RF-014..RF-016) | |

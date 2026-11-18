@@ -6,7 +6,7 @@
 > **Primary language:** Bahasa Indonesia  
 > **Core stack:** Go 1.25.x · Goravel v1.18 (Fiber HTTP driver) · PostgreSQL 18.x · Modular Monolith · REST API · OpenAPI 3.1 · Swagger UI · Postman Collection · Docker Compose  
 > **Implementation principle:** Selesaikan satu vertical slice yang berjalan dan teruji sebelum menambah fitur baru.
-> **Verified repository snapshot:** `lathief/RiskForge` branch `main`, commit `07e9ebea` (17 November 2026): RF-001..RF-004 merged melalui PR #1..#4; `api/openapi/openapi.yaml` sudah ada dan mendokumentasikan 8 HTTP operations. Bukti runtime dicatat di `docs/VERIFICATION.md`. Bagian 5.6, 15.4, 17.1, dan 17.2 menggambarkan branch `fix/M1-hardening`, yang menunggu merge ke `main`.
+> **Verified repository snapshot:** `lathief/RiskForge` branch `main`, commit `07e9ebea` (17 November 2026): RF-001..RF-004 merged melalui PR #1..#4; `api/openapi/openapi.yaml` sudah ada dan mendokumentasikan 8 HTTP operations. Bukti runtime dicatat di `docs/VERIFICATION.md`. Bagian 5.6, 15.4, 17.1, dan 17.2 menggambarkan branch `fix/M1-hardening`, yang menunggu merge ke `main`. **Pembaruan 20 November 2026:** RF-005 (data dictionary) selesai pada branch `feature/RF-005-data-dictionary` (belum di-merge); OpenAPI 3.1 pada branch itu mendokumentasikan 12 HTTP operations (8 M1 + 4 dictionary).
 
 ---
 
@@ -591,7 +591,7 @@ Gunakan **satu database PostgreSQL** dengan schema logis melalui driver resmi `g
 |---|---|---|
 | `identity` | `users`, `roles`, `user_roles`, `api_clients` | Credential/token metadata tidak diekspos ke consumer. |
 | `catalog` | `products` | Unique product code dan active state. |
-| `dictionary` | `variables`, `variable_versions`, `feature_definitions` | Type, nullability, scale, unit, valid range. |
+| `dictionary` | `schema_state`, `variables`, `variable_versions` (RF-005); `feature_definitions` (RF-011) | Type, nullability, scale, unit, valid range; append-only versions dengan schema version global (8.1). |
 | `policy` | `policy_packages`, `policy_versions`, `rac_rules`, `scorecard_characteristics`, `scorecard_bins`, `decision_matrix_rows`, `active_policy_bindings` | Relational constraints & version references. |
 | `approval` | `workflow_definitions`, `workflow_versions`, `workflow_steps`, `requests`, `actions` | Role, quorum, frozen workflow snapshot. |
 | `decision` | `requests`, `runs`, `rule_traces` | Idempotency, policy ref, result, score breakdown, execution status. |
@@ -665,6 +665,26 @@ Untuk demo, gunakan **data sintetis**. Jika suatu hari digunakan untuk data prib
 6. Pembulatan dan unit harus eksplisit. Contoh `dsr_ratio` menggunakan rasio 0–1 (bukan 0–100) dan pembulatan dilakukan hanya pada output display, bukan di tengah perhitungan.
 
 > **Catatan domain:** Rumus DSR di sini **contoh sintetis sederhana**. Pada produk finansial sesungguhnya, definisi DSR/DBR bisa berbeda (termasuk cicilan usulan, income eligibility, dll.). Jangan menyatakan formula ini sebagai standar perbankan universal.
+
+### 8.1 Implementasi data dictionary (RF-005)
+
+Status: terimplementasi pada branch `feature/RF-005-data-dictionary`. Keputusan lengkap: `docs/adr/0006-data-dictionary-versioning.md`.
+
+**Model.** Sebuah variabel punya identitas tetap (`code`, `origin` `INPUT`/`DERIVED`, `type` `INTEGER`/`DECIMAL`/`BOOLEAN`) dan riwayat versi definisi yang tidak dapat diubah: `description`, `unit`, `required`, `nullable`, `scale`, `min_value`, `max_value`. Setiap perubahan definisi menambah satu baris versi (tidak ada UPDATE) dan menaikkan **schema version** global dictionary sebesar satu. Dictionary pada schema version *N* = versi terbaru tiap variabel dengan `schema_version <= N`, sehingga bentuk input yang dipakai sebuah keputusan dapat direkonstruksi persis (`GET /dictionary/variables?schema_version=N`). RF-006 menyimpan angka *N* ini di snapshot policy.
+
+**Aturan validasi definisi** (diulang sebagai CHECK/FK di PostgreSQL):
+
+| Aturan | Isu (`details[].issue`) |
+|---|---|
+| `code` `^[a-z][a-z0-9_]{2,63}$`; `description` wajib, maks 500 karakter; `unit` maks 20 karakter, satu baris | `invalid_format`, `required`, `too_long`, `invalid_characters` |
+| `required` dan `nullable` tidak boleh sama-sama `true`; variabel `DERIVED` tidak boleh `required` | `not_allowed_when_required`, `must_be_false_for_derived` |
+| `scale` (0..8, default 2) hanya untuk `DECIMAL` | `must_be_between_0_and_8`, `not_allowed_for_type` |
+| `min_value`/`max_value` berupa string desimal (maks 18 digit bulat, tanpa eksponen), tidak untuk `BOOLEAN`; bilangan bulat untuk `INTEGER`; sesuai `scale` untuk `DECIMAL`; `min <= max` | `invalid_format`, `not_allowed_for_type`, `exceeds_scale`, `less_than_min_value` |
+| `code`, `origin`, `type` tidak dapat diubah (dirujuk policy) | `not_allowed` |
+
+**Required / null.** `required=true` berarti kunci harus ada dan bukan `null`; kunci hilang dan `null` sama-sama `required` (Bagian 8, kontrak 1). `nullable=true` hanya untuk variabel opsional yang boleh bernilai `null` secara eksplisit. Fungsi murni `domain.ValidateInput(dictionary, input)` menerapkan kontrak ini (`required`, `null_not_allowed`, `invalid_type`, `exceeds_scale`, `below_min_value`, `above_max_value`) dan akan dipakai feature builder (RF-011) serta Decision API (RF-014); pelanggaran selalu `INPUT_VALIDATION_ERROR`, bukan `REJECT`. Fungsi ini belum terhubung ke endpoint HTTP mana pun.
+
+**Batas.** Rentang adalah *sanity check* data (mis. `age_years` 0..120), bukan kebijakan kredit: batas kelayakan seperti usia minimum tetap berada di RAC (RF-007) agar pelanggarannya menjadi keputusan `REJECT`, bukan error input. Rumus variabel `DERIVED` (`dsr_ratio`, `net_disposable_income`) didefinisikan di RF-011 (`feature_definitions`); RF-005 hanya mendefinisikan kontrak tipe, unit, dan skala-nya. Setiap versi mencatat `created_by` (user) untuk audit; tabel `audit.events` baru hadir di RF-022.
 
 ---
 
@@ -881,11 +901,21 @@ Base path bisnis: `/api/v1` (health dan docs berada di luar prefix). Semua endpo
 | `GET` | `/api/v1/products/{code}` | Bearer + `product:read` |
 | `PATCH` | `/api/v1/products/{code}` | Bearer + `product:write` |
 
+**Telah terimplementasi (Milestone 2, RF-005, branch `feature/RF-005-data-dictionary`):** empat operasi data dictionary. Dengan ini OpenAPI, Swagger UI, dan Postman Collection mencakup 12 operasi. Rancangan di Bagian 8.1.
+
+| Method | Absolute path | Auth / Permission |
+|---|---|---|
+| `GET` | `/api/v1/dictionary/variables` | Bearer + `dictionary:read` (filter `origin`, `schema_version`, paging) |
+| `POST` | `/api/v1/dictionary/variables` | Bearer + `dictionary:write` |
+| `GET` | `/api/v1/dictionary/variables/{variable_code}` | Bearer + `dictionary:read` |
+| `PATCH` | `/api/v1/dictionary/variables/{variable_code}` | Bearer + `dictionary:write` (membuat versi baru) |
+
+`GET` + `POST` pada rancangan awal ("Browse/create variable definitions") diperluas dengan `GET {variable_code}` dan `PATCH` karena definisi yang berversi harus bisa diubah tanpa menimpa riwayat. Tidak ada `DELETE`: variabel dirujuk policy dan tidak pernah dihapus.
+
 **Target berikutnya (planned, bukan otomatis sudah live):** tabel di bawah memakai path relatif `/api/v1` kecuali health. Operasi planned ditambahkan ke `openapi.yaml` **hanya pada tiket implementasi terkait**.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| `GET` / `POST` | `/dictionary/variables` | Admin / Analyst | Browse/create variable definitions. |
 | `GET` / `POST` | `/policies` | Analyst | Browse/create policy packages/drafts. |
 | `POST` | `/policies/{id}/clone` | Analyst | Clone active/draft menjadi draft baru. |
 | `GET` / `PUT` | `/policy-versions/{id}/rac-rules` | Analyst | Browse/replace RAC draft configuration. |
@@ -1205,7 +1235,7 @@ Review independen kedua atas `fix/M1-hardening` (tanpa temuan severity high) men
 ### M2 — Policy Configuration
 
 - [x] **DX-001 Swagger UI + generated Postman Collection (cross-cutting prerequisite).** Gunakan `api/openapi/openapi.yaml` yang **sudah ada**; sajikan `/swagger` dan `/openapi.yaml` di Goravel/Fiber dengan docs hanya pada local/test; buat `scripts/generate-postman.sh`, baseline collection v2.1 untuk tepat 8 operations M1, template environment tanpa secret, verifikasi parity/determinism, dan dokumentasi di `AGENT_RUNBOOK.md`. Tidak membuat container/service ketiga; tidak mengubah schema database.
-- [ ] **RF-005 Data dictionary.** Typed variables, required/null handling, unit, range; schema version.
+- [x] **RF-005 Data dictionary.** Typed variables, required/null handling, unit, range; schema version. **Selesai pada branch `feature/RF-005-data-dictionary`** (belum di-merge): empat operasi `/api/v1/dictionary/variables`, migration append-only, seeder demo, OpenAPI + Postman diregenerasi, unit dan feature test. Rancangan rinci di 8.1 dan `docs/adr/0006-data-dictionary-versioning.md`.
 - [ ] **RF-006 Policy package/version model.** Create draft, clone, immutable snapshot on submit; cannot edit frozen versions.
 - [ ] **RF-007 RAC management & validation.** Expressions, deterministic order, action, reason code, type/syntax check.
 - [ ] **RF-008 Scorecard management.** Characteristics/bins/points, single-match checks, decimal score rules.
@@ -1487,4 +1517,4 @@ Setiap ADR mencatat **context, decision, alternatives, consequences, date**.
 - [ ] Agent dapat menjalankan stack dari Compose `api + db`, menguji dengan `rf-test-*` terisolasi, dan membersihkan test project tanpa menghapus volume development.
 - [ ] Tidak ada data pribadi sesungguhnya, keys, atau credentials di repo.
 
-**Status kini: M1/RF-001..RF-004 selesai di `main`. M1 hardening (17.1), LOG-001 structured logs (15.4), dan DX-001 Swagger UI + generated Postman Collection (5.6) selesai di branch `fix/M1-hardening`, bersama DOC-001 (guide di `docs/`) dan perbaikan review kedua serta ketiga (17.2); menunggu merge ke `main`. Langkah berikutnya: `RF-005 Data Dictionary`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.
+**Status kini (diperbarui 20 November 2026): RF-005 selesai pada branch `feature/RF-005-data-dictionary`; langkah berikutnya `RF-006 Policy package/version model`.** Riwayat status sebelumnya: M1/RF-001..RF-004 selesai di `main`. M1 hardening (17.1), LOG-001 structured logs (15.4), dan DX-001 Swagger UI + generated Postman Collection (5.6) selesai di branch `fix/M1-hardening`, bersama DOC-001 (guide di `docs/`) dan perbaikan review kedua serta ketiga (17.2); menunggu merge ke `main`. Langkah berikutnya: `RF-005 Data Dictionary`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.

@@ -17,7 +17,7 @@ RiskForge separates the two:
 |---|---|---|
 | **Product** | A credit product the lender offers, identified by a stable code such as `KTA_DEMO` (unsecured personal loan). Policies are defined per product. | Implemented (RF-004) |
 | **Role / permission** | Who may do what. Roles (`ADMIN`, `RISK_ANALYST`, `RISK_APPROVER`, `AUDITOR`, `API_CONSUMER`) grant permissions such as `product:write` or `approval:act`. | Implemented (RF-003) |
-| **Data dictionary** | The typed contract of input variables (`age_years`, `monthly_income`, ...) and derived features (`dsr_ratio`). | Planned (RF-005) |
+| **Data dictionary** | The typed contract of input variables (`age_years`, `monthly_income`, ...) and derived features (`dsr_ratio`). Each variable has a type (integer, decimal, boolean), a unit, a range, and flags for required and nullable. Changes are append-only versions, and one schema version numbers the whole dictionary so a past decision can be replayed against the definitions it used. Ranges are sanity limits; eligibility limits such as a minimum age are RAC rules. | Implemented (RF-005); derived formulas planned (RF-011) |
 | **Derived feature** | A value computed from inputs, for example the debt service ratio (DSR) = `existing_installment / monthly_income`. | Planned (RF-011) |
 | **RAC (Risk Acceptance Criteria)** | Knock-out rules checked first. Failing one gives a hard `REJECT` or a soft `REFER`, each with a reason code. | Planned (RF-007, RF-012) |
 | **Scorecard** | Characteristics (age group, DSR, tenure) split into bins; each bin adds points to a base score. | Planned (RF-008, RF-013) |
@@ -96,8 +96,8 @@ Rejecting an applicant because a database timed out would turn an outage into a 
 
 | Role | Today | When policies exist |
 |---|---|---|
-| `ADMIN` | Creates and updates products. | Manages users and approval workflow configuration. Cannot approve policies or edit them. |
-| `RISK_ANALYST` | Reads products. | Creates, edits, simulates, and submits drafts. Cannot approve. |
-| `RISK_APPROVER` | Reads products. | Reviews diffs and approves or rejects. Cannot edit drafts. |
-| `AUDITOR` | Reads products. | Reads decision traces and histories. Read-only everywhere. |
-| `API_CONSUMER` (the Loan Application) | No product access. | Calls the decision API and reads its own decisions. |
+| `ADMIN` | Creates and updates products; defines and versions dictionary variables. | Manages users and approval workflow configuration. Cannot approve policies or edit them. |
+| `RISK_ANALYST` | Reads products; defines and versions dictionary variables. | Creates, edits, simulates, and submits drafts. Cannot approve. |
+| `RISK_APPROVER` | Reads products and the dictionary. | Reviews diffs and approves or rejects. Cannot edit drafts. |
+| `AUDITOR` | Reads products and the dictionary. | Reads decision traces and histories. Read-only everywhere. |
+| `API_CONSUMER` (the Loan Application) | No product or dictionary access. | Calls the decision API and reads its own decisions. |

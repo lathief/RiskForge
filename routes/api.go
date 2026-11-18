@@ -11,6 +11,8 @@ import (
 	"goravel/app/http/middleware"
 	catalogapp "goravel/app/modules/catalog/application"
 	cataloginfra "goravel/app/modules/catalog/infrastructure"
+	dictionaryapp "goravel/app/modules/dictionary/application"
+	dictionaryinfra "goravel/app/modules/dictionary/infrastructure"
 	identityapp "goravel/app/modules/identity/application"
 	"goravel/app/modules/identity/domain"
 	identityinfra "goravel/app/modules/identity/infrastructure"
@@ -21,9 +23,10 @@ import (
 
 // Module labels used in every log type.
 const (
-	moduleIdentity = "identity"
-	moduleCatalog  = "catalog"
-	moduleDocs     = "docs"
+	moduleIdentity   = "identity"
+	moduleCatalog    = "catalog"
+	moduleDictionary = "dictionary"
+	moduleDocs       = "docs"
 )
 
 func Api() {
@@ -67,11 +70,18 @@ func Api() {
 	productController := controllers.NewProductController(
 		catalogapp.NewProductService(cataloginfra.NewProductRepository(catalogDB), catalogDB),
 	)
+	dictionaryDB := dbManager.WithModule(moduleDictionary)
+	dictionaryController := controllers.NewDictionaryController(
+		dictionaryapp.NewVariableService(dictionaryinfra.NewVariableRepository(dictionaryDB), dictionaryDB),
+	)
+	canReadDictionary := middleware.NewRequirePermission(domain.PermDictionaryRead)
+	canWriteDictionary := middleware.NewRequirePermission(domain.PermDictionaryWrite)
 	canReadProducts := middleware.NewRequirePermission(domain.PermProductRead)
 	canWriteProducts := middleware.NewRequirePermission(domain.PermProductWrite)
 
 	identity := middleware.NewModule(moduleIdentity)
 	catalog := middleware.NewModule(moduleCatalog)
+	dictionary := middleware.NewModule(moduleDictionary)
 
 	facades.Route().Prefix("/api/v1").Group(func(router route.Router) {
 		router.Middleware(identity).Post("/auth/login", authController.Login)
@@ -81,5 +91,9 @@ func Api() {
 		router.Middleware(catalog, authenticate, canReadProducts).Get("/products/{code}", productController.Show)
 		router.Middleware(catalog, authenticate, canWriteProducts).Post("/products", productController.Store)
 		router.Middleware(catalog, authenticate, canWriteProducts).Patch("/products/{code}", productController.Update)
+		router.Middleware(dictionary, authenticate, canReadDictionary).Get("/dictionary/variables", dictionaryController.Index)
+		router.Middleware(dictionary, authenticate, canReadDictionary).Get("/dictionary/variables/{variable_code}", dictionaryController.Show)
+		router.Middleware(dictionary, authenticate, canWriteDictionary).Post("/dictionary/variables", dictionaryController.Store)
+		router.Middleware(dictionary, authenticate, canWriteDictionary).Patch("/dictionary/variables/{variable_code}", dictionaryController.Update)
 	})
 }

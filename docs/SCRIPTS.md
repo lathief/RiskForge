@@ -43,7 +43,7 @@ How it works:
 
 1. **Install** (network): `npm ci` from `scripts/postman/package-lock.json` into the Docker volume `riskforge-postman-tools`. npm verifies every package against the lockfile. The step is skipped while the lockfile is unchanged.
 2. **Convert** (no network): `openapi-to-postmanv2` converts the spec in a container started with `--network none` and a read-only filesystem. Only `api/openapi` (read-only), `scripts/postman` (read-only), the tools volume (read-only), and `api/postman` (writable) are mounted; `.env.agent` never is.
-3. **Normalize:** `scripts/postman/normalize.js` removes random ids, sets `{{baseUrl}}`, `{{accessToken}}`, `{{productCode}}`, and sets auth per request from the spec (`noauth` for `security: []`, bearer otherwise). It fails if the collection and the spec disagree on any `(METHOD, path)`.
+3. **Normalize:** `scripts/postman/normalize.js` removes random ids, sets `{{baseUrl}}`, `{{accessToken}}`, `{{productCode}}`, `{{variableCode}}`, and sets auth per request from the spec (`noauth` for `security: []`, bearer otherwise). It fails if the collection and the spec disagree on any `(METHOD, path)`.
 
 The output is byte-identical between runs. If `--check` fails right after you regenerated, a schema in the spec is probably missing an `example` (the converter then invents random values); add one.
 
@@ -63,7 +63,7 @@ To upgrade a tool: edit `scripts/postman/package.json`, regenerate the lockfile 
 ./scripts/smoke-postman.sh rf-test-x    # against another running, seeded project
 ```
 
-Proves the committed collection imports and works against the real API. Newman runs inside the project's Compose network and calls `http://api:3000`; the database port stays closed. It logs in as `demo_analyst` (read-only) through the API, so no data changes, and expects:
+Proves the committed collection imports and works against the real API. Newman runs inside the project's Compose network and calls `http://api:3000`; the database port stays closed. It logs in as `demo_auditor` through the API. The auditor has no write permission, so every write answers 403 and no data changes (`demo_analyst` cannot be used since RF-005: it may write the dictionary). It also sets `productCode=KTA_DEMO` and `variableCode=age_years`, so the stack must be seeded. Expected statuses:
 
 | Request | Expected |
 |---|---|
@@ -83,7 +83,11 @@ ok   200 GET List products
 ok   403 POST Create a product
 ok   200 GET Get a product by code
 ok   403 PATCH Update name, description, or status
-postman smoke: 8/8 requests as expected
+ok   200 GET List data dictionary variables
+ok   403 POST Define a variable
+ok   200 GET Get the latest definition of a variable
+ok   403 PATCH Record a new version of a variable
+postman smoke: 12/12 requests as expected
 ```
 
 The stack must be up, migrated, and seeded with the current `DEMO_USER_PASSWORD`. A test project whose users were created by the Go test suite has a different password, so login fails there.

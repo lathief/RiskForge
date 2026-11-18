@@ -191,6 +191,7 @@ func (s *ContractBehaviourTestSuite) SetupSuite() {
 	s.Require().NoError(facades.Artisan().Call("migrate"))
 	s.Require().NoError(seeders.SeedDemoUsers(demoPassword))
 	s.Require().NoError(seeders.SeedDemoProducts())
+	s.Require().NoError(seeders.SeedDemoDictionary())
 	s.tokens = map[string]string{}
 	for _, u := range seeders.DemoUsers {
 		resp, err := s.Http(s.T()).WithHeader("Content-Type", "application/json").Post("/api/v1/auth/login",
@@ -208,6 +209,7 @@ func (s *ContractBehaviourTestSuite) SetupSuite() {
 // bodies are "{}", which every write endpoint rejects with 422 before writing anything.
 func (s *ContractBehaviourTestSuite) call(op operationDetail, token string) string {
 	path := strings.ReplaceAll(op.path, "{code}", seeders.DemoProductCode)
+	path = strings.ReplaceAll(path, "{variable_code}", seeders.DemoVariables[0].Code)
 	req := s.Http(s.T()).WithHeader("Content-Type", "application/json")
 	if token != "" {
 		req = req.WithToken(token)

@@ -33,8 +33,8 @@ LOANAPP=$(token demo_loan_application)
 | 401 | `UNAUTHENTICATED` | Missing, malformed, tampered, or expired token, or disabled user. |
 | 401 | `INVALID_CREDENTIALS` | Login failed (same body for unknown user, wrong password, disabled account). |
 | 403 | `FORBIDDEN` | Authenticated but missing the permission. |
-| 404 | `PRODUCT_NOT_FOUND`, `ROUTE_NOT_FOUND` | Unknown product code / unknown route. |
-| 409 | `PRODUCT_CODE_CONFLICT` | Product code already used. |
+| 404 | `PRODUCT_NOT_FOUND`, `VARIABLE_NOT_FOUND`, `ROUTE_NOT_FOUND` | Unknown product code / dictionary variable / route. |
+| 409 | `PRODUCT_CODE_CONFLICT`, `VARIABLE_CODE_CONFLICT` | Product or variable code already used. |
 | 422 | `INPUT_VALIDATION_ERROR` | Invalid JSON, field, query parameter, or a field that cannot be set. |
 | 503 | `SERVICE_BUSY` | Login capacity saturated; honour `Retry-After`. |
 | 500 | `INTERNAL_ERROR` | Unexpected failure; the cause is only in `error.log`. |
@@ -187,6 +187,49 @@ HTTP/1.1 422 Unprocessable Entity
 
 An empty JSON object `{}` gives `422` with `details` `body: no_changes`. A body that is not a JSON object gives `422` "request body must be a JSON object".
 
+## Data dictionary
+Read (`dictionary:read`): `ADMIN`, `RISK_ANALYST`, `RISK_APPROVER`, `AUDITOR`. Write (`dictionary:write`): `ADMIN`, `RISK_ANALYST`. The Loan Application (`API_CONSUMER`) has no dictionary access.
+The dictionary defines the typed inputs the decision engine accepts. Every change to any variable creates a new immutable version of that variable and advances one dictionary-wide **schema version**, shown as `meta.schema_version` and as `schema_version` on each variable. Variables are never deleted. Decimal amounts and bounds are strings, never JSON numbers. Seed data (`./artisan db:seed`) contains the eight variables of `SYSTEM_DESIGN.md` section 8.
+```sh
+AUDITOR=$(token demo_auditor)
+```
+### List and show
+```sh
+curl -s "$B/api/v1/dictionary/variables?per_page=2" -H "Authorization: Bearer $AUDITOR"
+```
+```json
+{"data":[{"id":"edcad928-add3-4f52-86ba-9bad60ee756f","code":"age_years","origin":"INPUT","type":"INTEGER","description":"Applicant age on the application date.","unit":"years","required":true,"nullable":false,"scale":null,"min_value":"0","max_value":"120","version":1,"schema_version":1,"created_at":"2026-11-18T01:14:01Z","updated_at":"2026-11-18T01:14:01Z"},{"id":"a0dd0e84-f6ea-4839-a507-6d286bebb161","code":"dsr_ratio","origin":"DERIVED","type":"DECIMAL","description":"existing_installment / monthly_income (simplified demo formula, not a banking standard).","unit":"ratio","required":false,"nullable":false,"scale":6,"min_value":"0.000000","max_value":null,"version":1,"schema_version":7,"created_at":"2026-11-18T01:14:02Z","updated_at":"2026-11-18T01:14:02Z"}],"meta":{"page":1,"per_page":2,"schema_version":8,"total":8}}
+```
+Query parameters: `page`, `per_page` (max 100), `origin=INPUT|DERIVED`, and `schema_version=N` to read the dictionary as it was at version `N` (`0` is empty; a version above the current one is a `422` with `schema_version: exceeds_current_version`). `GET /api/v1/dictionary/variables/{variable_code}` returns the latest version of one variable, or `404 VARIABLE_NOT_FOUND`.
+### Define a variable
+```sh
+curl -i -X POST $B/api/v1/dictionary/variables -H "Authorization: Bearer $ANALYST" -H 'Content-Type: application/json' \
+  -d '{"code":"loan_tenor_months","type":"INTEGER","description":"Requested loan tenor.","unit":"months","min_value":"1","max_value":"60"}'
+```
+```http
+HTTP/1.1 201 Created
+Location: /api/v1/dictionary/variables/loan_tenor_months
+{"id":"00d2b20a-72a1-4b32-a95f-baeca1fcca4e","code":"loan_tenor_months","origin":"INPUT","type":"INTEGER","description":"Requested loan tenor.","unit":"months","required":true,"nullable":false,"scale":null,"min_value":"1","max_value":"60","version":1,"schema_version":9,"created_at":"2026-11-18T01:16:59Z","updated_at":"2026-11-18T01:16:59Z"}
+```
+Defaults: `origin` `INPUT`; `required` true for `INPUT` and false for `DERIVED`; `nullable` false; `scale` 2 for `DECIMAL`. Rules and their issue codes are in `SYSTEM_DESIGN.md` section 8.1. All problems are reported together:
+```http
+HTTP/1.1 422 Unprocessable Entity
+{"error":{"code":"INPUT_VALIDATION_ERROR","message":"invalid variable","details":[{"field":"code","issue":"invalid_format"},{"field":"max_value","issue":"exceeds_scale"}]},"request_id":"cc4284290b4f0353d54ef812f7e70c87"}
+```
+Reusing a code gives `409 VARIABLE_CODE_CONFLICT` and consumes no schema version.
+### Change a variable (new version)
+```sh
+curl -s -X PATCH $B/api/v1/dictionary/variables/loan_tenor_months -H "Authorization: Bearer $ANALYST" \
+  -H 'Content-Type: application/json' -d '{"max_value":"84"}'
+```
+```json
+{"id":"00d2b20a-72a1-4b32-a95f-baeca1fcca4e","code":"loan_tenor_months","origin":"INPUT","type":"INTEGER","description":"Requested loan tenor.","unit":"months","required":true,"nullable":false,"scale":null,"min_value":"1","max_value":"84","version":2,"schema_version":10,"created_at":"2026-11-18T01:16:59Z","updated_at":"2026-11-18T01:16:59Z"}
+```
+Sending the same request again returns this same body (`version` still 2): a request that changes nothing creates no version. `null` clears `min_value` or `max_value`; an empty `unit` clears the unit. `code`, `origin`, and `type` cannot be changed (`422`, `not_allowed`). Version 1 stays readable through the history parameter:
+```sh
+curl -s "$B/api/v1/dictionary/variables?schema_version=9" -H "Authorization: Bearer $AUDITOR"
+```
+This returns `loan_tenor_months` with `"max_value":"60","version":1`, and `meta.schema_version` is 9. A role without `dictionary:write` (approver, auditor) gets `403 FORBIDDEN` on writes.
 ## Unknown routes
 
 ```http
@@ -224,4 +267,4 @@ grep -h '"requestID":"doc-login-00001"' storage/logs/{activity,error,query}.log
 
 ## Planned endpoints
 
-Not live yet; see `SYSTEM_DESIGN.md` 13.1 for the target contract: data dictionary (RF-005), policies and versions (RF-006..RF-010), simulation (RF-017), approval requests (RF-019..RF-021), `POST /api/v1/decisions/evaluate` with `Idempotency-Key` (RF-014, RF-015), and decision lookup. Each will be added to the OpenAPI contract, Swagger UI, and the Postman collection in the same change.
+Not live yet; see `SYSTEM_DESIGN.md` 13.1 for the target contract: policies and versions (RF-006..RF-010), simulation (RF-017), approval requests (RF-019..RF-021), `POST /api/v1/decisions/evaluate` with `Idempotency-Key` (RF-014, RF-015), and decision lookup. Each will be added to the OpenAPI contract, Swagger UI, and the Postman collection in the same change.
