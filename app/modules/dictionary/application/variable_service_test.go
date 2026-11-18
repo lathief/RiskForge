@@ -279,6 +279,37 @@ func TestListClampsPagingAndReadsHistory(t *testing.T) {
 	assert.Empty(t, page.Items)
 }
 
+func TestSnapshotReadsEveryVariableAtAVersion(t *testing.T) {
+	svc, _, _ := newService()
+	ctx := context.Background()
+	_, err := svc.Create(ctx, "", income()) // schema 1
+	require.NoError(t, err)
+	_, err = svc.Create(ctx, "", domain.NewInput{Code: "age_years", Type: "INTEGER", Description: "Age"}) // schema 2
+	require.NoError(t, err)
+	_, err = svc.Update(ctx, "", "monthly_income", domain.Changes{Description: ptr("Gross")}) // schema 3
+	require.NoError(t, err)
+
+	current, err := svc.CurrentSchemaVersion(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), current)
+
+	all, err := svc.Snapshot(ctx, 3)
+	require.NoError(t, err)
+	require.Len(t, all, 2)
+	assert.Equal(t, "Gross", all[1].Description)
+
+	old, err := svc.Snapshot(ctx, 2)
+	require.NoError(t, err)
+	assert.Equal(t, "Income", old[1].Description, "history is stable")
+
+	empty, err := svc.Snapshot(ctx, 0)
+	require.NoError(t, err)
+	assert.Empty(t, empty)
+
+	_, err = svc.Snapshot(ctx, 4)
+	assert.ErrorIs(t, err, ErrUnknownSchemaVersion)
+}
+
 func TestListRejectsFutureSchemaVersion(t *testing.T) {
 	svc, _, _ := newService()
 	_, err := svc.List(context.Background(), ListFilter{SchemaVersion: ptr(int64(1))})

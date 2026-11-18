@@ -6,7 +6,7 @@
 > **Primary language:** Bahasa Indonesia  
 > **Core stack:** Go 1.25.x · Goravel v1.18 (Fiber HTTP driver) · PostgreSQL 18.x · Modular Monolith · REST API · OpenAPI 3.1 · Swagger UI · Postman Collection · Docker Compose  
 > **Implementation principle:** Selesaikan satu vertical slice yang berjalan dan teruji sebelum menambah fitur baru.
-> **Verified repository snapshot:** `lathief/RiskForge` branch `main`, commit `07e9ebea` (17 November 2026): RF-001..RF-004 merged melalui PR #1..#4; `api/openapi/openapi.yaml` sudah ada dan mendokumentasikan 8 HTTP operations. Bukti runtime dicatat di `docs/VERIFICATION.md`. Bagian 5.6, 15.4, 17.1, dan 17.2 menggambarkan branch `fix/M1-hardening`, yang menunggu merge ke `main`. **Pembaruan 20 November 2026:** RF-005 (data dictionary) selesai pada branch `feature/RF-005-data-dictionary` (belum di-merge); OpenAPI 3.1 pada branch itu mendokumentasikan 12 HTTP operations (8 M1 + 4 dictionary).
+> **Verified repository snapshot:** `lathief/RiskForge` branch `main`, commit `07e9ebea` (17 November 2026): RF-001..RF-004 merged melalui PR #1..#4; `api/openapi/openapi.yaml` sudah ada dan mendokumentasikan 8 HTTP operations. Bukti runtime dicatat di `docs/VERIFICATION.md`. Bagian 5.6, 15.4, 17.1, dan 17.2 menggambarkan branch `fix/M1-hardening`, yang menunggu merge ke `main`. **Pembaruan 20 November 2026:** RF-005 (data dictionary) selesai pada branch `feature/RF-005-data-dictionary` (belum di-merge); OpenAPI 3.1 pada branch itu mendokumentasikan 12 HTTP operations (8 M1 + 4 dictionary). **Pembaruan berikutnya:** RF-006 (policy package/version model) selesai pada branch `feature/RF-006-policy-package-version-model`, dibuat di atas branch RF-005 (belum di-merge); OpenAPI pada branch itu mendokumentasikan 19 HTTP operations.
 
 ---
 
@@ -592,7 +592,7 @@ Gunakan **satu database PostgreSQL** dengan schema logis melalui driver resmi `g
 | `identity` | `users`, `roles`, `user_roles`, `api_clients` | Credential/token metadata tidak diekspos ke consumer. |
 | `catalog` | `products` | Unique product code dan active state. |
 | `dictionary` | `schema_state`, `variables`, `variable_versions` (RF-005); `feature_definitions` (RF-011) | Type, nullability, scale, unit, valid range; append-only versions dengan schema version global (8.1). |
-| `policy` | `policy_packages`, `policy_versions`, `rac_rules`, `scorecard_characteristics`, `scorecard_bins`, `decision_matrix_rows`, `active_policy_bindings` | Relational constraints & version references. |
+| `policy` | `policy_packages`, `policy_versions` (RF-006), `rac_rules`, `scorecard_characteristics`, `scorecard_bins`, `decision_matrix_rows`, `active_policy_bindings` | Relational constraints & version references. |
 | `approval` | `workflow_definitions`, `workflow_versions`, `workflow_steps`, `requests`, `actions` | Role, quorum, frozen workflow snapshot. |
 | `decision` | `requests`, `runs`, `rule_traces` | Idempotency, policy ref, result, score breakdown, execution status. |
 | `audit` | `events` | Append-only event metadata and actor. |
@@ -739,8 +739,28 @@ Saat approver terakhir memberikan approval:
 
 Compile rules saat validasi sebelum publish; jangan mengaktifkan policy yang gagal compile. Setelah commit, engine dapat memuat compiled version baru berdasarkan ID immutable.
 
----
+### 9.5 Implementasi policy package dan version (RF-006)
 
+Status: terimplementasi pada branch `feature/RF-006-policy-package-version-model`. Keputusan lengkap: `docs/adr/0007-policy-version-immutability.md`.
+
+**Model.** Satu *policy* (`policy.policy_packages`) ialah satu produk dan satu scope (MVP: `DEFAULT`), unik per `(product, scope)`. Ia memiliki *versi* bernomor 1, 2, 3, ... (`policy.policy_versions`, unik per `(package, version_number)`). Setiap versi menyimpan status (Bagian 9.2), catatan perubahan, versi sumber bila hasil clone (`based_on_version_id`), dan `dictionary_schema_version`, yaitu versi data dictionary (Bagian 8.1) yang dipakai versi itu. Package tidak pernah diubah atau dihapus; versi tidak pernah dihapus.
+
+**Operasi.**
+
+| Operasi | Aturan |
+|---|---|
+| `POST /policies` | Produk harus ada dan `ACTIVE` (`unknown_product`, `product_inactive`). Satu transaksi membuat package dan draft versi 1 yang dipin ke schema version dictionary saat ini. Produk dan scope yang sama dua kali: `409 POLICY_CONFLICT`. |
+| `POST /policies/{policy_id}/clone` | Membuat draft nomor berikutnya sebagai salinan dari versi apa pun, termasuk yang sudah beku atau ditolak (Bagian 9.2: `REJECTED → DRAFT` lewat salinan). Sumber default: versi `ACTIVE`, jika tidak ada maka versi terbaru. Package dikunci (`SELECT ... FOR UPDATE`) selama penomoran, sehingga clone paralel mendapat nomor unik tanpa celah. Draft baru dipin ke dictionary saat ini. Konten RAC, scorecard, dan matrix akan ikut disalin oleh RF-007..RF-009 dalam transaksi yang sama. |
+| `PATCH /policy-versions/{version_id}` | Hanya `DRAFT`: ubah catatan atau `dictionary_schema_version` (0 sampai versi saat ini). Status selain `DRAFT`: `409 POLICY_VERSION_FROZEN`. Permintaan tanpa efek tidak menulis apa pun. Status tidak bisa diubah lewat PATCH. |
+| `POST /policy-versions/{version_id}/submit` | Membekukan draft: membangun snapshot kanonik, menyimpan checksum SHA-256, mencatat `submitted_by` dan `submitted_at`, dan mengubah status ke `PENDING_APPROVAL`, semuanya dalam satu transaksi dengan kunci baris. Submit kedua atau submit paralel: tepat satu berhasil, sisanya `409 POLICY_VERSION_FROZEN`. |
+
+**Snapshot.** JSON kanonik (kunci diurutkan, tanpa spasi) berisi `format`, `evaluator_version`, `package` (kode produk dan scope), `version_number`, `dictionary` (schema version **beserta definisi lengkap semua variabel pada versi itu**), serta `rac_rules`, `scorecard`, dan `decision_matrix` yang ada tetapi kosong sampai RF-007..RF-009. `checksum` ialah SHA-256 atas bentuk kanonik itu; catatan perubahan tidak ikut karena bukan isi policy. Karena dictionary disalin ke dalam snapshot, mengubah dictionary kemudian tidak mengubah versi yang sudah beku. PostgreSQL menyimpan JSONB dengan urutan kunci sendiri, jadi API mengembalikan snapshot dalam bentuk kanonik dan `domain.VerifySnapshot` memverifikasi checksum dari bentuk tersebut. Perubahan format snapshot menaikkan `format`.
+
+**Kekekalan di database** (diulang dari service karena Bagian 6.3 mensyaratkannya): trigger `policy_versions_guard` menolak `DELETE`, perubahan identitas (id, package, nomor, sumber, pembuat), perpindahan status di luar tabel Bagian 9.2, dan setiap perubahan isi (catatan, versi dictionary, snapshot, checksum, penyubmit) pada versi yang bukan `DRAFT`. CHECK constraint mewajibkan draft tidak punya snapshot dan versi beku punya snapshot, checksum, dan waktu submit. `policy_packages` append-only.
+
+**Belum ada (disengaja).** Gate isi submit Bagian 9.3 (expression valid, bin dan matrix tidak ambigu, golden test lulus) datang dengan RF-010; saat ini tidak ada konten untuk diperiksa. Perpindahan dari `PENDING_APPROVAL` (reject, approve, publish) datang dengan M4, jadi di M2 sebuah versi yang disubmit tetap `PENDING_APPROVAL`; untuk merevisinya, clone. `active_policy_bindings` dan aturan satu versi aktif per produk dan scope datang dengan RF-020. Audit event datang dengan RF-022; sementara itu setiap versi menyimpan `created_by`, `submitted_by`, dan waktunya. Data demo: `DemoPolicySeeder` membuat package `KTA_DEMO`/`DEFAULT` dengan draft versi 1; seeder tidak menyubmit atau mengaktifkan apa pun.
+
+---
 ## 10. Decision Engine Design
 
 ### 10.1 Pipeline
@@ -912,18 +932,29 @@ Base path bisnis: `/api/v1` (health dan docs berada di luar prefix). Semua endpo
 
 `GET` + `POST` pada rancangan awal ("Browse/create variable definitions") diperluas dengan `GET {variable_code}` dan `PATCH` karena definisi yang berversi harus bisa diubah tanpa menimpa riwayat. Tidak ada `DELETE`: variabel dirujuk policy dan tidak pernah dihapus.
 
+**Telah terimplementasi (Milestone 2, RF-006, branch `feature/RF-006-policy-package-version-model`):** tujuh operasi policy package dan version. Total OpenAPI, Swagger UI, dan Postman Collection menjadi 19 operasi. Rancangan di Bagian 9.5.
+
+| Method | Absolute path | Auth / Permission |
+|---|---|---|
+| `GET` | `/api/v1/policies` | Bearer + `policy:read` (filter `product_code`, paging) |
+| `POST` | `/api/v1/policies` | Bearer + `policy:write`; membuat package dan draft versi 1 |
+| `GET` | `/api/v1/policies/{policy_id}` | Bearer + `policy:read`; package dengan semua versinya |
+| `POST` | `/api/v1/policies/{policy_id}/clone` | Bearer + `policy:write`; draft baru sebagai salinan |
+| `GET` | `/api/v1/policy-versions/{version_id}` | Bearer + `policy:read`; snapshot dan checksum bila sudah beku |
+| `PATCH` | `/api/v1/policy-versions/{version_id}` | Bearer + `policy:write`; hanya `DRAFT` |
+| `POST` | `/api/v1/policy-versions/{version_id}/submit` | Bearer + `policy:submit`; membekukan draft |
+
+Perbedaan dari tabel rencana: `{id}` pada `/policies/{id}/clone` adalah id **package** (opsional `source_version_id` dalam body), dan `GET /policies/{policy_id}`, `GET` dan `PATCH /policy-versions/{version_id}` ditambahkan karena draft harus bisa dibaca dan diedit sebelum submit. `ADMIN` tidak memiliki `policy:read` (matriks izin Bagian 4), sehingga admin tidak dapat membaca policy.
+
 **Target berikutnya (planned, bukan otomatis sudah live):** tabel di bawah memakai path relatif `/api/v1` kecuali health. Operasi planned ditambahkan ke `openapi.yaml` **hanya pada tiket implementasi terkait**.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| `GET` / `POST` | `/policies` | Analyst | Browse/create policy packages/drafts. |
-| `POST` | `/policies/{id}/clone` | Analyst | Clone active/draft menjadi draft baru. |
 | `GET` / `PUT` | `/policy-versions/{id}/rac-rules` | Analyst | Browse/replace RAC draft configuration. |
 | `GET` / `PUT` | `/policy-versions/{id}/scorecard` | Analyst | Browse/replace scorecard configuration. |
 | `GET` / `PUT` | `/policy-versions/{id}/decision-matrix` | Analyst | Browse/replace matrix configuration. |
 | `POST` | `/policy-versions/{id}/validate` | Analyst | Validate entire package. |
 | `POST` | `/policy-versions/{id}/simulate` | Analyst | Simulate draft/selected version. |
-| `POST` | `/policy-versions/{id}/submit` | Analyst | Freeze draft and request approval. |
 | `GET` | `/approval-requests/{id}` | Approver / Auditor | Review request and diff. |
 | `POST` | `/approval-requests/{id}/actions` | Approver | Approve/reject active tier. |
 | `POST` | `/decisions/evaluate` | API Consumer | Run credit decision. |
@@ -1168,7 +1199,7 @@ Setiap tiket hanya selesai jika:
 | M4 — Governance | Simulator, workflow config, tier approval, publish/rollback semantics | Self-approval blocked; concurrency tests pass; version is immutable. |
 | M5 — Portfolio Hardening | Audit search, observability, CI untuk validasi OpenAPI + Postman parity, tests, demo | Complete E2E demo reproducible dari Compose project baru + fresh DB; docs/collection drift gagal di CI. |
 
-**Urutan:** M1 (done) → DX-001 (done) → **M2/RF-005** → M3 → M4 → M5. Agar ada demo cepat, boleh menerapkan policy seed **khusus development/test** sebelum workflow approval selesai, tetapi production evaluation endpoint tidak boleh memiliki bypass policy publishing di versi final.
+**Urutan:** M1 (done) → DX-001 (done) → **M2/RF-005..RF-010** → M3 → M4 → M5. Agar ada demo cepat, boleh menerapkan policy seed **khusus development/test** sebelum workflow approval selesai, tetapi production evaluation endpoint tidak boleh memiliki bypass policy publishing di versi final.
 
 ### Portfolio demo script (5–10 menit)
 
@@ -1236,7 +1267,7 @@ Review independen kedua atas `fix/M1-hardening` (tanpa temuan severity high) men
 
 - [x] **DX-001 Swagger UI + generated Postman Collection (cross-cutting prerequisite).** Gunakan `api/openapi/openapi.yaml` yang **sudah ada**; sajikan `/swagger` dan `/openapi.yaml` di Goravel/Fiber dengan docs hanya pada local/test; buat `scripts/generate-postman.sh`, baseline collection v2.1 untuk tepat 8 operations M1, template environment tanpa secret, verifikasi parity/determinism, dan dokumentasi di `AGENT_RUNBOOK.md`. Tidak membuat container/service ketiga; tidak mengubah schema database.
 - [x] **RF-005 Data dictionary.** Typed variables, required/null handling, unit, range; schema version. **Selesai pada branch `feature/RF-005-data-dictionary`** (belum di-merge): empat operasi `/api/v1/dictionary/variables`, migration append-only, seeder demo, OpenAPI + Postman diregenerasi, unit dan feature test. Rancangan rinci di 8.1 dan `docs/adr/0006-data-dictionary-versioning.md`.
-- [ ] **RF-006 Policy package/version model.** Create draft, clone, immutable snapshot on submit; cannot edit frozen versions.
+- [x] **RF-006 Policy package/version model.** Create draft, clone, immutable snapshot on submit; cannot edit frozen versions. **Selesai pada branch `feature/RF-006-policy-package-version-model`** (di atas RF-005, belum di-merge): tujuh operasi `/api/v1/policies` dan `/api/v1/policy-versions`, snapshot kanonik ber-checksum, trigger pembeku di PostgreSQL, seeder demo, OpenAPI + Postman diregenerasi, unit dan feature test, `docs/coverage.md`. Rancangan rinci di 9.5 dan `docs/adr/0007-policy-version-immutability.md`.
 - [ ] **RF-007 RAC management & validation.** Expressions, deterministic order, action, reason code, type/syntax check.
 - [ ] **RF-008 Scorecard management.** Characteristics/bins/points, single-match checks, decimal score rules.
 - [ ] **RF-009 Decision matrix management.** Boundary validation, no gaps/overlap for supported score domain.
@@ -1517,4 +1548,4 @@ Setiap ADR mencatat **context, decision, alternatives, consequences, date**.
 - [ ] Agent dapat menjalankan stack dari Compose `api + db`, menguji dengan `rf-test-*` terisolasi, dan membersihkan test project tanpa menghapus volume development.
 - [ ] Tidak ada data pribadi sesungguhnya, keys, atau credentials di repo.
 
-**Status kini (diperbarui 20 November 2026): RF-005 selesai pada branch `feature/RF-005-data-dictionary`; langkah berikutnya `RF-006 Policy package/version model`.** Riwayat status sebelumnya: M1/RF-001..RF-004 selesai di `main`. M1 hardening (17.1), LOG-001 structured logs (15.4), dan DX-001 Swagger UI + generated Postman Collection (5.6) selesai di branch `fix/M1-hardening`, bersama DOC-001 (guide di `docs/`) dan perbaikan review kedua serta ketiga (17.2); menunggu merge ke `main`. Langkah berikutnya: `RF-005 Data Dictionary`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.
+**Status kini (diperbarui 21 November 2026): RF-005 dan RF-006 selesai pada branch `feature/RF-005-data-dictionary` dan `feature/RF-006-policy-package-version-model` (bertumpuk, belum di-merge); langkah berikutnya `RF-007 RAC management & validation`.** Riwayat status sebelumnya: M1/RF-001..RF-004 selesai di `main`. M1 hardening (17.1), LOG-001 structured logs (15.4), dan DX-001 Swagger UI + generated Postman Collection (5.6) selesai di branch `fix/M1-hardening`, bersama DOC-001 (guide di `docs/`) dan perbaikan review kedua serta ketiga (17.2); menunggu merge ke `main`. Langkah berikutnya: `RF-005 Data Dictionary`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.

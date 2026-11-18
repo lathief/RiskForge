@@ -8,7 +8,8 @@
 // - Collection variable baseUrl = http://127.0.0.1:3000; every request uses {{baseUrl}}.
 // - Bearer token variable is {{accessToken}} (filled from POST /api/v1/auth/login).
 // - Operations with `security: []` get auth "noauth"; all others get bearer {{accessToken}}.
-// - The {code} path variable uses {{productCode}}; {variable_code} uses {{variableCode}}.
+// - Path variables: {code} -> {{productCode}}, {variable_code} -> {{variableCode}},
+//   {policy_id} -> {{policyId}}, {version_id} -> {{versionId}}.
 // - Fails if the collection and the spec disagree on the set of (METHOD, path).
 "use strict";
 
@@ -23,7 +24,12 @@ if (!specPath || !rawPath || !outPath) {
 
 const COLLECTION_ID = "4b6e2f0a-9c3d-4e51-8a7b-1f2e3d4c5b6a"; // fixed so output is stable
 const BASE_URL = "http://127.0.0.1:3000";
-const PATH_VARIABLES = { code: "{{productCode}}", variable_code: "{{variableCode}}" };
+const PATH_VARIABLES = {
+  code: "{{productCode}}",
+  variable_code: "{{variableCode}}",
+  policy_id: "{{policyId}}",
+  version_id: "{{versionId}}",
+};
 const METHODS = ["get", "put", "post", "delete", "patch", "head", "options", "trace"];
 
 const spec = yaml.load(fs.readFileSync(specPath, "utf8"));

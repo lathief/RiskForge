@@ -164,3 +164,32 @@ func (s *VariableService) List(ctx context.Context, f ListFilter) (Page, error) 
 	}
 	return Page{Items: items, Total: total, Page: f.Page, PerPage: f.PerPage, SchemaVersion: sv}, nil
 }
+
+// CurrentSchemaVersion returns the latest dictionary schema version (0 when empty).
+func (s *VariableService) CurrentSchemaVersion(ctx context.Context) (int64, error) {
+	return s.repo.CurrentSchemaVersion(ctx)
+}
+
+// Snapshot returns every variable as defined at the given schema version, ordered by code.
+// Other modules use it to freeze the dictionary a policy was written against. The result
+// never changes for a given version, because dictionary history is append-only.
+func (s *VariableService) Snapshot(ctx context.Context, schemaVersion int64) ([]domain.Variable, error) {
+	current, err := s.repo.CurrentSchemaVersion(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if schemaVersion > current {
+		return nil, ErrUnknownSchemaVersion
+	}
+	var all []domain.Variable
+	for page := 1; ; page++ {
+		items, total, _, err := s.repo.List(ctx, ListFilter{SchemaVersion: &schemaVersion, Page: page, PerPage: MaxPerPage})
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, items...)
+		if int64(len(all)) >= total || len(items) == 0 {
+			return all, nil
+		}
+	}
+}

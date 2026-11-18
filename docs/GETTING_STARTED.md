@@ -43,12 +43,12 @@ docker compose -p rf-dev --env-file .env.agent exec -T api ./artisan migrate
 docker compose -p rf-dev --env-file .env.agent exec -T api ./artisan db:seed
 ```
 
-The seeders create synthetic demo users, the demo product `KTA_DEMO`, and the eight-variable demo data dictionary. They refuse to run unless `APP_ENV` is `local` or `testing`.
+The seeders create synthetic demo users, the demo product `KTA_DEMO`, the eight-variable demo data dictionary, and an empty first draft of the KTA_DEMO policy. They refuse to run unless `APP_ENV` is `local` or `testing`.
 
 | Username | Role | Can |
 |---|---|---|
 | `demo_admin` | `ADMIN` | Manage products and dictionary variables. |
-| `demo_analyst` | `RISK_ANALYST` | Read products, manage dictionary variables; will own policy drafts (M2). |
+| `demo_analyst` | `RISK_ANALYST` | Read products, manage dictionary variables; owns policy drafts: opens, edits, clones, and submits them. |
 | `demo_approver_1`, `demo_approver_2` | `RISK_APPROVER` | Read products and the dictionary; will approve policies (M4). |
 | `demo_auditor` | `AUDITOR` | Read-only access. |
 | `demo_loan_application` | `API_CONSUMER` | The Loan Application client; will call the decision API (M3). |

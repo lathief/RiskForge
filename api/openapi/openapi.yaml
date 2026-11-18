@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.5.0
+  version: 0.6.0
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
-    Contract for the endpoints implemented so far (RF-001 to RF-005, plus M1 hardening).
+    Contract for the endpoints implemented so far (RF-001 to RF-006, plus M1 hardening).
 
     - All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.
     - Authorization is permission-based. Each operation lists the required permission
@@ -41,6 +41,8 @@ tags:
     description: Credit product catalog (RF-004).
   - name: Dictionary
     description: Data dictionary of typed input and derived variables, with schema versions (RF-005).
+  - name: Policies
+    description: Policy packages and their versions, with immutable snapshots on submit (RF-006).
 
 paths:
   /health/live:
@@ -444,6 +446,238 @@ paths:
         "413": { $ref: "#/components/responses/PayloadTooLarge" }
         "422": { $ref: "#/components/responses/ValidationError" }
         "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policies:
+    get:
+      tags: [Policies]
+      summary: List policies
+      description: |
+        A policy is the package of versions for one product and scope. Each item shows its newest
+        version. Ordered by product code and scope.
+      operationId: listPolicies
+      x-required-permission: policy:read
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 10000, default: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: product_code
+          in: query
+          description: Only policies of this product code.
+          schema: { type: string, maxLength: 32, example: KTA_DEMO }
+      responses:
+        "200":
+          description: One page of policies. A page past the end returns an empty `data` array.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolicyList" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
+    post:
+      tags: [Policies]
+      summary: Open a policy for a product
+      description: |
+        Creates the policy for a product and scope together with its first draft (version 1).
+        The draft is written against the current data dictionary schema version. A product and
+        scope can have only one policy; to get another draft use `POST /policies/{policy_id}/clone`.
+        The product must exist and be ACTIVE. `scope` defaults to `DEFAULT`.
+      operationId: createPolicy
+      x-required-permission: policy:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PolicyCreate" }
+            example: { product_code: KTA_DEMO, scope: DEFAULT, description: Initial draft of the KTA_DEMO policy. }
+      responses:
+        "201":
+          description: Created.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+            Location:
+              schema: { type: string }
+              example: /api/v1/policies/3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolicyDetail" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409":
+          description: The product and scope already have a policy.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error: { code: POLICY_CONFLICT, message: "a policy already exists for this product and scope; clone it to create a new draft" }
+                request_id: 4c3b2a1d0e9f8a7b6c5d4e3f2a1b0c9d
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policies/{policy_id}:
+    parameters:
+      - name: policy_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyId" }
+    get:
+      tags: [Policies]
+      summary: Get a policy with all of its versions
+      description: Versions are listed newest first, without their snapshots. Use `GET /policy-versions/{version_id}` for one version with its snapshot.
+      operationId: getPolicy
+      x-required-permission: policy:read
+      responses:
+        "200":
+          description: The policy.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolicyDetail" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policies/{policy_id}/clone:
+    parameters:
+      - name: policy_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyId" }
+    post:
+      tags: [Policies]
+      summary: Clone a version into a new draft
+      description: |
+        Creates the next numbered draft as a copy of an existing version of this policy, whatever
+        its status. This is also how a rejected version is revised. The body may be omitted.
+        Without `source_version_id` the ACTIVE version is copied, or the newest version when none
+        is active. The change note is inherited unless `description` is given. The new draft is
+        written against the current data dictionary schema version. Content sections
+        (RAC, scorecard, decision matrix) are copied once they exist (RF-007 to RF-009).
+      operationId: clonePolicy
+      x-required-permission: policy:write
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PolicyClone" }
+            example: { description: Tighten the DSR threshold. }
+      responses:
+        "201":
+          description: The new draft.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+            Location:
+              schema: { type: string }
+              example: /api/v1/policy-versions/9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolicyVersion" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policy-versions/{version_id}:
+    parameters:
+      - name: version_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyVersionId" }
+    get:
+      tags: [Policies]
+      summary: Get one policy version
+      description: A frozen version includes its canonical `snapshot` and `checksum`; for a draft both are null.
+      operationId: getPolicyVersion
+      x-required-permission: policy:read
+      responses:
+        "200":
+          description: The version.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolicyVersion" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
+    patch:
+      tags: [Policies]
+      summary: Edit a draft
+      description: |
+        Changes the change note or repoints the draft at another dictionary schema version
+        (0 up to the current one). Only a DRAFT can change: any other status is a 409
+        `POLICY_VERSION_FROZEN`. A request that changes nothing returns the draft unchanged.
+      operationId: updatePolicyVersion
+      x-required-permission: policy:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PolicyVersionUpdate" }
+            example: { description: Raise the minimum income. }
+      responses:
+        "200":
+          description: The draft after the change.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolicyVersion" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policy-versions/{version_id}/submit:
+    parameters:
+      - name: version_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyVersionId" }
+    post:
+      tags: [Policies]
+      summary: Freeze a draft for approval
+      description: |
+        Captures the canonical snapshot of the draft, including the data dictionary definitions
+        it was written against, stores its SHA-256 checksum, and moves the version to
+        `PENDING_APPROVAL`. After this nothing about the version changes: edits and a second
+        submit are 409 `POLICY_VERSION_FROZEN`. No request body.
+        The content checks of SYSTEM_DESIGN.md 9.3 (expressions compile, bins and matrix are
+        unambiguous, golden tests pass) arrive with RF-010, and approving or rejecting a pending
+        version arrives with M4.
+      operationId: submitPolicyVersion
+      x-required-permission: policy:submit
+      responses:
+        "200":
+          description: The frozen version with its snapshot and checksum.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolicyVersion" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
 security:
   - bearerAuth: []
@@ -705,6 +939,269 @@ components:
             per_page: { type: integer, minimum: 1, maximum: 100 }
             total: { type: integer, minimum: 0 }
             schema_version: { type: integer, minimum: 0, description: The dictionary schema version this page was read at. }
+    PolicyId:
+      type: string
+      format: uuid
+      example: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+    PolicyVersionId:
+      type: string
+      format: uuid
+      example: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+    PolicyScope:
+      type: string
+      pattern: "^[A-Z][A-Z0-9_]{1,31}$"
+      example: DEFAULT
+    PolicyStatus:
+      type: string
+      enum: [DRAFT, PENDING_APPROVAL, REJECTED, APPROVED, ACTIVE, ARCHIVED]
+      description: |
+        Lifecycle of SYSTEM_DESIGN.md 9.2. Only DRAFT can change. Submit moves DRAFT to
+        PENDING_APPROVAL; the later transitions are implemented in M4.
+      example: DRAFT
+    PolicyVersionSummary:
+      type: object
+      required: [id, policy_id, product_code, scope, version_number, status, description, based_on_version_id, dictionary_schema_version, checksum, submitted_by, submitted_at, created_by, created_at, updated_at]
+      example:
+        id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+        policy_id: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+        product_code: KTA_DEMO
+        scope: DEFAULT
+        version_number: 1
+        status: DRAFT
+        description: Initial draft of the KTA_DEMO policy.
+        based_on_version_id: null
+        dictionary_schema_version: 8
+        checksum: null
+        submitted_by: null
+        submitted_at: null
+        created_by: 2e4ebb31-3fbc-480f-a602-302b6766efa1
+        created_at: "2026-11-21T08:00:00Z"
+        updated_at: "2026-11-21T08:00:00Z"
+      properties:
+        id: { $ref: "#/components/schemas/PolicyVersionId" }
+        policy_id: { $ref: "#/components/schemas/PolicyId" }
+        product_code: { $ref: "#/components/schemas/ProductCode" }
+        scope: { $ref: "#/components/schemas/PolicyScope" }
+        version_number: { type: integer, minimum: 1, description: "Numbered per policy, starting at 1." }
+        status: { $ref: "#/components/schemas/PolicyStatus" }
+        description: { type: string, maxLength: 500, description: Change note. }
+        based_on_version_id:
+          oneOf: [{ $ref: "#/components/schemas/PolicyVersionId" }, { type: "null" }]
+          description: The version this draft was cloned from; null for the first draft.
+        dictionary_schema_version: { type: integer, minimum: 0, description: The data dictionary schema version the version is written against. }
+        checksum:
+          type: [string, "null"]
+          pattern: "^[0-9a-f]{64}$"
+          description: SHA-256 of the canonical snapshot; null until submitted.
+        submitted_by:
+          oneOf: [{ type: string, format: uuid }, { type: "null" }]
+        submitted_at: { type: [string, "null"], format: date-time }
+        created_by:
+          oneOf: [{ type: string, format: uuid }, { type: "null" }]
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    PolicySnapshot:
+      type: object
+      description: |
+        Frozen content of a submitted version in canonical form (keys sorted, no whitespace
+        outside strings). `checksum` is the SHA-256 of exactly this form. `rac_rules`,
+        `scorecard`, and `decision_matrix` are present but empty until RF-007 to RF-009.
+      required: [format, evaluator_version, package, version_number, dictionary, rac_rules, scorecard, decision_matrix]
+      example:
+        format: 1
+        evaluator_version: "1"
+        package: { product_code: KTA_DEMO, scope: DEFAULT }
+        version_number: 1
+        dictionary:
+          schema_version: 8
+          variables:
+            - code: age_years
+              origin: INPUT
+              type: INTEGER
+              description: Applicant age on the application date.
+              unit: years
+              required: true
+              nullable: false
+              scale: null
+              min_value: "0"
+              max_value: "120"
+              version: 1
+              schema_version: 1
+        rac_rules: []
+        scorecard: null
+        decision_matrix: []
+      properties:
+        format: { type: integer }
+        evaluator_version: { type: string }
+        package:
+          type: object
+          properties:
+            product_code: { type: string }
+            scope: { type: string }
+        version_number: { type: integer }
+        dictionary:
+          type: object
+          properties:
+            schema_version: { type: integer }
+            variables: { type: array, items: { type: object } }
+        rac_rules: { type: array, items: { type: object } }
+        scorecard: { type: [object, "null"] }
+        decision_matrix: { type: array, items: { type: object } }
+    PolicyVersion:
+      allOf:
+        - $ref: "#/components/schemas/PolicyVersionSummary"
+        - type: object
+          required: [snapshot]
+          properties:
+            snapshot:
+              oneOf: [{ $ref: "#/components/schemas/PolicySnapshot" }, { type: "null" }]
+              description: Null while the version is a DRAFT.
+      example:
+        id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+        policy_id: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+        product_code: KTA_DEMO
+        scope: DEFAULT
+        version_number: 1
+        status: PENDING_APPROVAL
+        description: Initial draft of the KTA_DEMO policy.
+        based_on_version_id: null
+        dictionary_schema_version: 8
+        checksum: 5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592
+        submitted_by: 2e4ebb31-3fbc-480f-a602-302b6766efa1
+        submitted_at: "2026-11-21T08:05:00Z"
+        created_by: 2e4ebb31-3fbc-480f-a602-302b6766efa1
+        created_at: "2026-11-21T08:00:00Z"
+        updated_at: "2026-11-21T08:05:00Z"
+        snapshot:
+          dictionary:
+            schema_version: 8
+            variables: []
+          decision_matrix: []
+          evaluator_version: "1"
+          format: 1
+          package: { product_code: KTA_DEMO, scope: DEFAULT }
+          rac_rules: []
+          scorecard: null
+          version_number: 1
+    PolicyCreate:
+      type: object
+      additionalProperties: false
+      required: [product_code]
+      properties:
+        product_code: { type: string, minLength: 1, maxLength: 32, example: KTA_DEMO, description: An existing ACTIVE product. }
+        scope: { $ref: "#/components/schemas/PolicyScope", default: DEFAULT }
+        description: { type: string, maxLength: 500, description: Change note of the first draft. }
+    PolicyClone:
+      type: object
+      additionalProperties: false
+      properties:
+        source_version_id: { $ref: "#/components/schemas/PolicyVersionId" }
+        description: { type: string, maxLength: 500, description: Change note; inherited from the source when omitted. }
+    PolicyVersionUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        description: { type: string, maxLength: 500 }
+        dictionary_schema_version: { type: integer, minimum: 0, description: "0 up to the current dictionary schema version." }
+    PolicyDetail:
+      type: object
+      required: [id, product_code, scope, created_at, versions]
+      example:
+        id: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+        product_code: KTA_DEMO
+        scope: DEFAULT
+        created_at: "2026-11-21T08:00:00Z"
+        versions:
+          - id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+            policy_id: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+            product_code: KTA_DEMO
+            scope: DEFAULT
+            version_number: 1
+            status: DRAFT
+            description: Initial draft of the KTA_DEMO policy.
+            based_on_version_id: null
+            dictionary_schema_version: 8
+            checksum: null
+            submitted_by: null
+            submitted_at: null
+            created_by: 2e4ebb31-3fbc-480f-a602-302b6766efa1
+            created_at: "2026-11-21T08:00:00Z"
+            updated_at: "2026-11-21T08:00:00Z"
+      properties:
+        id: { $ref: "#/components/schemas/PolicyId" }
+        product_code: { $ref: "#/components/schemas/ProductCode" }
+        scope: { $ref: "#/components/schemas/PolicyScope" }
+        created_at: { type: string, format: date-time }
+        versions:
+          type: array
+          description: Newest first.
+          items: { $ref: "#/components/schemas/PolicyVersionSummary" }
+    PolicyListItem:
+      type: object
+      required: [id, product_code, scope, version_count, latest_version, created_at]
+      example:
+        id: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+        product_code: KTA_DEMO
+        scope: DEFAULT
+        version_count: 1
+        created_at: "2026-11-21T08:00:00Z"
+        latest_version:
+          id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+          policy_id: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+          product_code: KTA_DEMO
+          scope: DEFAULT
+          version_number: 1
+          status: DRAFT
+          description: Initial draft of the KTA_DEMO policy.
+          based_on_version_id: null
+          dictionary_schema_version: 8
+          checksum: null
+          submitted_by: null
+          submitted_at: null
+          created_by: 2e4ebb31-3fbc-480f-a602-302b6766efa1
+          created_at: "2026-11-21T08:00:00Z"
+          updated_at: "2026-11-21T08:00:00Z"
+      properties:
+        id: { $ref: "#/components/schemas/PolicyId" }
+        product_code: { $ref: "#/components/schemas/ProductCode" }
+        scope: { $ref: "#/components/schemas/PolicyScope" }
+        version_count: { type: integer, minimum: 0 }
+        latest_version:
+          oneOf: [{ $ref: "#/components/schemas/PolicyVersionSummary" }, { type: "null" }]
+        created_at: { type: string, format: date-time }
+    PolicyList:
+      type: object
+      required: [data, meta]
+      example:
+        data:
+          - id: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+            product_code: KTA_DEMO
+            scope: DEFAULT
+            version_count: 1
+            created_at: "2026-11-21T08:00:00Z"
+            latest_version:
+              id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+              policy_id: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+              product_code: KTA_DEMO
+              scope: DEFAULT
+              version_number: 1
+              status: DRAFT
+              description: Initial draft of the KTA_DEMO policy.
+              based_on_version_id: null
+              dictionary_schema_version: 8
+              checksum: null
+              submitted_by: null
+              submitted_at: null
+              created_by: 2e4ebb31-3fbc-480f-a602-302b6766efa1
+              created_at: "2026-11-21T08:00:00Z"
+              updated_at: "2026-11-21T08:00:00Z"
+        meta: { page: 1, per_page: 20, total: 1 }
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/PolicyListItem" }
+        meta: { $ref: "#/components/schemas/PageMeta" }
     ErrorResponse:
       type: object
       required: [error]
@@ -725,6 +1222,10 @@ components:
                 - PRODUCT_CODE_CONFLICT
                 - VARIABLE_NOT_FOUND
                 - VARIABLE_CODE_CONFLICT
+                - POLICY_NOT_FOUND
+                - POLICY_VERSION_NOT_FOUND
+                - POLICY_CONFLICT
+                - POLICY_VERSION_FROZEN
                 - SERVICE_BUSY
                 - INTERNAL_ERROR
             message: { type: string }
@@ -737,7 +1238,7 @@ components:
                   field: { type: string }
                   issue:
                     type: string
-                    description: Stable issue code, e.g. required, too_long, invalid_format, invalid_value, invalid_characters, must_be_string, must_be_boolean, must_be_integer, not_allowed, no_changes, exceeds_scale, less_than_min_value, not_allowed_for_type, not_allowed_when_required, must_be_false_for_derived, exceeds_current_version.
+                    description: Stable issue code, e.g. required, too_long, invalid_format, invalid_value, invalid_characters, must_be_string, must_be_boolean, must_be_integer, not_allowed, no_changes, exceeds_scale, less_than_min_value, not_allowed_for_type, not_allowed_when_required, must_be_false_for_derived, exceeds_current_version, unknown_product, product_inactive, not_in_policy, must_be_a_non_negative_integer.
         request_id: { type: string }
 
   responses:
@@ -796,6 +1297,36 @@ components:
           example:
             error: { code: VARIABLE_NOT_FOUND, message: variable not found }
             request_id: 7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d
+    PolicyNotFound:
+      description: No policy has this id.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error: { code: POLICY_NOT_FOUND, message: policy not found }
+            request_id: 8b7a6c5d4e3f2a1b0c9d8e7f6a5b4c3d
+    PolicyVersionNotFound:
+      description: No policy version has this id.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error: { code: POLICY_VERSION_NOT_FOUND, message: policy version not found }
+            request_id: 9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d
+    PolicyVersionFrozen:
+      description: The version is not a DRAFT, so it can no longer be edited or submitted.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error: { code: POLICY_VERSION_FROZEN, message: only a DRAFT version can be changed or submitted }
+            request_id: 0d9c8b7a6e5f4a3b2c1d0e9f8a7b6c5d
     InternalError:
       description: Unexpected failure. The cause is logged server-side and never returned.
       headers:

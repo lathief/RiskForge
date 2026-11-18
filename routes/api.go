@@ -16,6 +16,8 @@ import (
 	identityapp "goravel/app/modules/identity/application"
 	"goravel/app/modules/identity/domain"
 	identityinfra "goravel/app/modules/identity/infrastructure"
+	policyapp "goravel/app/modules/policy/application"
+	policyinfra "goravel/app/modules/policy/infrastructure"
 	"goravel/app/platform/database"
 	"goravel/app/platform/logging"
 	"goravel/app/support"
@@ -26,6 +28,7 @@ const (
 	moduleIdentity   = "identity"
 	moduleCatalog    = "catalog"
 	moduleDictionary = "dictionary"
+	modulePolicy     = "policy"
 	moduleDocs       = "docs"
 )
 
@@ -67,21 +70,30 @@ func Api() {
 	authenticate := middleware.NewAuthenticate(authService)
 
 	catalogDB := dbManager.WithModule(moduleCatalog)
-	productController := controllers.NewProductController(
-		catalogapp.NewProductService(cataloginfra.NewProductRepository(catalogDB), catalogDB),
-	)
+	catalogService := catalogapp.NewProductService(cataloginfra.NewProductRepository(catalogDB), catalogDB)
+	productController := controllers.NewProductController(catalogService)
 	dictionaryDB := dbManager.WithModule(moduleDictionary)
-	dictionaryController := controllers.NewDictionaryController(
-		dictionaryapp.NewVariableService(dictionaryinfra.NewVariableRepository(dictionaryDB), dictionaryDB),
-	)
+	dictionaryService := dictionaryapp.NewVariableService(dictionaryinfra.NewVariableRepository(dictionaryDB), dictionaryDB)
+	dictionaryController := controllers.NewDictionaryController(dictionaryService)
 	canReadDictionary := middleware.NewRequirePermission(domain.PermDictionaryRead)
 	canWriteDictionary := middleware.NewRequirePermission(domain.PermDictionaryWrite)
+	policyDB := dbManager.WithModule(modulePolicy)
+	policyController := controllers.NewPolicyController(policyapp.NewPolicyService(
+		policyinfra.NewPolicyRepository(policyDB),
+		policyinfra.NewCatalogProducts(catalogService),
+		policyinfra.NewDictionaryVersions(dictionaryService),
+		policyDB,
+	))
+	canReadPolicies := middleware.NewRequirePermission(domain.PermPolicyRead)
+	canWritePolicies := middleware.NewRequirePermission(domain.PermPolicyWrite)
+	canSubmitPolicies := middleware.NewRequirePermission(domain.PermPolicySubmit)
 	canReadProducts := middleware.NewRequirePermission(domain.PermProductRead)
 	canWriteProducts := middleware.NewRequirePermission(domain.PermProductWrite)
 
 	identity := middleware.NewModule(moduleIdentity)
 	catalog := middleware.NewModule(moduleCatalog)
 	dictionary := middleware.NewModule(moduleDictionary)
+	policy := middleware.NewModule(modulePolicy)
 
 	facades.Route().Prefix("/api/v1").Group(func(router route.Router) {
 		router.Middleware(identity).Post("/auth/login", authController.Login)
@@ -95,5 +107,12 @@ func Api() {
 		router.Middleware(dictionary, authenticate, canReadDictionary).Get("/dictionary/variables/{variable_code}", dictionaryController.Show)
 		router.Middleware(dictionary, authenticate, canWriteDictionary).Post("/dictionary/variables", dictionaryController.Store)
 		router.Middleware(dictionary, authenticate, canWriteDictionary).Patch("/dictionary/variables/{variable_code}", dictionaryController.Update)
+		router.Middleware(policy, authenticate, canReadPolicies).Get("/policies", policyController.Index)
+		router.Middleware(policy, authenticate, canWritePolicies).Post("/policies", policyController.Store)
+		router.Middleware(policy, authenticate, canReadPolicies).Get("/policies/{policy_id}", policyController.Show)
+		router.Middleware(policy, authenticate, canWritePolicies).Post("/policies/{policy_id}/clone", policyController.Clone)
+		router.Middleware(policy, authenticate, canReadPolicies).Get("/policy-versions/{version_id}", policyController.ShowVersion)
+		router.Middleware(policy, authenticate, canWritePolicies).Patch("/policy-versions/{version_id}", policyController.UpdateVersion)
+		router.Middleware(policy, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/submit", policyController.SubmitVersion)
 	})
 }

@@ -5672,6 +5672,4038 @@
           }
         }
       ]
+    },
+    {
+      "name": "Policies",
+      "description": "Policy packages and their versions, with immutable snapshots on submit (RF-006).",
+      "item": [
+        {
+          "name": "List policies",
+          "request": {
+            "name": "List policies",
+            "description": {
+              "content": "A policy is the package of versions for one product and scope. Each item shows its newest\nversion. Ordered by product code and scope.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policies"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "per_page",
+                  "value": "20"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "Only policies of this product code.",
+                    "type": "text/plain"
+                  },
+                  "key": "product_code",
+                  "value": "KTA_DEMO"
+                }
+              ],
+              "variable": [],
+              "raw": "{{baseUrl}}/api/v1/policies"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "One page of policies. A page past the end returns an empty `data` array.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only policies of this product code.",
+                        "type": "text/plain"
+                      },
+                      "key": "product_code",
+                      "value": "KTA_DEMO"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/policies"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n      \"product_code\": \"KTA_DEMO\",\n      \"scope\": \"DEFAULT\",\n      \"version_count\": 1,\n      \"created_at\": \"2026-11-21T08:00:00Z\",\n      \"latest_version\": {\n        \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n        \"policy_id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n        \"product_code\": \"KTA_DEMO\",\n        \"scope\": \"DEFAULT\",\n        \"version_number\": 1,\n        \"status\": \"DRAFT\",\n        \"description\": \"Initial draft of the KTA_DEMO policy.\",\n        \"based_on_version_id\": null,\n        \"dictionary_schema_version\": 8,\n        \"checksum\": null,\n        \"submitted_by\": null,\n        \"submitted_at\": null,\n        \"created_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n        \"created_at\": \"2026-11-21T08:00:00Z\",\n        \"updated_at\": \"2026-11-21T08:00:00Z\"\n      }\n    }\n  ],\n  \"meta\": {\n    \"page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only policies of this product code.",
+                        "type": "text/plain"
+                      },
+                      "key": "product_code",
+                      "value": "KTA_DEMO"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/policies"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only policies of this product code.",
+                        "type": "text/plain"
+                      },
+                      "key": "product_code",
+                      "value": "KTA_DEMO"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/policies"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only policies of this product code.",
+                        "type": "text/plain"
+                      },
+                      "key": "product_code",
+                      "value": "KTA_DEMO"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/policies"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The request is well-formed HTTP but semantically invalid.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only policies of this product code.",
+                        "type": "text/plain"
+                      },
+                      "key": "product_code",
+                      "value": "KTA_DEMO"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/policies"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INPUT_VALIDATION_ERROR\",\n    \"message\": \"invalid product\",\n    \"details\": [\n      {\n        \"field\": \"code\",\n        \"issue\": \"invalid_format\"\n      },\n      {\n        \"field\": \"name\",\n        \"issue\": \"required\"\n      }\n    ]\n  },\n  \"request_id\": \"1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only policies of this product code.",
+                        "type": "text/plain"
+                      },
+                      "key": "product_code",
+                      "value": "KTA_DEMO"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/policies"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "name": "Open a policy for a product",
+          "request": {
+            "name": "Open a policy for a product",
+            "description": {
+              "content": "Creates the policy for a product and scope together with its first draft (version 1).\nThe draft is written against the current data dictionary schema version. A product and\nscope can have only one policy; to get another draft use `POST /policies/{policy_id}/clone`.\nThe product must exist and be ACTIVE. `scope` defaults to `DEFAULT`.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policies"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [],
+              "raw": "{{baseUrl}}/api/v1/policies"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Created.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/policies"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "Location",
+                  "value": "/api/v1/policies/3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11"
+                }
+              ],
+              "body": "{\n  \"id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"created_at\": \"2026-11-21T08:00:00Z\",\n  \"versions\": [\n    {\n      \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n      \"policy_id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n      \"product_code\": \"KTA_DEMO\",\n      \"scope\": \"DEFAULT\",\n      \"version_number\": 1,\n      \"status\": \"DRAFT\",\n      \"description\": \"Initial draft of the KTA_DEMO policy.\",\n      \"based_on_version_id\": null,\n      \"dictionary_schema_version\": 8,\n      \"checksum\": null,\n      \"submitted_by\": null,\n      \"submitted_at\": null,\n      \"created_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n      \"created_at\": \"2026-11-21T08:00:00Z\",\n      \"updated_at\": \"2026-11-21T08:00:00Z\"\n    }\n  ]\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/policies"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/policies"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/policies"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The product and scope already have a policy.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/policies"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_CONFLICT\",\n    \"message\": \"a policy already exists for this product and scope; clone it to create a new draft\"\n  },\n  \"request_id\": \"4c3b2a1d0e9f8a7b6c5d4e3f2a1b0c9d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request body exceeds 64 KiB. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/policies"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Entity Too Large",
+              "code": 413,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Entity Too Large",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The request is well-formed HTTP but semantically invalid.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/policies"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INPUT_VALIDATION_ERROR\",\n    \"message\": \"invalid product\",\n    \"details\": [\n      {\n        \"field\": \"code\",\n        \"issue\": \"invalid_format\"\n      },\n      {\n        \"field\": \"name\",\n        \"issue\": \"required\"\n      }\n    ]\n  },\n  \"request_id\": \"1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/policies"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "name": "Get a policy with all of its versions",
+          "request": {
+            "name": "Get a policy with all of its versions",
+            "description": {
+              "content": "Versions are listed newest first, without their snapshots. Use `GET /policy-versions/{version_id}` for one version with its snapshot.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policies",
+                ":policy_id"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{policyId}}",
+                  "key": "policy_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/policies/:policy_id"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The policy.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies",
+                    ":policy_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{policyId}}",
+                      "key": "policy_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policies/:policy_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"created_at\": \"2026-11-21T08:00:00Z\",\n  \"versions\": [\n    {\n      \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n      \"policy_id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n      \"product_code\": \"KTA_DEMO\",\n      \"scope\": \"DEFAULT\",\n      \"version_number\": 1,\n      \"status\": \"DRAFT\",\n      \"description\": \"Initial draft of the KTA_DEMO policy.\",\n      \"based_on_version_id\": null,\n      \"dictionary_schema_version\": 8,\n      \"checksum\": null,\n      \"submitted_by\": null,\n      \"submitted_at\": null,\n      \"created_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n      \"created_at\": \"2026-11-21T08:00:00Z\",\n      \"updated_at\": \"2026-11-21T08:00:00Z\"\n    }\n  ]\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies",
+                    ":policy_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{policyId}}",
+                      "key": "policy_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policies/:policy_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies",
+                    ":policy_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{policyId}}",
+                      "key": "policy_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policies/:policy_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No policy has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies",
+                    ":policy_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{policyId}}",
+                      "key": "policy_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policies/:policy_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_NOT_FOUND\",\n    \"message\": \"policy not found\"\n  },\n  \"request_id\": \"8b7a6c5d4e3f2a1b0c9d8e7f6a5b4c3d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies",
+                    ":policy_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{policyId}}",
+                      "key": "policy_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policies/:policy_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies",
+                    ":policy_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{policyId}}",
+                      "key": "policy_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policies/:policy_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "name": "Clone a version into a new draft",
+          "request": {
+            "name": "Clone a version into a new draft",
+            "description": {
+              "content": "Creates the next numbered draft as a copy of an existing version of this policy, whatever\nits status. This is also how a rejected version is revised. The body may be omitted.\nWithout `source_version_id` the ACTIVE version is copied, or the newest version when none\nis active. The change note is inherited unless `description` is given. The new draft is\nwritten against the current data dictionary schema version. Content sections\n(RAC, scorecard, decision matrix) are copied once they exist (RF-007 to RF-009).\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policies",
+                ":policy_id",
+                "clone"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{policyId}}",
+                  "key": "policy_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/policies/:policy_id/clone"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Tighten the DSR threshold.\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The new draft.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies",
+                    ":policy_id",
+                    "clone"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{policyId}}",
+                      "key": "policy_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policies/:policy_id/clone"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Tighten the DSR threshold.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "Location",
+                  "value": "/api/v1/policy-versions/9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"
+                }
+              ],
+              "body": "{\n  \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"policy_id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"version_number\": 1,\n  \"status\": \"PENDING_APPROVAL\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\",\n  \"based_on_version_id\": null,\n  \"dictionary_schema_version\": 8,\n  \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\",\n  \"submitted_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"submitted_at\": \"2026-11-21T08:05:00Z\",\n  \"created_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"created_at\": \"2026-11-21T08:00:00Z\",\n  \"updated_at\": \"2026-11-21T08:05:00Z\",\n  \"snapshot\": {\n    \"dictionary\": {\n      \"schema_version\": 8,\n      \"variables\": []\n    },\n    \"decision_matrix\": [],\n    \"evaluator_version\": \"1\",\n    \"format\": 1,\n    \"package\": {\n      \"product_code\": \"KTA_DEMO\",\n      \"scope\": \"DEFAULT\"\n    },\n    \"rac_rules\": [],\n    \"scorecard\": null,\n    \"version_number\": 1\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies",
+                    ":policy_id",
+                    "clone"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{policyId}}",
+                      "key": "policy_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policies/:policy_id/clone"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Tighten the DSR threshold.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies",
+                    ":policy_id",
+                    "clone"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{policyId}}",
+                      "key": "policy_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policies/:policy_id/clone"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Tighten the DSR threshold.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No policy has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies",
+                    ":policy_id",
+                    "clone"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{policyId}}",
+                      "key": "policy_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policies/:policy_id/clone"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Tighten the DSR threshold.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_NOT_FOUND\",\n    \"message\": \"policy not found\"\n  },\n  \"request_id\": \"8b7a6c5d4e3f2a1b0c9d8e7f6a5b4c3d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies",
+                    ":policy_id",
+                    "clone"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{policyId}}",
+                      "key": "policy_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policies/:policy_id/clone"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Tighten the DSR threshold.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The request body exceeds 64 KiB. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies",
+                    ":policy_id",
+                    "clone"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{policyId}}",
+                      "key": "policy_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policies/:policy_id/clone"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Tighten the DSR threshold.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Entity Too Large",
+              "code": 413,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Entity Too Large",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The request is well-formed HTTP but semantically invalid.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies",
+                    ":policy_id",
+                    "clone"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{policyId}}",
+                      "key": "policy_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policies/:policy_id/clone"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Tighten the DSR threshold.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INPUT_VALIDATION_ERROR\",\n    \"message\": \"invalid product\",\n    \"details\": [\n      {\n        \"field\": \"code\",\n        \"issue\": \"invalid_format\"\n      },\n      {\n        \"field\": \"name\",\n        \"issue\": \"required\"\n      }\n    ]\n  },\n  \"request_id\": \"1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policies",
+                    ":policy_id",
+                    "clone"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{policyId}}",
+                      "key": "policy_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policies/:policy_id/clone"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Tighten the DSR threshold.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "name": "Get one policy version",
+          "request": {
+            "name": "Get one policy version",
+            "description": {
+              "content": "A frozen version includes its canonical `snapshot` and `checksum`; for a draft both are null.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policy-versions",
+                ":version_id"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{versionId}}",
+                  "key": "version_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The version.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"policy_id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"version_number\": 1,\n  \"status\": \"PENDING_APPROVAL\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\",\n  \"based_on_version_id\": null,\n  \"dictionary_schema_version\": 8,\n  \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\",\n  \"submitted_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"submitted_at\": \"2026-11-21T08:05:00Z\",\n  \"created_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"created_at\": \"2026-11-21T08:00:00Z\",\n  \"updated_at\": \"2026-11-21T08:05:00Z\",\n  \"snapshot\": {\n    \"dictionary\": {\n      \"schema_version\": 8,\n      \"variables\": []\n    },\n    \"decision_matrix\": [],\n    \"evaluator_version\": \"1\",\n    \"format\": 1,\n    \"package\": {\n      \"product_code\": \"KTA_DEMO\",\n      \"scope\": \"DEFAULT\"\n    },\n    \"rac_rules\": [],\n    \"scorecard\": null,\n    \"version_number\": 1\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No policy version has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_NOT_FOUND\",\n    \"message\": \"policy version not found\"\n  },\n  \"request_id\": \"9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "name": "Edit a draft",
+          "request": {
+            "name": "Edit a draft",
+            "description": {
+              "content": "Changes the change note or repoints the draft at another dictionary schema version\n(0 up to the current one). Only a DRAFT can change: any other status is a 409\n`POLICY_VERSION_FROZEN`. A request that changes nothing returns the draft unchanged.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policy-versions",
+                ":version_id"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{versionId}}",
+                  "key": "version_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "PATCH",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Raise the minimum income.\"\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The draft after the change.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PATCH",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Raise the minimum income.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"policy_id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"version_number\": 1,\n  \"status\": \"PENDING_APPROVAL\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\",\n  \"based_on_version_id\": null,\n  \"dictionary_schema_version\": 8,\n  \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\",\n  \"submitted_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"submitted_at\": \"2026-11-21T08:05:00Z\",\n  \"created_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"created_at\": \"2026-11-21T08:00:00Z\",\n  \"updated_at\": \"2026-11-21T08:05:00Z\",\n  \"snapshot\": {\n    \"dictionary\": {\n      \"schema_version\": 8,\n      \"variables\": []\n    },\n    \"decision_matrix\": [],\n    \"evaluator_version\": \"1\",\n    \"format\": 1,\n    \"package\": {\n      \"product_code\": \"KTA_DEMO\",\n      \"scope\": \"DEFAULT\"\n    },\n    \"rac_rules\": [],\n    \"scorecard\": null,\n    \"version_number\": 1\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PATCH",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Raise the minimum income.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PATCH",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Raise the minimum income.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No policy version has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PATCH",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Raise the minimum income.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_NOT_FOUND\",\n    \"message\": \"policy version not found\"\n  },\n  \"request_id\": \"9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PATCH",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Raise the minimum income.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The version is not a DRAFT, so it can no longer be edited or submitted.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PATCH",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Raise the minimum income.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_FROZEN\",\n    \"message\": \"only a DRAFT version can be changed or submitted\"\n  },\n  \"request_id\": \"0d9c8b7a6e5f4a3b2c1d0e9f8a7b6c5d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request body exceeds 64 KiB. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PATCH",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Raise the minimum income.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Entity Too Large",
+              "code": 413,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Entity Too Large",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The request is well-formed HTTP but semantically invalid.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PATCH",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Raise the minimum income.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INPUT_VALIDATION_ERROR\",\n    \"message\": \"invalid product\",\n    \"details\": [\n      {\n        \"field\": \"code\",\n        \"issue\": \"invalid_format\"\n      },\n      {\n        \"field\": \"name\",\n        \"issue\": \"required\"\n      }\n    ]\n  },\n  \"request_id\": \"1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PATCH",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Raise the minimum income.\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "name": "Freeze a draft for approval",
+          "request": {
+            "name": "Freeze a draft for approval",
+            "description": {
+              "content": "Captures the canonical snapshot of the draft, including the data dictionary definitions\nit was written against, stores its SHA-256 checksum, and moves the version to\n`PENDING_APPROVAL`. After this nothing about the version changes: edits and a second\nsubmit are 409 `POLICY_VERSION_FROZEN`. No request body.\nThe content checks of SYSTEM_DESIGN.md 9.3 (expressions compile, bins and matrix are\nunambiguous, golden tests pass) arrive with RF-010, and approving or rejecting a pending\nversion arrives with M4.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policy-versions",
+                ":version_id",
+                "submit"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{versionId}}",
+                  "key": "version_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/submit"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The frozen version with its snapshot and checksum.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "submit"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/submit"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"policy_id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"version_number\": 1,\n  \"status\": \"PENDING_APPROVAL\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\",\n  \"based_on_version_id\": null,\n  \"dictionary_schema_version\": 8,\n  \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\",\n  \"submitted_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"submitted_at\": \"2026-11-21T08:05:00Z\",\n  \"created_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"created_at\": \"2026-11-21T08:00:00Z\",\n  \"updated_at\": \"2026-11-21T08:05:00Z\",\n  \"snapshot\": {\n    \"dictionary\": {\n      \"schema_version\": 8,\n      \"variables\": []\n    },\n    \"decision_matrix\": [],\n    \"evaluator_version\": \"1\",\n    \"format\": 1,\n    \"package\": {\n      \"product_code\": \"KTA_DEMO\",\n      \"scope\": \"DEFAULT\"\n    },\n    \"rac_rules\": [],\n    \"scorecard\": null,\n    \"version_number\": 1\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "submit"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/submit"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "submit"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/submit"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {}
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No policy version has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "submit"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/submit"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {}
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_NOT_FOUND\",\n    \"message\": \"policy version not found\"\n  },\n  \"request_id\": \"9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "submit"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/submit"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {}
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The version is not a DRAFT, so it can no longer be edited or submitted.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "submit"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/submit"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {}
+              },
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_FROZEN\",\n    \"message\": \"only a DRAFT version can be changed or submitted\"\n  },\n  \"request_id\": \"0d9c8b7a6e5f4a3b2c1d0e9f8a7b6c5d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "submit"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/submit"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        }
+      ]
     }
   ],
   "auth": {
@@ -5696,7 +9728,7 @@
     "name": "RiskForge API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": {
-      "content": "Contract for the endpoints implemented so far (RF-001 to RF-005, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; the role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
+      "content": "Contract for the endpoints implemented so far (RF-001 to RF-006, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; the role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
       "type": "text/plain"
     },
     "_postman_id": "4b6e2f0a-9c3d-4e51-8a7b-1f2e3d4c5b6a"

@@ -52,8 +52,10 @@ docker run --rm --network "$NETWORK" --read-only --tmpfs /tmp \
         body: JSON.stringify({username: \"demo_auditor\", password: process.env.DEMO_PASSWORD})})
         .then(r => r.json()).then(b => { if (!b.access_token) { console.error(\"login failed\"); process.exit(1) } process.stdout.write(b.access_token) })
         .catch(e => { console.error(e.message); process.exit(1) })")
+    ids=$(TOKEN="$token" node /src/resolve-ids.js)
     NODE_PATH=/tools/node_modules /tools/node_modules/.bin/newman run /postman/RiskForge.postman_collection.json \
       --env-var baseUrl=http://api:3000 --env-var accessToken="$token" --env-var productCode=KTA_DEMO --env-var variableCode=age_years \
+      --env-var policyId="${ids% *}" --env-var versionId="${ids#* }" \
       --reporters json --reporter-json-export /tmp/run.json --silent || true
     NODE_PATH=/tools/node_modules node /src/smoke-check.js /tmp/run.json
   '

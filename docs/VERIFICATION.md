@@ -93,6 +93,17 @@ Run on branch `feature/RF-005-data-dictionary` in the disposable project `rf-tes
 - Live on `rf-dev` after `migrate` and `db:seed`: `/swagger` returns 200 and `/openapi.yaml` contains the dictionary paths; `./scripts/smoke-postman.sh` reported 12/12 requests as expected. The curl responses in `docs/API_EXAMPLES.md` were captured from this stack.
 - Not covered: the smoke script uses the read-only auditor, so Postman has no end-to-end run of the dictionary write requests. The write paths are covered by the Go suites.
 
+## RF-006 Policy package and version model
+Run on branch `feature/RF-006-policy-package-version-model` (on top of the RF-005 branch) in the disposable project `rf-test-rf006` (PostgreSQL 18), plus the `rf-dev` stack for the live checks.
+- `gofmt` and `go vet ./...` clean. `go test -race -count=1 ./...` passes for every package, including the contract suites at 19 operations.
+- `PolicyTestSuite` repeated three times (`-race -count=3`) without failures or races: authorization per role (the admin gets 403 even on reads; approvers and auditors cannot write), create, clone and patch validation, 404 and 409, pagination, a snapshot whose checksum verifies, frozen versions refuse edits and a second submit, and the snapshot is unchanged after the dictionary is edited.
+- Concurrency: 10 clones of one policy get version numbers 2..11 with no gap; 10 creates of one product and scope leave one package and one draft; 8 submits of one draft freeze it once; submit raced against an edit for five rounds always leaves a snapshot that matches its checksum.
+- Database with the service bypassed: rewriting description, snapshot, checksum, dictionary version, or number of a submitted version, moving it back to `DRAFT`, skipping to `ACTIVE`, and `DELETE` are all rejected; the legal path `PENDING_APPROVAL` to `APPROVED` to `ACTIVE` to `ARCHIVED` is accepted and `ARCHIVED` is final. Invalid rows (unknown status, long description, snapshot on a draft, bad checksum, frozen without snapshot, duplicate or zero version number, bad scope, missing product) are rejected. `migrate:reset` followed by `migrate` succeeds.
+- `redocly lint` reports the spec valid. `./scripts/generate-postman.sh` produced 19 requests, and `--check` reported the committed collection up to date.
+- Live on `rf-dev` after `migrate` and `db:seed`: `./scripts/smoke-postman.sh` reported 19/19 requests as expected. The curl responses in `docs/API_EXAMPLES.md` were captured from this stack; they include a clone, an edit, and a submit of version 2 of the demo policy, which leaves a frozen version 2 in the `rf-dev` data.
+- Coverage was measured with `./scripts/coverage.sh` and is recorded in [coverage.md](coverage.md): 48.7% of statements with unit tests alone, 89.1% with the integration suites.
+- Not covered: the Postman smoke run only exercises reads and 403 writes (it uses the auditor), so the policy write requests have no end-to-end Postman run. They are covered by the Go suites. The content gates of `SYSTEM_DESIGN.md` 9.3 and every transition out of `PENDING_APPROVAL` do not exist yet (RF-010 and M4).
+
 ## Not verified yet
 
 | Item | Why | Planned in |

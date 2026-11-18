@@ -24,6 +24,9 @@ import (
 // The collection's auth is derived from the spec, so only checks against the running code
 // are independent evidence that the spec is true.
 
+// unknownID is a well-formed UUID that no row has.
+const unknownID = "00000000-0000-4000-8000-000000000000"
+
 type specParam struct {
 	Name string `yaml:"name"`
 	In   string `yaml:"in"`
@@ -210,6 +213,9 @@ func (s *ContractBehaviourTestSuite) SetupSuite() {
 func (s *ContractBehaviourTestSuite) call(op operationDetail, token string) string {
 	path := strings.ReplaceAll(op.path, "{code}", seeders.DemoProductCode)
 	path = strings.ReplaceAll(path, "{variable_code}", seeders.DemoVariables[0].Code)
+	// An id that exists nowhere: write endpoints answer 404 or 422 and never change data.
+	path = strings.ReplaceAll(path, "{policy_id}", unknownID)
+	path = strings.ReplaceAll(path, "{version_id}", unknownID)
 	req := s.Http(s.T()).WithHeader("Content-Type", "application/json")
 	if token != "" {
 		req = req.WithToken(token)

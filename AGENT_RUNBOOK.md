@@ -114,6 +114,18 @@ Di Git Bash Windows, jalankan dengan `MSYS_NO_PATHCONV=1` dan ganti `$PWD` denga
 - Test baru yang menyentuh tabel dictionary mengosongkannya dengan `TRUNCATE TABLE dictionary.variable_versions, dictionary.variables` dan `UPDATE dictionary.schema_state SET current_version = 0` (lihat `DictionaryTestSuite.SetupTest`).
 - Smoke Postman memakai token `demo_auditor` (role read-only). `demo_analyst` tidak dipakai karena boleh menulis dictionary, sehingga request tulis akan mengubah data. Variabel environment `variableCode` (default `age_years`) dipakai request `{variable_code}`.
 
+## Policy package dan version (RF-006)
+- `./artisan db:seed` juga menjalankan `DemoPolicySeeder`: package `KTA_DEMO`/`DEFAULT` dengan draft versi 1 yang kosong (butuh produk dan dictionary demo; urutan seeder sudah benar). Seeder tunggal: `--seeder DemoPolicySeeder`. Seeder tidak pernah menyubmit atau mengaktifkan.
+- Endpoint: `/api/v1/policies` (GET, POST), `/api/v1/policies/{policy_id}` (GET), `/api/v1/policies/{policy_id}/clone` (POST), `/api/v1/policy-versions/{version_id}` (GET, PATCH), `/api/v1/policy-versions/{version_id}/submit` (POST). Hanya `RISK_ANALYST` yang menulis dan menyubmit; `ADMIN` tidak bisa membaca policy.
+- Versi yang bukan `DRAFT` beku: service menolak (`409 POLICY_VERSION_FROZEN`) dan trigger PostgreSQL menolak perubahan isi, `DELETE`, dan perpindahan status di luar `SYSTEM_DESIGN.md` 9.2. Package tidak pernah diubah atau dihapus. Untuk mereset database test gunakan `TRUNCATE` (tidak memicu trigger) atau `down -v`.
+- Test yang mengosongkan `catalog.products` harus ikut mengosongkan tabel policy dalam satu `TRUNCATE` (`TRUNCATE TABLE policy.policy_versions, policy.policy_packages, catalog.products`), karena foreign key dari policy ke produk. Lihat `ProductTestSuite.SetupTest` dan `PolicyTestSuite.SetupTest`.
+- Isi draft yang ditambahkan RF-007..RF-009 harus ditulis hanya saat versi `DRAFT`, ikut disalin oleh clone dalam transaksi yang sama (setelah package dikunci), dan masuk ke `snapshotDocument` (`app/modules/policy/domain/snapshot.go`). Ubah `SnapshotFormat` bila makna snapshot berubah.
+- Modul lain dibaca lewat port (`ProductLookup`, `DictionaryReader`), bukan lewat tabelnya.
+- Smoke Postman memerlukan stack yang sudah di-seed: `scripts/postman/resolve-ids.js` mengambil id policy pertama untuk variabel `policyId` dan `versionId`.
+
+## Coverage
+`./scripts/coverage.sh [rf-test-<nama>]` mengukur coverage statement (unit saja, lalu unit + integrasi) di project Compose sekali pakai dan mencetak tabel Markdown. Hasilnya dicatat di `docs/coverage.md`; perbarui file itu setelah setiap tiket.
+
 ## Structured logs
 
 File di `storage/logs` (JSON per baris): `activity.log`, `error.log`, `lifetime.log`, `query.log`. Detail format: `SYSTEM_DESIGN.md` bagian 15.4 dan `docs/adr/0004-structured-logging.md`.

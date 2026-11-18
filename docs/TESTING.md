@@ -2,6 +2,7 @@
 
 RiskForge is tested at four levels: pure unit tests, PostgreSQL integration tests, HTTP tests through the real Goravel + Fiber stack, and contract tests that keep the code, the OpenAPI spec, and the Postman collection in sync. Everything runs in containers against a real PostgreSQL 18; nothing is mocked at the database boundary. The target strategy is `SYSTEM_DESIGN.md` section 16.
 
+Measured statement coverage of every package is in [coverage.md](coverage.md); `./scripts/coverage.sh` regenerates it.
 ## Running the tests
 
 ```sh
@@ -42,6 +43,8 @@ Pure Go, no framework boot, no database. They cover rules that must never depend
 | `identity/infrastructure` | The bcrypt semaphore never exceeds its limit, fails fast with `ErrBusy`, and honours context cancellation. |
 | `catalog/domain`, `catalog/application` | Product validation (format, length in characters, control characters), immutable code, partial updates, paging limits, locked read-modify-write. |
 | `dictionary/domain` | Variable definition rules (code format, type-specific scale and bounds, decimal-string parsing, `required` vs `nullable`, derived variables), partial updates that re-validate the whole definition, no-op detection, and `ValidateInput`: missing and null, wrong types, inclusive range edges, decimal scale, integer forms. |
+| `policy/domain` | The lifecycle table of SYSTEM_DESIGN.md 9.2 (every pair of statuses), only DRAFT is editable, request validation, draft edits and dictionary-version bounds, snapshot determinism (variable order does not matter), the checksum changes with any frozen field, JSONB key reordering does not break verification. |
+| `policy/application` | Create is one transaction (no package without a draft), unknown and inactive products, clone numbering and source choice (active, else newest), frozen sources, foreign sources refused, edits refused on frozen versions, submit snapshots the dictionary version the draft is pinned to, a second submit is refused, a failed submit leaves the draft alone. |
 | `dictionary/application` | A create locks the schema before writing, a failed create consumes no schema version, an update makes a new version, an unchanged update makes none, history by schema version, paging limits. |
 | `platform/logging` | Redaction at any depth and in headers; non-JSON or oversized bodies are never logged; 1000 concurrent writes produce 1000 whole JSON lines. |
 | `platform/database` | Every SQL statement is logged with kind, rows, duration, and module, and never with argument values. |
@@ -59,6 +62,7 @@ Each suite boots the real application once (`tests/test_case.go`), migrates the 
 | `DatabaseTestSuite` | Transaction boundary: commit across repositories, rollback on error, on constraint violation, and on panic, nested transactions, isolation of uncommitted writes. |
 | `IdentityTestSuite` | Login, token validation (tampered, `alg=none`, expired), the full role-by-permission matrix over HTTP, immediate effect of role removal and deactivation. |
 | `ProductTestSuite` | Authorization per role, validation, pagination, 404/409, concurrent creates of the same code, concurrent updates of different fields, database constraints enforced even when the service is bypassed. |
+| `PolicyTestSuite` | Authorization per role (the admin cannot read policies; approvers and auditors cannot write), create, clone, and patch validation, 404 and 409, pagination, a verifiable snapshot, a frozen version refuses edits, the snapshot survives later dictionary changes, concurrent clones get unique numbers, one winner among concurrent creates and submits, submit versus edit race, database triggers and constraints with the service bypassed, seeder idempotence. |
 | `DictionaryTestSuite` | Authorization per role, create/validation (every issue code), 404/409, versioning and history by `schema_version`, no-op updates, immutable identity, concurrent creates of one code, concurrent changes get gap-free schema versions, concurrent updates of different fields are both kept, database CHECK/FK constraints and the append-only triggers, seeder idempotence. |
 | `HardeningTestSuite` | Panics do not log credentials, body limit, NUL bytes never reach PostgreSQL, `503` on hashing overload, page cap, JSON 404. |
 | `LoggingTestSuite` | One `activity.log` entry per request with gateway headers and redaction, panics in `error.log`, per-module `query.log` with transaction outcome, timeouts logged as 408 (including a panic after the deadline), bodies off keeps headers, `Referer` query strings dropped. |
@@ -73,6 +77,10 @@ Concurrency is tested against the real database, under `-race`:
 - 10 goroutines create the same product code: exactly one succeeds, nine get `ErrCodeTaken`.
 - Two goroutines update different fields of one product, ten rounds: neither update is lost (`SELECT ... FOR UPDATE`).
 - 10 goroutines create the same variable code: one succeeds, nine get `ErrCodeTaken`, and the nine rolled back their schema version advance.
+- 10 goroutines clone one policy: version numbers 2..11 are unique with no gap (the package row lock serializes numbering).
+- 10 goroutines create the same product and scope: one succeeds, nine get `ErrPolicyExists`, and no orphan draft remains.
+- 8 goroutines submit the same draft: exactly one freezes it and seven get `ErrVersionFrozen`.
+- Submit and edit run at the same time, five rounds: the stored snapshot always matches its checksum, and the description does not change after the freeze.
 - 8 creates and 8 updates run at once: the 17 stored versions carry schema versions 1..17 with no gap or duplicate (the schema row lock serializes writers).
 - The bcrypt semaphore is driven to saturation with blocking fakes.
 
@@ -86,7 +94,7 @@ The HTTP contract has one source (`api/openapi/openapi.yaml`) and two derived ar
 docker run --rm -v "$PWD/api/openapi:/spec:ro" redocly/cli:2.79.0 lint /spec/openapi.yaml   # spec is valid
 ./scripts/generate-postman.sh --check                                                    # collection is current and deterministic
 ... api go test -run 'TestContract' ./tests/feature                                      # routes = spec = collection, and code enforces spec
-./scripts/smoke-postman.sh                                                               # the collection runs against a live stack (12/12)
+./scripts/smoke-postman.sh                                                               # the collection runs against a live stack (19/19)
 ```
 
 The contract tests cover operations, parameters, auth, and permissions. They do **not** compare request and response body schemas with the code; each endpoint's HTTP tests and code review keep those consistent.

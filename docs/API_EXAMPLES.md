@@ -33,8 +33,8 @@ LOANAPP=$(token demo_loan_application)
 | 401 | `UNAUTHENTICATED` | Missing, malformed, tampered, or expired token, or disabled user. |
 | 401 | `INVALID_CREDENTIALS` | Login failed (same body for unknown user, wrong password, disabled account). |
 | 403 | `FORBIDDEN` | Authenticated but missing the permission. |
-| 404 | `PRODUCT_NOT_FOUND`, `VARIABLE_NOT_FOUND`, `ROUTE_NOT_FOUND` | Unknown product code / dictionary variable / route. |
-| 409 | `PRODUCT_CODE_CONFLICT`, `VARIABLE_CODE_CONFLICT` | Product or variable code already used. |
+| 404 | `PRODUCT_NOT_FOUND`, `VARIABLE_NOT_FOUND`, `POLICY_NOT_FOUND`, `POLICY_VERSION_NOT_FOUND`, `ROUTE_NOT_FOUND` | Unknown product code / dictionary variable / policy / policy version / route. |
+| 409 | `PRODUCT_CODE_CONFLICT`, `VARIABLE_CODE_CONFLICT`, `POLICY_CONFLICT`, `POLICY_VERSION_FROZEN` | Product, variable, or policy already exists / an edit or submit of a version that is no longer a draft. |
 | 422 | `INPUT_VALIDATION_ERROR` | Invalid JSON, field, query parameter, or a field that cannot be set. |
 | 503 | `SERVICE_BUSY` | Login capacity saturated; honour `Retry-After`. |
 | 500 | `INTERNAL_ERROR` | Unexpected failure; the cause is only in `error.log`. |
@@ -230,6 +230,61 @@ Sending the same request again returns this same body (`version` still 2): a req
 curl -s "$B/api/v1/dictionary/variables?schema_version=9" -H "Authorization: Bearer $AUDITOR"
 ```
 This returns `loan_tenor_months` with `"max_value":"60","version":1`, and `meta.schema_version` is 9. A role without `dictionary:write` (approver, auditor) gets `403 FORBIDDEN` on writes.
+## Policies
+Read (`policy:read`): `RISK_ANALYST`, `RISK_APPROVER`, `AUDITOR`. Write (`policy:write`) and submit (`policy:submit`): `RISK_ANALYST` only. The `ADMIN` has no policy access at all (`403` even for reads), and the Loan Application has none either.
+A **policy** is the package for one product and scope (scope defaults to `DEFAULT`). It has numbered **versions**. A new version is a `DRAFT`; submitting it freezes it. Seed data (`./artisan db:seed`) opens the `KTA_DEMO` policy with an empty draft version 1; it is never submitted or activated by seeding.
+```sh
+AUDITOR=$(token demo_auditor)
+POLICY=$(curl -s "$B/api/v1/policies?per_page=1" -H "Authorization: Bearer $AUDITOR" | sed -n 's/.*"data":\[{"id":"\([^"]*\)".*/\1/p')
+```
+### List and show
+```sh
+curl -s "$B/api/v1/policies?product_code=KTA_DEMO" -H "Authorization: Bearer $AUDITOR"
+```
+```json
+{"data":[{"id":"66f857ed-0569-41fe-9a20-8ee1910a9e1a","product_code":"KTA_DEMO","scope":"DEFAULT","version_count":1,"latest_version":{"id":"1b1e533f-1ec5-4e33-94b1-4f390ff4fa70","policy_id":"66f857ed-0569-41fe-9a20-8ee1910a9e1a","product_code":"KTA_DEMO","scope":"DEFAULT","version_number":1,"status":"DRAFT","description":"Initial draft of the KTA_DEMO policy.","based_on_version_id":null,"dictionary_schema_version":10,"checksum":null,"submitted_by":null,"submitted_at":null,"created_by":null,"created_at":"2026-11-18T02:38:28Z","updated_at":"2026-11-18T02:38:28Z"},"created_at":"2026-11-18T02:38:28Z"}],"meta":{"page":1,"per_page":20,"total":1}}
+```
+Query parameters: `page`, `per_page` (max 100), `product_code`. `GET /api/v1/policies/{policy_id}` returns the policy with all its versions, newest first and without snapshots; `GET /api/v1/policy-versions/{version_id}` returns one version, with `snapshot` and `checksum` once it is frozen and `null` for both while it is a draft. An unknown or malformed id gives `404 POLICY_NOT_FOUND` or `POLICY_VERSION_NOT_FOUND`.
+### Open a policy
+```sh
+curl -s -X POST $B/api/v1/policies -H "Authorization: Bearer $ANALYST" -H 'Content-Type: application/json' \
+  -d '{"product_code":"KPR_DEMO","description":"First draft"}'
+```
+`201` with a `Location` header and the policy including its draft version 1, written against the current dictionary schema version. The product must exist and be `ACTIVE` (`product_code: unknown_product` or `product_inactive`, both `422`). A product and scope can have one policy, so asking again gives:
+```http
+HTTP/1.1 409 Conflict
+{"error":{"code":"POLICY_CONFLICT","message":"a policy already exists for this product and scope; clone it to create a new draft"},"request_id":"2666f506992d5ea80424ead22c1bf74b"}
+```
+### Clone into a new draft
+```sh
+curl -si -X POST $B/api/v1/policies/$POLICY/clone -H "Authorization: Bearer $ANALYST" \
+  -H 'Content-Type: application/json' -d '{"description":"Tighten the DSR threshold."}'
+```
+```http
+HTTP/1.1 201 Created
+Location: /api/v1/policy-versions/0827ba94-23b3-49a1-bfdb-9a3c8d6d9476
+{"id":"0827ba94-23b3-49a1-bfdb-9a3c8d6d9476","policy_id":"66f857ed-0569-41fe-9a20-8ee1910a9e1a","product_code":"KTA_DEMO","scope":"DEFAULT","version_number":2,"status":"DRAFT","description":"Tighten the DSR threshold.","based_on_version_id":"1b1e533f-1ec5-4e33-94b1-4f390ff4fa70","dictionary_schema_version":10,"checksum":null,"submitted_by":null,"submitted_at":null,"created_by":"ee3972dc-04e9-44a3-9a2e-3057df2f7e19","created_at":"2026-11-18T02:38:59Z","updated_at":"2026-11-18T02:38:59Z","snapshot":null}
+```
+The body is optional. Without `source_version_id` the active version is copied, or the newest one when none is active; with it, any version of this policy can be the source, including a frozen or rejected one. The change note is inherited unless `description` is given. A source from another policy is a `422` (`source_version_id: not_in_policy`).
+### Edit a draft
+```sh
+curl -s -X PATCH $B/api/v1/policy-versions/$VERSION -H "Authorization: Bearer $ANALYST" \
+  -H 'Content-Type: application/json' -d '{"description":"Raise the minimum income."}'
+```
+Editable: `description` and `dictionary_schema_version` (0 up to the current dictionary version; above it is `422 exceeds_current_version`). `status`, `version_number`, `checksum`, and the other fields cannot be sent (`422`, `not_allowed`). A request that changes nothing returns the draft as it is.
+### Submit (freeze)
+```sh
+curl -s -X POST $B/api/v1/policy-versions/$VERSION/submit -H "Authorization: Bearer $ANALYST"
+```
+```json
+{"id":"0827ba94-23b3-49a1-bfdb-9a3c8d6d9476","policy_id":"66f857ed-0569-41fe-9a20-8ee1910a9e1a","product_code":"KTA_DEMO","scope":"DEFAULT","version_number":2,"status":"PENDING_APPROVAL","description":"Raise the minimum income.","based_on_version_id":"1b1e533f-1ec5-4e33-94b1-4f390ff4fa70","dictionary_schema_version":10,"checksum":"773209c1dc1ee8b482e7f6c396b859da4f4142d331605b27b9d6131ba9ede1db","submitted_by":"ee3972dc-04e9-44a3-9a2e-3057df2f7e19","submitted_at":"2026-11-18T02:39:00Z","created_by":"ee3972dc-04e9-44a3-9a2e-3057df2f7e19","created_at":"2026-11-18T02:38:59Z","updated_at":"2026-11-18T02:39:00Z","snapshot":{"decision_matrix":[],"dictionary":{"schema_version":10,"variables":[{"code":"age_years","description":"Applicant age on the application date.","max_value":"120","min_value":"0","nullable":false,"origin":"INPUT","required":true,"scale":null,"schema_version":1,"type":"INTEGER","unit":"years","version":1}]},"evaluator_version":"1","format":1,"package":{"product_code":"KTA_DEMO","scope":"DEFAULT"},"rac_rules":[],"scorecard":null,"version_number":2}}
+```
+The snapshot above is shortened to one dictionary variable; the real one lists all of them. It is in canonical form (keys sorted, no whitespace), and `checksum` is the SHA-256 of exactly that form. The snapshot contains the dictionary definitions themselves, so later dictionary edits do not change it. RAC rules, scorecard, and decision matrix are empty until RF-007 to RF-009. After submit the version cannot change, and a second submit fails too:
+```http
+HTTP/1.1 409 Conflict
+{"error":{"code":"POLICY_VERSION_FROZEN","message":"only a DRAFT version can be changed or submitted"},"request_id":"ca3b6d46c7a0bf3572851fd7a3e85b82"}
+```
+Approving, rejecting, and publishing a pending version arrive with M4. To revise a pending version now, clone it.
 ## Unknown routes
 
 ```http
