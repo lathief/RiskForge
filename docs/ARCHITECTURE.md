@@ -40,7 +40,7 @@ Solid lines exist today. Dashed lines are planned and described in `SYSTEM_DESIG
 | `catalog` | Credit products (`KTA_DEMO`, ...) | Implemented (RF-004) | `app/modules/catalog` |
 | `dictionary` | Input variables and derived features: typed definitions, append-only versions, one schema version | Implemented (RF-005); derived formulas planned (RF-011) | `app/modules/dictionary` |
 | `policy` | Policy packages and versioned drafts with frozen, checksummed snapshots | Implemented (RF-006); RAC, scorecard, matrix planned (RF-007..RF-010) | `app/modules/policy` |
-| `ruleengine` | Pure compile/validate/evaluate | Planned (RF-012, RF-013) | `app/modules/ruleengine` (placeholder) |
+| `ruleengine` | Pure compile/validate/evaluate. Today: `Analyze` checks RAC expressions (syntax, allowed subset of the `expr` language, known variables, boolean result) | Checking implemented (RF-007); evaluation planned (RF-012, RF-013) | `app/modules/ruleengine` |
 | `decision` | Decision API, idempotency, persisted runs and traces | Planned (RF-014..RF-016) | |
 | `simulation`, `approval` | Draft simulation, multi-level approval, atomic publish | Planned (RF-017..RF-021) | |
 | `audit` | Append-only history and audit search | Planned (RF-022) | |

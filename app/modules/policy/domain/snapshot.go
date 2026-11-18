@@ -45,23 +45,24 @@ type snapshotDictionary struct {
 	Variables     []DictionaryVariable `json:"variables"`
 }
 
-// snapshotDocument is the frozen content of a version. The RAC, scorecard, and decision
-// matrix sections are empty until RF-007 to RF-009 give them content; they are present so
-// the layout is stable and a reader never has to guess whether a section was omitted.
+// snapshotDocument is the frozen content of a version. RF-007 fills rac_rules (in evaluation
+// order); the scorecard and decision matrix stay empty until RF-008 and RF-009. All sections are
+// always present so the layout is stable and a reader never has to guess whether one was omitted.
+// Rules were empty in snapshots frozen before RF-007; they remain valid under format 1.
 type snapshotDocument struct {
 	Format           int                `json:"format"`
 	EvaluatorVersion string             `json:"evaluator_version"`
 	Package          snapshotPackage    `json:"package"`
 	VersionNumber    int                `json:"version_number"`
 	Dictionary       snapshotDictionary `json:"dictionary"`
-	RACRules         []any              `json:"rac_rules"`
+	RACRules         []snapshotRule     `json:"rac_rules"`
 	Scorecard        any                `json:"scorecard"`
 	DecisionMatrix   []any              `json:"decision_matrix"`
 }
 
-// BuildSnapshot freezes v and the dictionary it is written against into canonical JSON and
+// BuildSnapshot freezes v, its RAC rules, and the dictionary it is written against into canonical JSON and
 // returns it with its SHA-256 checksum. The same inputs always give the same bytes.
-func BuildSnapshot(v Version, dictionary []DictionaryVariable) (canonical []byte, checksum string, err error) {
+func BuildSnapshot(v Version, dictionary []DictionaryVariable, rules RuleSet) (canonical []byte, checksum string, err error) {
 	vars := append([]DictionaryVariable{}, dictionary...)
 	sort.Slice(vars, func(i, j int) bool { return vars[i].Code < vars[j].Code })
 	doc := snapshotDocument{
@@ -70,7 +71,7 @@ func BuildSnapshot(v Version, dictionary []DictionaryVariable) (canonical []byte
 		Package:          snapshotPackage{ProductCode: v.ProductCode, Scope: v.Scope},
 		VersionNumber:    v.Number,
 		Dictionary:       snapshotDictionary{SchemaVersion: v.DictionarySchemaVersion, Variables: vars},
-		RACRules:         []any{},
+		RACRules:         rules.snapshot(),
 		DecisionMatrix:   []any{},
 	}
 	raw, err := json.Marshal(doc)

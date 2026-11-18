@@ -104,6 +104,19 @@ Run on branch `feature/RF-006-policy-package-version-model` (on top of the RF-00
 - Coverage was measured with `./scripts/coverage.sh` and is recorded in [coverage.md](coverage.md): 48.7% of statements with unit tests alone, 89.1% with the integration suites.
 - Not covered: the Postman smoke run only exercises reads and 403 writes (it uses the auditor), so the policy write requests have no end-to-end Postman run. They are covered by the Go suites. The content gates of `SYSTEM_DESIGN.md` 9.3 and every transition out of `PENDING_APPROVAL` do not exist yet (RF-010 and M4).
 
+## RF-007 RAC management and validation
+Run on branch `feature/RF-007-rac-management` (on top of the RF-006 branch) in the disposable project `rf-test-rf007` (PostgreSQL 18), plus the `rf-dev` stack for the live checks. This ticket adds the dependency `github.com/expr-lang/expr` v1.17.8.
+- `gofmt` and `go vet ./...` clean. `go test -race -count=1 ./...` passes for every package, including the contract suites at 21 operations.
+- `PolicyTestSuite`, now including the RAC tests, repeated three times (`-race -count=3`) without failures or races. It covers authorization per role on `GET` and `PUT rac-rules`, the order taken from the array position, reorder, clear, and a no-op `PUT`, a table of 19 invalid bodies checked against their exact `rules[i].field:issue` pairs, checking against the dictionary version the draft is pinned to, frozen versions refusing changes while still listing their rules, rules in the snapshot with a verifying checksum, the submit gate (`POLICY_VALIDATION_FAILED`, draft stays a draft), and clone copying rules independently.
+- `ruleengine` unit tests: valid forms accepted; 19 constructs outside the allowed subset refused (strings, function calls, builtins, member access, slices, ternary, `??`, `**`, ranges, `matches`, `contains`, maps, closures, declarations, pipes, `$env`); syntax, unknown-variable, and type errors reported with the right code.
+- Concurrency: 8 concurrent replaces of one draft's rules always leave one whole list, never a mixture; submit raced against a replace for six rounds always leaves the frozen snapshot and the stored rules identical.
+- Database with the service bypassed: insert, update, and delete of rules of a submitted version are rejected by the trigger; a draft accepts them; constraints reject a duplicate order or rule code, order 0, bad code formats, an unknown action, a blank, multi-line, or over-long expression, and a rule for a version that does not exist. `migrate:reset` followed by `migrate` succeeds.
+- `redocly lint` reports the spec valid. `./scripts/generate-postman.sh` produced 21 requests, and `--check` reported the committed collection up to date.
+- Live on `rf-dev` after `migrate` and `db:seed`: `./scripts/smoke-postman.sh` reported 21/21 requests as expected. The curl responses in `docs/API_EXAMPLES.md` were captured from this stack. They include a clone of the demo policy, a `PUT` of three rules, a rejected `PUT` with five problems, a submit, and a stale clone refused at submit, which leaves two extra versions (one frozen with rules, one draft) in the `rf-dev` data. The demo seeder did not add rules there, because the latest version of that policy was already version 2 or later.
+- Coverage was measured with `./scripts/coverage.sh` and is recorded in [coverage.md](coverage.md): 51.0% of statements with unit tests alone, 89.3% with the integration suites. `ruleengine` is at 95.1%.
+- The word "iDecision" was removed from `SYSTEM_DESIGN.md` (two places). Nothing else in the repository contained it.
+- Not covered: rules are checked, never run (evaluation is RF-012), so the meaning of `nil` against a `required` variable and the exact decimal arithmetic are not tested. The Postman smoke run uses the auditor, so it exercises `GET rac-rules` and the 403 on `PUT` only; the write path is covered by the Go suites.
+
 ## Not verified yet
 
 | Item | Why | Planned in |

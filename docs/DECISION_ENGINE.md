@@ -73,6 +73,8 @@ Each rule has a `rule_code`, a boolean expression that must hold to pass, an act
 - A **soft fail** (`REFER`) sets `refer_flag = true`, records the reason, and continues to scoring.
 - An expression that errors at runtime is an `EVALUATION_ERROR`, not a failed rule.
 
+**Managing rules (implemented, RF-007).** An analyst edits the rules of a draft with `GET` and `PUT /api/v1/policy-versions/{version_id}/rac-rules`. The array order is the order above, and every list is checked before it is stored. The expression language is a small allowlist of the `expr` language: comparisons, `and` / `or` / `not`, arithmetic, `in` with a list of numbers or booleans, number and boolean literals, `nil`, parentheses, and dictionary variable names. Function calls, strings, member access, conditionals, and everything else are refused, so an expression cannot do anything except compute a yes or no from the applicant's values. Each expression must be a boolean over variables that exist in the dictionary version the draft is pinned to. Rules are checked, not run: nothing evaluates them until RF-012. Submitting a draft checks the rules again and freezes them in the snapshot.
+
 ### 4. Scorecard
 
 `total_score = base_score + Σ points of the selected bin of each characteristic`

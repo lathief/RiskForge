@@ -264,14 +264,24 @@ func (c *PolicyController) versionJSON(ctx http.Context, status int, v domain.Ve
 }
 
 func (c *PolicyController) serviceError(ctx http.Context, op string, err error) http.Response {
-	var verr *domain.ValidationError
+	var (
+		verr    *domain.ValidationError
+		invalid *application.InvalidPolicyError
+	)
 	switch {
 	case errors.As(err, &verr):
 		details := make([]responses.Detail, 0, len(verr.Fields))
 		for _, f := range verr.Fields {
-			details = append(details, responses.Detail{Field: f.Field, Issue: f.Issue})
+			details = append(details, responses.Detail{Field: f.Field, Issue: f.Issue, Message: f.Message})
 		}
 		return responses.ValidationError(ctx, "invalid policy", details...)
+	case errors.As(err, &invalid):
+		details := make([]responses.Detail, 0, len(invalid.Fields))
+		for _, f := range invalid.Fields {
+			details = append(details, responses.Detail{Field: f.Field, Issue: f.Issue, Message: f.Message})
+		}
+		return responses.Error(ctx, http.StatusUnprocessableEntity, responses.CodePolicyInvalid,
+			"the draft cannot be submitted until its content is valid", details...)
 	case errors.Is(err, application.ErrPolicyNotFound):
 		return responses.NotFound(ctx, codePolicyNotFound, "policy not found")
 	case errors.Is(err, application.ErrVersionNotFound):

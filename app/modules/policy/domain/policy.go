@@ -117,6 +117,9 @@ type ValidationError struct {
 type FieldError struct {
 	Field string
 	Issue string
+	// Message explains the issue in words when the code alone is not enough, for example where
+	// an expression has a syntax error. It is empty for most issues.
+	Message string
 }
 
 func (e *ValidationError) Error() string {
@@ -238,4 +241,8 @@ func (v Version) Apply(c Changes, currentDictionaryVersion int64) (Version, bool
 	}
 	changed := next.Description != v.Description || next.DictionarySchemaVersion != v.DictionarySchemaVersion
 	return next, changed, nil
+}
+
+func (e *ValidationError) addMessage(field, issue, message string) {
+	e.Fields = append(e.Fields, FieldError{Field: field, Issue: issue, Message: message})
 }

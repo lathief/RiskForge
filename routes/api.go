@@ -113,6 +113,8 @@ func Api() {
 		router.Middleware(policy, authenticate, canWritePolicies).Post("/policies/{policy_id}/clone", policyController.Clone)
 		router.Middleware(policy, authenticate, canReadPolicies).Get("/policy-versions/{version_id}", policyController.ShowVersion)
 		router.Middleware(policy, authenticate, canWritePolicies).Patch("/policy-versions/{version_id}", policyController.UpdateVersion)
+		router.Middleware(policy, authenticate, canReadPolicies).Get("/policy-versions/{version_id}/rac-rules", policyController.ShowRules)
+		router.Middleware(policy, authenticate, canWritePolicies).Put("/policy-versions/{version_id}/rac-rules", policyController.ReplaceRules)
 		router.Middleware(policy, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/submit", policyController.SubmitVersion)
 	})
 }

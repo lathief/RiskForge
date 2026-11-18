@@ -3,6 +3,7 @@ module goravel
 go 1.25.0
 
 require (
+	github.com/expr-lang/expr v1.17.8
 	github.com/goravel/fiber v1.18.1
 	github.com/goravel/framework v1.18.1
 	github.com/goravel/openai v1.18.0

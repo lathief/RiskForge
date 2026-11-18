@@ -9188,7 +9188,7 @@
           "request": {
             "name": "Freeze a draft for approval",
             "description": {
-              "content": "Captures the canonical snapshot of the draft, including the data dictionary definitions\nit was written against, stores its SHA-256 checksum, and moves the version to\n`PENDING_APPROVAL`. After this nothing about the version changes: edits and a second\nsubmit are 409 `POLICY_VERSION_FROZEN`. No request body.\nThe content checks of SYSTEM_DESIGN.md 9.3 (expressions compile, bins and matrix are\nunambiguous, golden tests pass) arrive with RF-010, and approving or rejecting a pending\nversion arrives with M4.\n",
+              "content": "Captures the canonical snapshot of the draft, including the data dictionary definitions\nit was written against, stores its SHA-256 checksum, and moves the version to\n`PENDING_APPROVAL`. After this nothing about the version changes: edits and a second\nsubmit are 409 `POLICY_VERSION_FROZEN`. No request body.\nBefore freezing, every RAC expression is checked again against the dictionary version the\ndraft is pinned to; if one no longer compiles, the answer is a 422 `POLICY_VALIDATION_FAILED`\nand the draft stays a DRAFT. The remaining checks of SYSTEM_DESIGN.md 9.3 (scorecard bins,\ndecision matrix, golden tests) arrive with RF-008 to RF-010, and approving or rejecting a\npending version arrives with M4.\n",
               "type": "text/plain"
             },
             "url": {
@@ -9631,6 +9631,73 @@
               "_postman_previewlanguage": "json"
             },
             {
+              "name": "The draft cannot be submitted because its content does not validate, for example a RAC\nexpression that no longer compiles against the dictionary version the draft is pinned to.\nThe details use the paths of the editing endpoints. The draft stays a DRAFT.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "submit"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/submit"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {}
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VALIDATION_FAILED\",\n    \"message\": \"the draft cannot be submitted until its content is valid\",\n    \"details\": [\n      {\n        \"field\": \"rules[1].expression\",\n        \"issue\": \"unknown_variable\",\n        \"message\": \"unknown variable \\\"is_blacklisted\\\"\"\n      }\n    ]\n  },\n  \"request_id\": \"3c2b1a0d9e8f7a6b5c4d3e2f1a0b9c8d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
               "name": "Unexpected failure. The cause is logged server-side and never returned.",
               "originalRequest": {
                 "url": {
@@ -9702,6 +9769,1234 @@
           "protocolProfileBehavior": {
             "disableBodyPruning": true
           }
+        },
+        {
+          "name": "List the RAC rules of a version",
+          "request": {
+            "name": "List the RAC rules of a version",
+            "description": {
+              "content": "Rules in evaluation order (`order` 1, 2, 3, ...). Works for any status; a frozen version returns the rules it was frozen with.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policy-versions",
+                ":version_id",
+                "rac-rules"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{versionId}}",
+                  "key": "version_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/rac-rules"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The rules, possibly none.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "rac-rules"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/rac-rules"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"policy_version_id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"status\": \"DRAFT\",\n  \"dictionary_schema_version\": 8,\n  \"updated_at\": \"2026-11-22T08:00:00Z\",\n  \"rules\": [\n    {\n      \"order\": 1,\n      \"rule_code\": \"RAC_MIN_AGE\",\n      \"reason_code\": \"AGE_BELOW_MINIMUM\",\n      \"expression\": \"age_years >= 21\",\n      \"action\": \"REJECT\",\n      \"description\": \"Applicant must be at least 21 years old.\"\n    },\n    {\n      \"order\": 2,\n      \"rule_code\": \"RAC_BLACKLIST\",\n      \"reason_code\": \"BLACKLISTED\",\n      \"expression\": \"is_blacklisted == false\",\n      \"action\": \"REJECT\",\n      \"description\": \"Blacklisted applicants are rejected.\"\n    },\n    {\n      \"order\": 3,\n      \"rule_code\": \"RAC_SLIK\",\n      \"reason_code\": \"SLIK_REVIEW_REQUIRED\",\n      \"expression\": \"slik_max_kol <= 2\",\n      \"action\": \"REFER\",\n      \"description\": \"Worse collectability goes to manual review.\"\n    }\n  ]\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "rac-rules"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/rac-rules"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "rac-rules"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/rac-rules"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No policy version has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "rac-rules"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/rac-rules"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_NOT_FOUND\",\n    \"message\": \"policy version not found\"\n  },\n  \"request_id\": \"9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "rac-rules"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/rac-rules"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "rac-rules"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/rac-rules"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "name": "Replace the RAC rules of a draft",
+          "request": {
+            "name": "Replace the RAC rules of a draft",
+            "description": {
+              "content": "Replaces the whole list in one step. The position in `rules` is the evaluation order, so\nreordering is a PUT with the same rules in another order. An empty list removes all rules.\nNothing is stored unless every rule is valid, and every problem is reported together with\nits path (`rules[2].expression`). Sending the list the draft already has changes nothing.\n\nAn `expression` is the condition an applicant must satisfy to **pass** the rule, written\nin the `expr` language limited to: comparisons (`== != < <= > >=`), `and`/`or`/`not`\n(also `&& || !`), arithmetic (`+ - * / %`), `in` / `not in` with a list of numbers or\nbooleans, number and boolean literals, `nil`, parentheses, and the names of data dictionary\nvariables. Function calls, strings, member access, conditionals, and everything else are\nrejected (`unsupported_syntax`). The expression must be boolean and well typed against the\ndictionary version the draft is pinned to (`dictionary_schema_version`). `action` says what\na failed rule does: `REJECT` ends the evaluation with a rejection, `REFER` sends the\napplication to manual review and scoring continues. Rules are only checked here, not run;\nevaluation arrives with RF-012.\n\nIssue codes for `expression`: `required`, `too_long`, `invalid_characters`, `syntax_error`,\n`unsupported_syntax`, `unknown_variable`, `type_error`. `message` carries the explanation.\nOnly a DRAFT can change: any other status is a 409 `POLICY_VERSION_FROZEN`.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policy-versions",
+                ":version_id",
+                "rac-rules"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{versionId}}",
+                  "key": "version_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/rac-rules"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "PUT",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rules\": [\n    {\n      \"rule_code\": \"RAC_MIN_AGE\",\n      \"reason_code\": \"AGE_BELOW_MINIMUM\",\n      \"action\": \"REJECT\",\n      \"expression\": \"age_years >= 21\",\n      \"description\": \"Applicant must be at least 21 years old.\"\n    },\n    {\n      \"rule_code\": \"RAC_BLACKLIST\",\n      \"reason_code\": \"BLACKLISTED\",\n      \"action\": \"REJECT\",\n      \"expression\": \"is_blacklisted == false\",\n      \"description\": \"Blacklisted applicants are rejected.\"\n    },\n    {\n      \"rule_code\": \"RAC_SLIK\",\n      \"reason_code\": \"SLIK_REVIEW_REQUIRED\",\n      \"action\": \"REFER\",\n      \"expression\": \"slik_max_kol <= 2\",\n      \"description\": \"Worse collectability goes to manual review.\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The rules as stored.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "rac-rules"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/rac-rules"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rules\": [\n    {\n      \"rule_code\": \"RAC_MIN_AGE\",\n      \"reason_code\": \"AGE_BELOW_MINIMUM\",\n      \"action\": \"REJECT\",\n      \"expression\": \"age_years >= 21\",\n      \"description\": \"Applicant must be at least 21 years old.\"\n    },\n    {\n      \"rule_code\": \"RAC_BLACKLIST\",\n      \"reason_code\": \"BLACKLISTED\",\n      \"action\": \"REJECT\",\n      \"expression\": \"is_blacklisted == false\",\n      \"description\": \"Blacklisted applicants are rejected.\"\n    },\n    {\n      \"rule_code\": \"RAC_SLIK\",\n      \"reason_code\": \"SLIK_REVIEW_REQUIRED\",\n      \"action\": \"REFER\",\n      \"expression\": \"slik_max_kol <= 2\",\n      \"description\": \"Worse collectability goes to manual review.\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"policy_version_id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"status\": \"DRAFT\",\n  \"dictionary_schema_version\": 8,\n  \"updated_at\": \"2026-11-22T08:00:00Z\",\n  \"rules\": [\n    {\n      \"order\": 1,\n      \"rule_code\": \"RAC_MIN_AGE\",\n      \"reason_code\": \"AGE_BELOW_MINIMUM\",\n      \"expression\": \"age_years >= 21\",\n      \"action\": \"REJECT\",\n      \"description\": \"Applicant must be at least 21 years old.\"\n    },\n    {\n      \"order\": 2,\n      \"rule_code\": \"RAC_BLACKLIST\",\n      \"reason_code\": \"BLACKLISTED\",\n      \"expression\": \"is_blacklisted == false\",\n      \"action\": \"REJECT\",\n      \"description\": \"Blacklisted applicants are rejected.\"\n    },\n    {\n      \"order\": 3,\n      \"rule_code\": \"RAC_SLIK\",\n      \"reason_code\": \"SLIK_REVIEW_REQUIRED\",\n      \"expression\": \"slik_max_kol <= 2\",\n      \"action\": \"REFER\",\n      \"description\": \"Worse collectability goes to manual review.\"\n    }\n  ]\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "rac-rules"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/rac-rules"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rules\": [\n    {\n      \"rule_code\": \"RAC_MIN_AGE\",\n      \"reason_code\": \"AGE_BELOW_MINIMUM\",\n      \"action\": \"REJECT\",\n      \"expression\": \"age_years >= 21\",\n      \"description\": \"Applicant must be at least 21 years old.\"\n    },\n    {\n      \"rule_code\": \"RAC_BLACKLIST\",\n      \"reason_code\": \"BLACKLISTED\",\n      \"action\": \"REJECT\",\n      \"expression\": \"is_blacklisted == false\",\n      \"description\": \"Blacklisted applicants are rejected.\"\n    },\n    {\n      \"rule_code\": \"RAC_SLIK\",\n      \"reason_code\": \"SLIK_REVIEW_REQUIRED\",\n      \"action\": \"REFER\",\n      \"expression\": \"slik_max_kol <= 2\",\n      \"description\": \"Worse collectability goes to manual review.\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "rac-rules"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/rac-rules"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rules\": [\n    {\n      \"rule_code\": \"RAC_MIN_AGE\",\n      \"reason_code\": \"AGE_BELOW_MINIMUM\",\n      \"action\": \"REJECT\",\n      \"expression\": \"age_years >= 21\",\n      \"description\": \"Applicant must be at least 21 years old.\"\n    },\n    {\n      \"rule_code\": \"RAC_BLACKLIST\",\n      \"reason_code\": \"BLACKLISTED\",\n      \"action\": \"REJECT\",\n      \"expression\": \"is_blacklisted == false\",\n      \"description\": \"Blacklisted applicants are rejected.\"\n    },\n    {\n      \"rule_code\": \"RAC_SLIK\",\n      \"reason_code\": \"SLIK_REVIEW_REQUIRED\",\n      \"action\": \"REFER\",\n      \"expression\": \"slik_max_kol <= 2\",\n      \"description\": \"Worse collectability goes to manual review.\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No policy version has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "rac-rules"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/rac-rules"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rules\": [\n    {\n      \"rule_code\": \"RAC_MIN_AGE\",\n      \"reason_code\": \"AGE_BELOW_MINIMUM\",\n      \"action\": \"REJECT\",\n      \"expression\": \"age_years >= 21\",\n      \"description\": \"Applicant must be at least 21 years old.\"\n    },\n    {\n      \"rule_code\": \"RAC_BLACKLIST\",\n      \"reason_code\": \"BLACKLISTED\",\n      \"action\": \"REJECT\",\n      \"expression\": \"is_blacklisted == false\",\n      \"description\": \"Blacklisted applicants are rejected.\"\n    },\n    {\n      \"rule_code\": \"RAC_SLIK\",\n      \"reason_code\": \"SLIK_REVIEW_REQUIRED\",\n      \"action\": \"REFER\",\n      \"expression\": \"slik_max_kol <= 2\",\n      \"description\": \"Worse collectability goes to manual review.\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_NOT_FOUND\",\n    \"message\": \"policy version not found\"\n  },\n  \"request_id\": \"9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "rac-rules"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/rac-rules"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rules\": [\n    {\n      \"rule_code\": \"RAC_MIN_AGE\",\n      \"reason_code\": \"AGE_BELOW_MINIMUM\",\n      \"action\": \"REJECT\",\n      \"expression\": \"age_years >= 21\",\n      \"description\": \"Applicant must be at least 21 years old.\"\n    },\n    {\n      \"rule_code\": \"RAC_BLACKLIST\",\n      \"reason_code\": \"BLACKLISTED\",\n      \"action\": \"REJECT\",\n      \"expression\": \"is_blacklisted == false\",\n      \"description\": \"Blacklisted applicants are rejected.\"\n    },\n    {\n      \"rule_code\": \"RAC_SLIK\",\n      \"reason_code\": \"SLIK_REVIEW_REQUIRED\",\n      \"action\": \"REFER\",\n      \"expression\": \"slik_max_kol <= 2\",\n      \"description\": \"Worse collectability goes to manual review.\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The version is not a DRAFT, so it can no longer be edited or submitted.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "rac-rules"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/rac-rules"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rules\": [\n    {\n      \"rule_code\": \"RAC_MIN_AGE\",\n      \"reason_code\": \"AGE_BELOW_MINIMUM\",\n      \"action\": \"REJECT\",\n      \"expression\": \"age_years >= 21\",\n      \"description\": \"Applicant must be at least 21 years old.\"\n    },\n    {\n      \"rule_code\": \"RAC_BLACKLIST\",\n      \"reason_code\": \"BLACKLISTED\",\n      \"action\": \"REJECT\",\n      \"expression\": \"is_blacklisted == false\",\n      \"description\": \"Blacklisted applicants are rejected.\"\n    },\n    {\n      \"rule_code\": \"RAC_SLIK\",\n      \"reason_code\": \"SLIK_REVIEW_REQUIRED\",\n      \"action\": \"REFER\",\n      \"expression\": \"slik_max_kol <= 2\",\n      \"description\": \"Worse collectability goes to manual review.\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_FROZEN\",\n    \"message\": \"only a DRAFT version can be changed or submitted\"\n  },\n  \"request_id\": \"0d9c8b7a6e5f4a3b2c1d0e9f8a7b6c5d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request body exceeds 64 KiB. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "rac-rules"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/rac-rules"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rules\": [\n    {\n      \"rule_code\": \"RAC_MIN_AGE\",\n      \"reason_code\": \"AGE_BELOW_MINIMUM\",\n      \"action\": \"REJECT\",\n      \"expression\": \"age_years >= 21\",\n      \"description\": \"Applicant must be at least 21 years old.\"\n    },\n    {\n      \"rule_code\": \"RAC_BLACKLIST\",\n      \"reason_code\": \"BLACKLISTED\",\n      \"action\": \"REJECT\",\n      \"expression\": \"is_blacklisted == false\",\n      \"description\": \"Blacklisted applicants are rejected.\"\n    },\n    {\n      \"rule_code\": \"RAC_SLIK\",\n      \"reason_code\": \"SLIK_REVIEW_REQUIRED\",\n      \"action\": \"REFER\",\n      \"expression\": \"slik_max_kol <= 2\",\n      \"description\": \"Worse collectability goes to manual review.\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Entity Too Large",
+              "code": 413,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Entity Too Large",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The list is invalid. Nothing was stored.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "rac-rules"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/rac-rules"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rules\": [\n    {\n      \"rule_code\": \"RAC_MIN_AGE\",\n      \"reason_code\": \"AGE_BELOW_MINIMUM\",\n      \"action\": \"REJECT\",\n      \"expression\": \"age_years >= 21\",\n      \"description\": \"Applicant must be at least 21 years old.\"\n    },\n    {\n      \"rule_code\": \"RAC_BLACKLIST\",\n      \"reason_code\": \"BLACKLISTED\",\n      \"action\": \"REJECT\",\n      \"expression\": \"is_blacklisted == false\",\n      \"description\": \"Blacklisted applicants are rejected.\"\n    },\n    {\n      \"rule_code\": \"RAC_SLIK\",\n      \"reason_code\": \"SLIK_REVIEW_REQUIRED\",\n      \"action\": \"REFER\",\n      \"expression\": \"slik_max_kol <= 2\",\n      \"description\": \"Worse collectability goes to manual review.\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INPUT_VALIDATION_ERROR\",\n    \"message\": \"invalid policy\",\n    \"details\": [\n      {\n        \"field\": \"rules[0].expression\",\n        \"issue\": \"unknown_variable\",\n        \"message\": \"unknown variable \\\"agee_years\\\"\"\n      },\n      {\n        \"field\": \"rules[1].reason_code\",\n        \"issue\": \"required\"\n      },\n      {\n        \"field\": \"rules[2].rule_code\",\n        \"issue\": \"duplicate\",\n        \"message\": \"already used by rules[0]\"\n      }\n    ]\n  },\n  \"request_id\": \"2b1a0c9d8e7f6a5b4c3d2e1f0a9b8c7d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "rac-rules"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/rac-rules"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rules\": [\n    {\n      \"rule_code\": \"RAC_MIN_AGE\",\n      \"reason_code\": \"AGE_BELOW_MINIMUM\",\n      \"action\": \"REJECT\",\n      \"expression\": \"age_years >= 21\",\n      \"description\": \"Applicant must be at least 21 years old.\"\n    },\n    {\n      \"rule_code\": \"RAC_BLACKLIST\",\n      \"reason_code\": \"BLACKLISTED\",\n      \"action\": \"REJECT\",\n      \"expression\": \"is_blacklisted == false\",\n      \"description\": \"Blacklisted applicants are rejected.\"\n    },\n    {\n      \"rule_code\": \"RAC_SLIK\",\n      \"reason_code\": \"SLIK_REVIEW_REQUIRED\",\n      \"action\": \"REFER\",\n      \"expression\": \"slik_max_kol <= 2\",\n      \"description\": \"Worse collectability goes to manual review.\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
         }
       ]
     }
@@ -9728,7 +11023,7 @@
     "name": "RiskForge API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": {
-      "content": "Contract for the endpoints implemented so far (RF-001 to RF-006, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; the role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
+      "content": "Contract for the endpoints implemented so far (RF-001 to RF-007, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; the role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
       "type": "text/plain"
     },
     "_postman_id": "4b6e2f0a-9c3d-4e51-8a7b-1f2e3d4c5b6a"

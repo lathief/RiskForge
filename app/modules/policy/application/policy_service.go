@@ -91,6 +91,14 @@ type PolicyRepository interface {
 	UpdateDraft(ctx context.Context, v domain.Version) (domain.Version, error)
 	// Freeze moves a DRAFT to PENDING_APPROVAL with its snapshot and checksum.
 	Freeze(ctx context.Context, id string, snapshot []byte, checksum, actorID string) (domain.Version, error)
+	// ListRules returns the RAC rules of a version in evaluation order.
+	ListRules(ctx context.Context, versionID string) (domain.RuleSet, error)
+	// ReplaceRules replaces all RAC rules of a DRAFT with rules, which carry their order.
+	ReplaceRules(ctx context.Context, versionID string, rules domain.RuleSet) error
+	// CopyRules copies the RAC rules of one version onto another.
+	CopyRules(ctx context.Context, fromVersionID, toVersionID string) error
+	// TouchDraft records that a DRAFT changed, by moving its updated_at.
+	TouchDraft(ctx context.Context, versionID string) error
 }
 
 type PolicyService struct {
@@ -211,7 +219,13 @@ func (s *PolicyService) Clone(ctx context.Context, actorID, packageID string, in
 			description = source.Description
 		}
 		out, err = s.repo.InsertDraft(ctx, pkg.ID, description, source.ID, dictVersion, actorID)
-		return err
+		if err != nil {
+			return err
+		}
+		// The copy is exact. The rules are not re-validated here: the draft may be written
+		// against a newer dictionary, and validation happens when the rules are edited and
+		// again at submit.
+		return s.repo.CopyRules(ctx, source.ID, out.ID)
 	})
 	return out, err
 }
@@ -305,7 +319,21 @@ func (s *PolicyService) Submit(ctx context.Context, actorID, id string) (domain.
 		if err != nil {
 			return err
 		}
-		snapshot, checksum, err := domain.BuildSnapshot(current, dictionary)
+		rules, err := s.repo.ListRules(ctx, current.ID)
+		if err != nil {
+			return err
+		}
+		// Gate (SYSTEM_DESIGN.md 9.3): every expression must still compile against the
+		// dictionary this version is pinned to. Rules copied by clone, or a dictionary
+		// version chosen after the rules were written, can break that.
+		if _, err := domain.ValidateRules(ruleInputs(rules), domain.DictionaryEnvironment(dictionary)); err != nil {
+			var verr *domain.ValidationError
+			if errors.As(err, &verr) {
+				return &InvalidPolicyError{Fields: verr.Fields}
+			}
+			return err
+		}
+		snapshot, checksum, err := domain.BuildSnapshot(current, dictionary, rules)
 		if err != nil {
 			return err
 		}

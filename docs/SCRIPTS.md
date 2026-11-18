@@ -94,7 +94,9 @@ ok   403 POST Clone a version into a new draft
 ok   200 GET Get one policy version
 ok   403 PATCH Edit a draft
 ok   403 POST Freeze a draft for approval
-postman smoke: 19/19 requests as expected
+ok   200 GET List the RAC rules of a version
+ok   403 PUT Replace the RAC rules of a draft
+postman smoke: 21/21 requests as expected
 ```
 
 The stack must be up, migrated, and seeded with the current `DEMO_USER_PASSWORD`. A test project whose users were created by the Go test suite has a different password, so login fails there.

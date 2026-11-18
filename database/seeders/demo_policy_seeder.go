@@ -59,5 +59,45 @@ func SeedDemoPolicy() error {
 	if err != nil && !errors.Is(err, policyapp.ErrPolicyExists) {
 		return fmt.Errorf("seed demo policy: %w", err)
 	}
+	return seedDemoRules(service)
+}
+
+// DemoRacRules are the three example rules of SYSTEM_DESIGN.md (docs/DECISION_ENGINE.md section 3).
+// An expression is the condition that must hold for the applicant to pass the rule. The minimum
+// age lives here, as a rule that rejects, and not in the data dictionary, whose range for
+// age_years is only a sanity limit.
+var DemoRacRules = []domain.RuleInput{
+	{RuleCode: "RAC_MIN_AGE", ReasonCode: "AGE_BELOW_MINIMUM", Action: "REJECT",
+		Expression: "age_years >= 21", Description: "Applicant must be at least 21 years old."},
+	{RuleCode: "RAC_BLACKLIST", ReasonCode: "BLACKLISTED", Action: "REJECT",
+		Expression: "is_blacklisted == false", Description: "Blacklisted applicants are rejected."},
+	{RuleCode: "RAC_SLIK", ReasonCode: "SLIK_REVIEW_REQUIRED", Action: "REFER",
+		Expression: "slik_max_kol <= 2", Description: "Worse collectability goes to manual review."},
+}
+
+// seedDemoRules gives the demo policy's first draft the example rules, but only while that
+// draft still has none. Edits are never overwritten; clearing every rule makes the seeder add the examples again.
+func seedDemoRules(service *policyapp.PolicyService) error {
+	ctx := context.Background()
+	page, err := service.List(ctx, policyapp.ListFilter{ProductCode: DemoProductCode, PerPage: policyapp.MaxPerPage})
+	if err != nil {
+		return fmt.Errorf("seed demo rules: %w", err)
+	}
+	for _, item := range page.Items {
+		latest := item.LatestVersion
+		if item.Scope != DemoPolicyScope || latest.Number != 1 || latest.Status != domain.StatusDraft {
+			continue
+		}
+		_, existing, err := service.GetRules(ctx, latest.ID)
+		if err != nil {
+			return fmt.Errorf("seed demo rules: %w", err)
+		}
+		if len(existing) > 0 {
+			continue
+		}
+		if _, _, err := service.ReplaceRules(ctx, latest.ID, DemoRacRules); err != nil {
+			return fmt.Errorf("seed demo rules: %w", err)
+		}
+	}
 	return nil
 }

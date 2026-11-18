@@ -30,14 +30,20 @@ type fakeRepo struct {
 	locks     []string
 	frozen    int
 	failDraft error
+	rules     map[string]domain.RuleSet
+	touched   int
+	replaced  int
 }
 
-func newFakeRepo() *fakeRepo { return &fakeRepo{packages: map[string]domain.Package{}} }
+func newFakeRepo() *fakeRepo {
+	return &fakeRepo{packages: map[string]domain.Package{}, rules: map[string]domain.RuleSet{}}
+}
 
 type repoState struct {
 	packages map[string]domain.Package
 	versions []domain.Version
 	seq      int
+	rules    map[string]domain.RuleSet
 }
 
 func (f *fakeRepo) snapshot() repoState {
@@ -45,11 +51,15 @@ func (f *fakeRepo) snapshot() repoState {
 	for k, v := range f.packages {
 		pk[k] = v
 	}
-	return repoState{pk, append([]domain.Version(nil), f.versions...), f.seq}
+	rs := map[string]domain.RuleSet{}
+	for k, v := range f.rules {
+		rs[k] = append(domain.RuleSet(nil), v...)
+	}
+	return repoState{pk, append([]domain.Version(nil), f.versions...), f.seq, rs}
 }
 
 func (f *fakeRepo) restore(s repoState) {
-	f.packages, f.versions, f.seq = s.packages, s.versions, s.seq
+	f.packages, f.versions, f.seq, f.rules = s.packages, s.versions, s.seq, s.rules
 }
 
 type fakeTx struct {

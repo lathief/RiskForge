@@ -35,7 +35,7 @@ LOANAPP=$(token demo_loan_application)
 | 403 | `FORBIDDEN` | Authenticated but missing the permission. |
 | 404 | `PRODUCT_NOT_FOUND`, `VARIABLE_NOT_FOUND`, `POLICY_NOT_FOUND`, `POLICY_VERSION_NOT_FOUND`, `ROUTE_NOT_FOUND` | Unknown product code / dictionary variable / policy / policy version / route. |
 | 409 | `PRODUCT_CODE_CONFLICT`, `VARIABLE_CODE_CONFLICT`, `POLICY_CONFLICT`, `POLICY_VERSION_FROZEN` | Product, variable, or policy already exists / an edit or submit of a version that is no longer a draft. |
-| 422 | `INPUT_VALIDATION_ERROR` | Invalid JSON, field, query parameter, or a field that cannot be set. |
+| 422 | `INPUT_VALIDATION_ERROR`, `POLICY_VALIDATION_FAILED` | Invalid JSON, field, query parameter, or a field that cannot be set / a draft whose content (RAC expressions) does not validate at submit. |
 | 503 | `SERVICE_BUSY` | Login capacity saturated; honour `Retry-After`. |
 | 500 | `INTERNAL_ERROR` | Unexpected failure; the cause is only in `error.log`. |
 
@@ -279,12 +279,53 @@ curl -s -X POST $B/api/v1/policy-versions/$VERSION/submit -H "Authorization: Bea
 ```json
 {"id":"0827ba94-23b3-49a1-bfdb-9a3c8d6d9476","policy_id":"66f857ed-0569-41fe-9a20-8ee1910a9e1a","product_code":"KTA_DEMO","scope":"DEFAULT","version_number":2,"status":"PENDING_APPROVAL","description":"Raise the minimum income.","based_on_version_id":"1b1e533f-1ec5-4e33-94b1-4f390ff4fa70","dictionary_schema_version":10,"checksum":"773209c1dc1ee8b482e7f6c396b859da4f4142d331605b27b9d6131ba9ede1db","submitted_by":"ee3972dc-04e9-44a3-9a2e-3057df2f7e19","submitted_at":"2026-11-18T02:39:00Z","created_by":"ee3972dc-04e9-44a3-9a2e-3057df2f7e19","created_at":"2026-11-18T02:38:59Z","updated_at":"2026-11-18T02:39:00Z","snapshot":{"decision_matrix":[],"dictionary":{"schema_version":10,"variables":[{"code":"age_years","description":"Applicant age on the application date.","max_value":"120","min_value":"0","nullable":false,"origin":"INPUT","required":true,"scale":null,"schema_version":1,"type":"INTEGER","unit":"years","version":1}]},"evaluator_version":"1","format":1,"package":{"product_code":"KTA_DEMO","scope":"DEFAULT"},"rac_rules":[],"scorecard":null,"version_number":2}}
 ```
-The snapshot above is shortened to one dictionary variable; the real one lists all of them. It is in canonical form (keys sorted, no whitespace), and `checksum` is the SHA-256 of exactly that form. The snapshot contains the dictionary definitions themselves, so later dictionary edits do not change it. RAC rules, scorecard, and decision matrix are empty until RF-007 to RF-009. After submit the version cannot change, and a second submit fails too:
+The snapshot above is shortened to one dictionary variable; the real one lists all of them. It is in canonical form (keys sorted, no whitespace), and `checksum` is the SHA-256 of exactly that form. The snapshot contains the dictionary definitions themselves, so later dictionary edits do not change it. `rac_rules` holds the draft's RAC rules in order (see [RAC rules](#rac-rules)); scorecard and decision matrix are empty until RF-008 and RF-009. After submit the version cannot change, and a second submit fails too:
 ```http
 HTTP/1.1 409 Conflict
 {"error":{"code":"POLICY_VERSION_FROZEN","message":"only a DRAFT version can be changed or submitted"},"request_id":"ca3b6d46c7a0bf3572851fd7a3e85b82"}
 ```
 Approving, rejecting, and publishing a pending version arrive with M4. To revise a pending version now, clone it.
+## RAC rules
+Read (`policy:read`): `RISK_ANALYST`, `RISK_APPROVER`, `AUDITOR`. Write (`policy:write`): `RISK_ANALYST` only. The `ADMIN` and the Loan Application have no access.
+A RAC rule has a `rule_code`, a `reason_code`, an `expression`, an `action`, and an optional `description`. The **expression is the condition an applicant must meet to pass the rule**. If it is false, `action` applies: `REJECT` ends the evaluation with a rejection, `REFER` sends the application to manual review and scoring continues. The order of the rules in the list is the order they run in. Rules are checked when you save them, not run (evaluation arrives with RF-012).
+```sh
+VERSION=<id of a draft version>      # for example the id returned by the clone call above
+```
+### Read
+```sh
+curl -s $B/api/v1/policy-versions/$VERSION/rac-rules -H "Authorization: Bearer $AUDITOR"
+```
+```json
+{"policy_version_id":"7181d11d-3868-45fe-88f3-bfd1e3447bb1","status":"DRAFT","dictionary_schema_version":10,"rules":[],"updated_at":"2026-11-18T03:46:04Z"}
+```
+### Replace the list
+```sh
+curl -s -X PUT $B/api/v1/policy-versions/$VERSION/rac-rules -H "Authorization: Bearer $ANALYST" -H 'Content-Type: application/json' -d '{
+  "rules": [
+    {"rule_code":"RAC_MIN_AGE","reason_code":"AGE_BELOW_MINIMUM","action":"REJECT","expression":"age_years >= 21","description":"Applicant must be at least 21 years old."},
+    {"rule_code":"RAC_BLACKLIST","reason_code":"BLACKLISTED","action":"REJECT","expression":"is_blacklisted == false","description":"Blacklisted applicants are rejected."},
+    {"rule_code":"RAC_SLIK","reason_code":"SLIK_REVIEW_REQUIRED","action":"REFER","expression":"slik_max_kol <= 2","description":"Worse collectability goes to manual review."}
+  ]}'
+```
+```json
+{"policy_version_id":"7181d11d-3868-45fe-88f3-bfd1e3447bb1","status":"DRAFT","dictionary_schema_version":10,"rules":[{"order":1,"rule_code":"RAC_MIN_AGE","reason_code":"AGE_BELOW_MINIMUM","expression":"age_years \u003e= 21","action":"REJECT","description":"Applicant must be at least 21 years old."},{"order":2,"rule_code":"RAC_BLACKLIST","reason_code":"BLACKLISTED","expression":"is_blacklisted == false","action":"REJECT","description":"Blacklisted applicants are rejected."},{"order":3,"rule_code":"RAC_SLIK","reason_code":"SLIK_REVIEW_REQUIRED","expression":"slik_max_kol \u003c= 2","action":"REFER","description":"Worse collectability goes to manual review."}],"updated_at":"2026-11-18T03:46:04Z"}
+```
+(`\u003e` is `>` and `\u003c` is `<`: the server escapes them in JSON.) `PUT` replaces the whole list: to reorder, send the same rules in another order; to remove a rule, leave it out; `{"rules":[]}` removes all. Sending the list the draft already has changes nothing. A frozen version answers `409 POLICY_VERSION_FROZEN`.
+### What an expression may contain
+Comparisons (`== != < <= > >=`), `and` / `or` / `not` (or `&& || !`), arithmetic (`+ - * / %`), `in` and `not in` with a list of numbers or booleans, number and boolean literals, `nil`, parentheses, and the names of variables in the data dictionary. Nothing else: no function calls, strings, member access, or conditionals. The expression must be boolean and well typed, for example `monthly_income - existing_installment > 2000000 and not is_blacklisted`. Variable names and types come from the data dictionary at the draft's `dictionary_schema_version`, so a variable that is newer than that version is unknown.
+### Every problem at once
+```http
+HTTP/1.1 422 Unprocessable Entity
+{"error":{"code":"INPUT_VALIDATION_ERROR","message":"invalid policy","details":[{"field":"rules[0].expression","issue":"unknown_variable","message":"unknown variable \"agee_years\""},{"field":"rules[1].reason_code","issue":"required"},{"field":"rules[1].expression","issue":"syntax_error","message":"unexpected token EOF"},{"field":"rules[2].expression","issue":"unsupported_syntax","message":"function calls are not supported"},{"field":"rules[3].expression","issue":"type_error","message":"invalid operation: \u003e= (mismatched types bool and int)"}]},"request_id":"be9630618291aa2237aaa461521405d6"}
+```
+Nothing is stored when any rule is invalid. Issues for a rule: `rule_code` (`required`, `invalid_format`, `duplicate`), `reason_code` (`required`, `invalid_format`), `action` (`required`, `invalid_value`), `expression` (`required`, `too_long`, `invalid_characters`, `syntax_error`, `unsupported_syntax`, `unknown_variable`, `type_error`), `description` (`too_long`, `invalid_characters`); and for the list, `rules: required`, `must_be_array`, `too_many` (more than 100). `message` explains the issue when the code alone is not enough.
+### Rules in a snapshot, and the submit check
+Submitting freezes the rules, in order, into the snapshot (`snapshot.rac_rules`) and into the checksum. Cloning a version copies its rules to the new draft. Submit checks every expression again against the dictionary the draft is pinned to; for example a clone that you pointed at an older dictionary (`PATCH` with `dictionary_schema_version: 1`) no longer knows the variables its rules use:
+```http
+HTTP/1.1 422 Unprocessable Entity
+{"error":{"code":"POLICY_VALIDATION_FAILED","message":"the draft cannot be submitted until its content is valid","details":[{"field":"rules[1].expression","issue":"unknown_variable","message":"unknown variable \"is_blacklisted\""},{"field":"rules[2].expression","issue":"unknown_variable","message":"unknown variable \"slik_max_kol\""}]},"request_id":"881754208599bacdf79e12ef026fe7ae"}
+```
+The draft stays a `DRAFT`; fix it and submit again.
 ## Unknown routes
 
 ```http

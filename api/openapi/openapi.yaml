@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.6.0
+  version: 0.7.0
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
-    Contract for the endpoints implemented so far (RF-001 to RF-006, plus M1 hardening).
+    Contract for the endpoints implemented so far (RF-001 to RF-007, plus M1 hardening).
 
     - All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.
     - Authorization is permission-based. Each operation lists the required permission
@@ -659,9 +659,11 @@ paths:
         it was written against, stores its SHA-256 checksum, and moves the version to
         `PENDING_APPROVAL`. After this nothing about the version changes: edits and a second
         submit are 409 `POLICY_VERSION_FROZEN`. No request body.
-        The content checks of SYSTEM_DESIGN.md 9.3 (expressions compile, bins and matrix are
-        unambiguous, golden tests pass) arrive with RF-010, and approving or rejecting a pending
-        version arrives with M4.
+        Before freezing, every RAC expression is checked again against the dictionary version the
+        draft is pinned to; if one no longer compiles, the answer is a 422 `POLICY_VALIDATION_FAILED`
+        and the draft stays a DRAFT. The remaining checks of SYSTEM_DESIGN.md 9.3 (scorecard bins,
+        decision matrix, golden tests) arrive with RF-008 to RF-010, and approving or rejecting a
+        pending version arrives with M4.
       operationId: submitPolicyVersion
       x-required-permission: policy:submit
       responses:
@@ -677,6 +679,98 @@ paths:
         "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
         "408": { $ref: "#/components/responses/RequestTimeout" }
         "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
+        "422": { $ref: "#/components/responses/PolicyInvalid" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policy-versions/{version_id}/rac-rules:
+    parameters:
+      - name: version_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyVersionId" }
+    get:
+      tags: [Policies]
+      summary: List the RAC rules of a version
+      description: Rules in evaluation order (`order` 1, 2, 3, ...). Works for any status; a frozen version returns the rules it was frozen with.
+      operationId: getRacRules
+      x-required-permission: policy:read
+      responses:
+        "200":
+          description: The rules, possibly none.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RacRuleSet" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
+    put:
+      tags: [Policies]
+      summary: Replace the RAC rules of a draft
+      description: |
+        Replaces the whole list in one step. The position in `rules` is the evaluation order, so
+        reordering is a PUT with the same rules in another order. An empty list removes all rules.
+        Nothing is stored unless every rule is valid, and every problem is reported together with
+        its path (`rules[2].expression`). Sending the list the draft already has changes nothing.
+
+        An `expression` is the condition an applicant must satisfy to **pass** the rule, written
+        in the `expr` language limited to: comparisons (`== != < <= > >=`), `and`/`or`/`not`
+        (also `&& || !`), arithmetic (`+ - * / %`), `in` / `not in` with a list of numbers or
+        booleans, number and boolean literals, `nil`, parentheses, and the names of data dictionary
+        variables. Function calls, strings, member access, conditionals, and everything else are
+        rejected (`unsupported_syntax`). The expression must be boolean and well typed against the
+        dictionary version the draft is pinned to (`dictionary_schema_version`). `action` says what
+        a failed rule does: `REJECT` ends the evaluation with a rejection, `REFER` sends the
+        application to manual review and scoring continues. Rules are only checked here, not run;
+        evaluation arrives with RF-012.
+
+        Issue codes for `expression`: `required`, `too_long`, `invalid_characters`, `syntax_error`,
+        `unsupported_syntax`, `unknown_variable`, `type_error`. `message` carries the explanation.
+        Only a DRAFT can change: any other status is a 409 `POLICY_VERSION_FROZEN`.
+      operationId: replaceRacRules
+      x-required-permission: policy:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RacRulesReplace" }
+            example:
+              rules:
+                - { rule_code: RAC_MIN_AGE, reason_code: AGE_BELOW_MINIMUM, action: REJECT, expression: "age_years >= 21", description: Applicant must be at least 21 years old. }
+                - { rule_code: RAC_BLACKLIST, reason_code: BLACKLISTED, action: REJECT, expression: "is_blacklisted == false", description: Blacklisted applicants are rejected. }
+                - { rule_code: RAC_SLIK, reason_code: SLIK_REVIEW_REQUIRED, action: REFER, expression: "slik_max_kol <= 2", description: Worse collectability goes to manual review. }
+      responses:
+        "200":
+          description: The rules as stored.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RacRuleSet" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422":
+          description: The list is invalid. Nothing was stored.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error:
+                  code: INPUT_VALIDATION_ERROR
+                  message: invalid policy
+                  details:
+                    - { field: "rules[0].expression", issue: unknown_variable, message: unknown variable "agee_years" }
+                    - { field: "rules[1].reason_code", issue: required }
+                    - { field: "rules[2].rule_code", issue: duplicate, message: "already used by rules[0]" }
+                request_id: 2b1a0c9d8e7f6a5b4c3d2e1f0a9b8c7d
         "500": { $ref: "#/components/responses/InternalError" }
 
 security:
@@ -1004,8 +1098,9 @@ components:
       type: object
       description: |
         Frozen content of a submitted version in canonical form (keys sorted, no whitespace
-        outside strings). `checksum` is the SHA-256 of exactly this form. `rac_rules`,
-        `scorecard`, and `decision_matrix` are present but empty until RF-007 to RF-009.
+        outside strings). `checksum` is the SHA-256 of exactly this form.
+        `scorecard` and `decision_matrix` are empty until RF-008 and RF-009; `rac_rules` lists the
+        rules in evaluation order (RF-007).
       required: [format, evaluator_version, package, version_number, dictionary, rac_rules, scorecard, decision_matrix]
       example:
         format: 1
@@ -1202,6 +1297,74 @@ components:
           type: array
           items: { $ref: "#/components/schemas/PolicyListItem" }
         meta: { $ref: "#/components/schemas/PageMeta" }
+    RacRuleCode:
+      type: string
+      pattern: "^[A-Z][A-Z0-9_]{2,63}$"
+      example: RAC_MIN_AGE
+    RacAction:
+      type: string
+      enum: [REJECT, REFER]
+      description: What a failed rule does. REJECT is a hard fail that ends the evaluation; REFER is a soft fail that flags manual review and lets scoring continue.
+      example: REJECT
+    RacRuleInput:
+      type: object
+      additionalProperties: false
+      required: [rule_code, reason_code, action, expression]
+      properties:
+        rule_code: { $ref: "#/components/schemas/RacRuleCode", description: Unique within the version. }
+        reason_code:
+          type: string
+          pattern: "^[A-Z][A-Z0-9_]{2,63}$"
+          example: AGE_BELOW_MINIMUM
+          description: Stable machine-readable explanation returned when the rule fails. Required for every rule. Rules may share one.
+        action: { $ref: "#/components/schemas/RacAction" }
+        expression:
+          type: string
+          minLength: 1
+          maxLength: 500
+          example: age_years >= 21
+          description: The condition that must hold to pass the rule. One line, boolean, over data dictionary variables.
+        description: { type: string, maxLength: 200, description: Optional note for reviewers. }
+    RacRulesReplace:
+      type: object
+      additionalProperties: false
+      required: [rules]
+      properties:
+        rules:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/RacRuleInput" }
+    RacRule:
+      type: object
+      required: [order, rule_code, reason_code, expression, action, description]
+      example: { order: 1, rule_code: RAC_MIN_AGE, reason_code: AGE_BELOW_MINIMUM, expression: "age_years >= 21", action: REJECT, description: Applicant must be at least 21 years old. }
+      properties:
+        order: { type: integer, minimum: 1, description: Evaluation order; unique within the version. }
+        rule_code: { $ref: "#/components/schemas/RacRuleCode" }
+        reason_code: { type: string, pattern: "^[A-Z][A-Z0-9_]{2,63}$" }
+        expression: { type: string, maxLength: 500 }
+        action: { $ref: "#/components/schemas/RacAction" }
+        description: { type: string, maxLength: 200 }
+    RacRuleSet:
+      type: object
+      required: [policy_version_id, status, dictionary_schema_version, rules, updated_at]
+      example:
+        policy_version_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+        status: DRAFT
+        dictionary_schema_version: 8
+        updated_at: "2026-11-22T08:00:00Z"
+        rules:
+          - { order: 1, rule_code: RAC_MIN_AGE, reason_code: AGE_BELOW_MINIMUM, expression: "age_years >= 21", action: REJECT, description: Applicant must be at least 21 years old. }
+          - { order: 2, rule_code: RAC_BLACKLIST, reason_code: BLACKLISTED, expression: "is_blacklisted == false", action: REJECT, description: Blacklisted applicants are rejected. }
+          - { order: 3, rule_code: RAC_SLIK, reason_code: SLIK_REVIEW_REQUIRED, expression: "slik_max_kol <= 2", action: REFER, description: Worse collectability goes to manual review. }
+      properties:
+        policy_version_id: { $ref: "#/components/schemas/PolicyVersionId" }
+        status: { $ref: "#/components/schemas/PolicyStatus" }
+        dictionary_schema_version: { type: integer, minimum: 0, description: The dictionary version the expressions are checked against. }
+        updated_at: { type: string, format: date-time }
+        rules:
+          type: array
+          items: { $ref: "#/components/schemas/RacRule" }
     ErrorResponse:
       type: object
       required: [error]
@@ -1226,6 +1389,7 @@ components:
                 - POLICY_VERSION_NOT_FOUND
                 - POLICY_CONFLICT
                 - POLICY_VERSION_FROZEN
+                - POLICY_VALIDATION_FAILED
                 - SERVICE_BUSY
                 - INTERNAL_ERROR
             message: { type: string }
@@ -1238,7 +1402,10 @@ components:
                   field: { type: string }
                   issue:
                     type: string
-                    description: Stable issue code, e.g. required, too_long, invalid_format, invalid_value, invalid_characters, must_be_string, must_be_boolean, must_be_integer, not_allowed, no_changes, exceeds_scale, less_than_min_value, not_allowed_for_type, not_allowed_when_required, must_be_false_for_derived, exceeds_current_version, unknown_product, product_inactive, not_in_policy, must_be_a_non_negative_integer.
+                    description: Stable issue code, e.g. required, too_long, invalid_format, invalid_value, invalid_characters, must_be_string, must_be_boolean, must_be_integer, not_allowed, no_changes, exceeds_scale, less_than_min_value, not_allowed_for_type, not_allowed_when_required, must_be_false_for_derived, exceeds_current_version, unknown_product, product_inactive, not_in_policy, must_be_a_non_negative_integer, must_be_array, must_be_object, too_many, duplicate, syntax_error, unsupported_syntax, unknown_variable, type_error.
+                  message:
+                    type: string
+                    description: Explanation in words for issues that need one, for example the position of a syntax error. Absent for most details.
         request_id: { type: string }
 
   responses:
@@ -1327,6 +1494,23 @@ components:
           example:
             error: { code: POLICY_VERSION_FROZEN, message: only a DRAFT version can be changed or submitted }
             request_id: 0d9c8b7a6e5f4a3b2c1d0e9f8a7b6c5d
+    PolicyInvalid:
+      description: |
+        The draft cannot be submitted because its content does not validate, for example a RAC
+        expression that no longer compiles against the dictionary version the draft is pinned to.
+        The details use the paths of the editing endpoints. The draft stays a DRAFT.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error:
+              code: POLICY_VALIDATION_FAILED
+              message: the draft cannot be submitted until its content is valid
+              details:
+                - { field: "rules[1].expression", issue: unknown_variable, message: "unknown variable \"is_blacklisted\"" }
+            request_id: 3c2b1a0d9e8f7a6b5c4d3e2f1a0b9c8d
     InternalError:
       description: Unexpected failure. The cause is logged server-side and never returned.
       headers:
