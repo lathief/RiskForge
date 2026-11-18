@@ -43,7 +43,7 @@ docker compose -p rf-dev --env-file .env.agent exec -T api ./artisan migrate
 docker compose -p rf-dev --env-file .env.agent exec -T api ./artisan db:seed
 ```
 
-The seeders create synthetic demo users, the demo product `KTA_DEMO`, the eight-variable demo data dictionary, and an empty first draft of the KTA_DEMO policy. They refuse to run unless `APP_ENV` is `local` or `testing`.
+The seeders create synthetic demo users, the demo product `KTA_DEMO`, the eight-variable demo data dictionary, and a complete first draft of the KTA_DEMO policy (RAC rules, scorecard, decision matrix, and six golden test cases; it passes `POST /api/v1/policy-versions/{version_id}/validate` but is not submitted). They refuse to run unless `APP_ENV` is `local` or `testing`.
 
 | Username | Role | Can |
 |---|---|---|

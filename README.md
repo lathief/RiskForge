@@ -4,7 +4,7 @@
 
 Built as a **modular monolith** on Goravel v1.18 with the official Fiber HTTP driver and PostgreSQL 18, developed ticket by ticket with tests, ADRs, and verification evidence for every change. All data is synthetic.
 
-> **Status:** Milestone 1 (foundation, identity and RBAC, product catalog) is complete and hardened through three review rounds ([verification log](docs/VERIFICATION.md)). Milestone 2 (policy configuration) is implemented: the data dictionary (RF-005), the policy package and version model (RF-006), RAC management (RF-007), scorecard management (RF-008), decision matrix management (RF-009), and full policy validation with golden test cases (RF-010). Running the golden tests against the policy waits for the decision engine. The decision engine (M3) and governance (M4) are designed (`SYSTEM_DESIGN.md`) and come next. See [Roadmap](#roadmap).
+> **Status:** Milestone 1 (foundation, identity and RBAC, product catalog) is complete and hardened through three review rounds ([verification log](docs/VERIFICATION.md)). Milestone 2 (policy configuration) is implemented: the data dictionary (RF-005), the policy package and version model (RF-006), RAC management (RF-007), scorecard management (RF-008), decision matrix management (RF-009), and full policy validation with golden test cases (RF-010). Running the golden tests against the policy waits for the decision engine; the known limits of M2 are listed in [M2_NOTES.md](docs/M2_NOTES.md). The decision engine (M3) and governance (M4) are designed (`SYSTEM_DESIGN.md`) and come next. See [Roadmap](#roadmap).
 
 ## What this project demonstrates
 

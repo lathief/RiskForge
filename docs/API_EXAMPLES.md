@@ -232,7 +232,7 @@ curl -s "$B/api/v1/dictionary/variables?schema_version=9" -H "Authorization: Bea
 This returns `loan_tenor_months` with `"max_value":"60","version":1`, and `meta.schema_version` is 9. A role without `dictionary:write` (approver, auditor) gets `403 FORBIDDEN` on writes.
 ## Policies
 Read (`policy:read`): `RISK_ANALYST`, `RISK_APPROVER`, `AUDITOR`. Write (`policy:write`) and submit (`policy:submit`): `RISK_ANALYST` only. The `ADMIN` has no policy access at all (`403` even for reads), and the Loan Application has none either.
-A **policy** is the package for one product and scope (scope defaults to `DEFAULT`). It has numbered **versions**. A new version is a `DRAFT`; submitting it freezes it. Seed data (`./artisan db:seed`) opens the `KTA_DEMO` policy with an empty draft version 1; it is never submitted or activated by seeding.
+A **policy** is the package for one product and scope (scope defaults to `DEFAULT`). It has numbered **versions**. A new version is a `DRAFT`; submitting it freezes it. Seed data (`./artisan db:seed`) opens the `KTA_DEMO` policy with draft version 1, filled with the demo RAC rules, scorecard, decision matrix, and six test cases, so it passes validation; it is never submitted or activated by seeding.
 ```sh
 AUDITOR=$(token demo_auditor)
 POLICY=$(curl -s "$B/api/v1/policies?per_page=1" -H "Authorization: Bearer $AUDITOR" | sed -n 's/.*"data":\[{"id":"\([^"]*\)".*/\1/p')
