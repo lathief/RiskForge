@@ -4,7 +4,7 @@
 
 Built as a **modular monolith** on Goravel v1.18 with the official Fiber HTTP driver and PostgreSQL 18, developed ticket by ticket with tests, ADRs, and verification evidence for every change. All data is synthetic.
 
-> **Status:** Milestone 1 (foundation, identity and RBAC, product catalog) is complete and hardened through three review rounds ([verification log](docs/VERIFICATION.md)). Milestone 2 is in progress: the data dictionary (RF-005) and the policy package and version model (RF-006), and RAC management (RF-007) are implemented. Policy configuration, the decision engine, and governance are designed (`SYSTEM_DESIGN.md`) and come next. See [Roadmap](#roadmap).
+> **Status:** Milestone 1 (foundation, identity and RBAC, product catalog) is complete and hardened through three review rounds ([verification log](docs/VERIFICATION.md)). Milestone 2 is in progress: the data dictionary (RF-005) and the policy package and version model (RF-006), RAC management (RF-007), and scorecard management (RF-008) are implemented. Policy configuration, the decision engine, and governance are designed (`SYSTEM_DESIGN.md`) and come next. See [Roadmap](#roadmap).
 
 ## What this project demonstrates
 
@@ -49,6 +49,7 @@ Go 1.25 · Goravel v1.18 · Fiber v3 (via `goravel/fiber`) · PostgreSQL 18 · J
 | `GET` | `/api/v1/policies`, `/api/v1/policies/{policy_id}`, `/api/v1/policy-versions/{version_id}` | `policy:read` (analyst, approver, auditor) |
 | `POST` / `PATCH` | `/api/v1/policies`, `/api/v1/policies/{policy_id}/clone`, `/api/v1/policy-versions/{version_id}` | `policy:write` (analyst) |
 | `GET` / `PUT` | `/api/v1/policy-versions/{version_id}/rac-rules` | `policy:read` / `policy:write` (RAC rules of a version) |
+| `GET` / `PUT` / `DELETE` | `/api/v1/policy-versions/{version_id}/scorecard` | `policy:read` / `policy:write` (scorecard of a version) |
 | `POST` | `/api/v1/policy-versions/{version_id}/submit` | `policy:submit` (analyst) |
 
 Contract: [api/openapi/openapi.yaml](api/openapi/openapi.yaml). Real requests and responses: [API_EXAMPLES.md](docs/API_EXAMPLES.md). Postman: [api/postman/](api/postman/).
@@ -77,7 +78,7 @@ Contract: [api/openapi/openapi.yaml](api/openapi/openapi.yaml). Real requests an
 |---|---|---|
 | M1 Foundation | Bootstrap, PostgreSQL, identity and RBAC, product catalog | Done |
 | Hardening, LOG-001, DX-001, DOC-001 | Three review rounds, structured logs, Swagger and Postman, guides | Done (branch `fix/M1-hardening`, pending merge) |
-| M2 Policy configuration | Data dictionary, versioned policy drafts, RAC, scorecard, matrix validation | In progress: data dictionary (RF-005) and policy package/version model (RF-006), and RAC management (RF-007) done; next RF-008 |
+| M2 Policy configuration | Data dictionary, versioned policy drafts, RAC, scorecard, matrix validation | In progress: data dictionary (RF-005) and policy package/version model (RF-006), RAC management (RF-007), and scorecard management (RF-008) done; next RF-009 |
 | M3 Decision engine | Features, RAC, scorecard and matrix evaluation, idempotent decision API | Planned |
 | M4 Governance | Simulator, multi-level approval, atomic publishing | Planned |
 | M5 Hardening | Audit search, metrics, CI/CD, benchmarks, demo | Planned |

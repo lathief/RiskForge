@@ -208,15 +208,15 @@ func TestRuleSetEqualComparesOrderAndContent(t *testing.T) {
 func TestSnapshotCarriesRulesInOrder(t *testing.T) {
 	rules, err := ValidateRules(goodRules(), DictionaryEnvironment(testEnv()))
 	require.NoError(t, err)
-	canonical, sumWith, err := BuildSnapshot(sampleVersion(), sampleDictionary(), rules)
+	canonical, sumWith, err := BuildSnapshot(sampleVersion(), sampleDictionary(), Content{Rules: rules})
 	require.NoError(t, err)
 	assert.Contains(t, string(canonical), `"rac_rules":[{"action":"REJECT","description":"Adults only","expression":"age_years \u003e= 21","order":1,"reason_code":"AGE_BELOW_MINIMUM","rule_code":"RAC_MIN_AGE"}`)
-	_, sumWithout, err := BuildSnapshot(sampleVersion(), sampleDictionary(), nil)
+	_, sumWithout, err := BuildSnapshot(sampleVersion(), sampleDictionary(), Content{Rules: nil})
 	require.NoError(t, err)
 	assert.NotEqual(t, sumWith, sumWithout)
 
 	reordered, _ := ValidateRules([]RuleInput{goodRules()[1], goodRules()[0]}, DictionaryEnvironment(testEnv()))
-	_, sumReordered, err := BuildSnapshot(sampleVersion(), sampleDictionary(), reordered)
+	_, sumReordered, err := BuildSnapshot(sampleVersion(), sampleDictionary(), Content{Rules: reordered})
 	require.NoError(t, err)
 	assert.NotEqual(t, sumWith, sumReordered, "the evaluation order is part of the frozen content")
 }

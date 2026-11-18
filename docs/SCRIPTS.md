@@ -96,7 +96,10 @@ ok   403 PATCH Edit a draft
 ok   403 POST Freeze a draft for approval
 ok   200 GET List the RAC rules of a version
 ok   403 PUT Replace the RAC rules of a draft
-postman smoke: 21/21 requests as expected
+ok   200 GET Get the scorecard of a version
+ok   403 PUT Replace the scorecard of a draft
+ok   403 DELETE Remove the scorecard of a draft
+postman smoke: 24/24 requests as expected
 ```
 
 The stack must be up, migrated, and seeded with the current `DEMO_USER_PASSWORD`. A test project whose users were created by the Go test suite has a different password, so login fails there.

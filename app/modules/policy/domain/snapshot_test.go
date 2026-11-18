@@ -22,9 +22,9 @@ func sampleDictionary() []DictionaryVariable {
 }
 
 func TestBuildSnapshotIsDeterministic(t *testing.T) {
-	a, sumA, err := BuildSnapshot(sampleVersion(), sampleDictionary(), nil)
+	a, sumA, err := BuildSnapshot(sampleVersion(), sampleDictionary(), Content{Rules: nil})
 	require.NoError(t, err)
-	b, sumB, err := BuildSnapshot(sampleVersion(), sampleDictionary(), nil)
+	b, sumB, err := BuildSnapshot(sampleVersion(), sampleDictionary(), Content{Rules: nil})
 	require.NoError(t, err)
 	assert.Equal(t, a, b)
 	assert.Equal(t, sumA, sumB)
@@ -34,22 +34,22 @@ func TestBuildSnapshotIsDeterministic(t *testing.T) {
 func TestBuildSnapshotIgnoresDictionaryOrder(t *testing.T) {
 	reversed := sampleDictionary()
 	reversed[0], reversed[1] = reversed[1], reversed[0]
-	_, sumA, err := BuildSnapshot(sampleVersion(), sampleDictionary(), nil)
+	_, sumA, err := BuildSnapshot(sampleVersion(), sampleDictionary(), Content{Rules: nil})
 	require.NoError(t, err)
-	_, sumB, err := BuildSnapshot(sampleVersion(), reversed, nil)
+	_, sumB, err := BuildSnapshot(sampleVersion(), reversed, Content{Rules: nil})
 	require.NoError(t, err)
 	assert.Equal(t, sumA, sumB, "variables are sorted by code, so input order cannot change the checksum")
 }
 
 func TestBuildSnapshotDoesNotModifyItsInput(t *testing.T) {
 	dict := sampleDictionary()
-	_, _, err := BuildSnapshot(sampleVersion(), dict, nil)
+	_, _, err := BuildSnapshot(sampleVersion(), dict, Content{Rules: nil})
 	require.NoError(t, err)
 	assert.Equal(t, "monthly_income", dict[0].Code)
 }
 
 func TestBuildSnapshotContent(t *testing.T) {
-	canonical, _, err := BuildSnapshot(sampleVersion(), sampleDictionary(), nil)
+	canonical, _, err := BuildSnapshot(sampleVersion(), sampleDictionary(), Content{Rules: nil})
 	require.NoError(t, err)
 	var doc map[string]any
 	require.NoError(t, json.Unmarshal(canonical, &doc))
@@ -69,41 +69,41 @@ func TestBuildSnapshotContent(t *testing.T) {
 }
 
 func TestChecksumChangesWithAnyFrozenField(t *testing.T) {
-	_, base, err := BuildSnapshot(sampleVersion(), sampleDictionary(), nil)
+	_, base, err := BuildSnapshot(sampleVersion(), sampleDictionary(), Content{Rules: nil})
 	require.NoError(t, err)
 
 	other := sampleVersion()
 	other.Number = 3
-	_, sum, _ := BuildSnapshot(other, sampleDictionary(), nil)
+	_, sum, _ := BuildSnapshot(other, sampleDictionary(), Content{Rules: nil})
 	assert.NotEqual(t, base, sum, "version number")
 
 	other = sampleVersion()
 	other.DictionarySchemaVersion = 5
-	_, sum, _ = BuildSnapshot(other, sampleDictionary(), nil)
+	_, sum, _ = BuildSnapshot(other, sampleDictionary(), Content{Rules: nil})
 	assert.NotEqual(t, base, sum, "dictionary schema version")
 
 	other = sampleVersion()
 	other.Scope = "RETAIL"
-	_, sum, _ = BuildSnapshot(other, sampleDictionary(), nil)
+	_, sum, _ = BuildSnapshot(other, sampleDictionary(), Content{Rules: nil})
 	assert.NotEqual(t, base, sum, "scope")
 
 	dict := sampleDictionary()
 	dict[1].MaxValue = ptr("121")
-	_, sum, _ = BuildSnapshot(sampleVersion(), dict, nil)
+	_, sum, _ = BuildSnapshot(sampleVersion(), dict, Content{Rules: nil})
 	assert.NotEqual(t, base, sum, "a dictionary bound")
 
 	dict = sampleDictionary()
 	dict[0].Description = "changed"
-	_, sum, _ = BuildSnapshot(sampleVersion(), dict, nil)
+	_, sum, _ = BuildSnapshot(sampleVersion(), dict, Content{Rules: nil})
 	assert.NotEqual(t, base, sum, "a dictionary description")
 }
 
 func TestDescriptionOfTheVersionIsNotPartOfTheChecksum(t *testing.T) {
 	// The change note is metadata about the edit, not policy content.
-	_, a, _ := BuildSnapshot(sampleVersion(), sampleDictionary(), nil)
+	_, a, _ := BuildSnapshot(sampleVersion(), sampleDictionary(), Content{Rules: nil})
 	v := sampleVersion()
 	v.Description = "a different change note"
-	_, b, _ := BuildSnapshot(v, sampleDictionary(), nil)
+	_, b, _ := BuildSnapshot(v, sampleDictionary(), Content{Rules: nil})
 	assert.Equal(t, a, b)
 }
 
@@ -116,7 +116,7 @@ func TestCanonicalizeSortsKeysAndKeepsNumbers(t *testing.T) {
 }
 
 func TestVerifySnapshotSurvivesJSONBReordering(t *testing.T) {
-	canonical, sum, err := BuildSnapshot(sampleVersion(), sampleDictionary(), nil)
+	canonical, sum, err := BuildSnapshot(sampleVersion(), sampleDictionary(), Content{Rules: nil})
 	require.NoError(t, err)
 	assert.True(t, VerifySnapshot(canonical, sum))
 

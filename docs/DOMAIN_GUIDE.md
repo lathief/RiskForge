@@ -20,7 +20,7 @@ RiskForge separates the two:
 | **Data dictionary** | The typed contract of input variables (`age_years`, `monthly_income`, ...) and derived features (`dsr_ratio`). Each variable has a type (integer, decimal, boolean), a unit, a range, and flags for required and nullable. Changes are append-only versions, and one schema version numbers the whole dictionary so a past decision can be replayed against the definitions it used. Ranges are sanity limits; eligibility limits such as a minimum age are RAC rules. | Implemented (RF-005); derived formulas planned (RF-011) |
 | **Derived feature** | A value computed from inputs, for example the debt service ratio (DSR) = `existing_installment / monthly_income`. | Planned (RF-011) |
 | **RAC (Risk Acceptance Criteria)** | Knock-out rules checked first. Failing one gives a hard `REJECT` or a soft `REFER`, each with a reason code. | Rules can be written, ordered, and checked (RF-007); evaluation is planned (RF-012) |
-| **Scorecard** | Characteristics (age group, DSR, tenure) split into bins; each bin adds points to a base score. | Planned (RF-008, RF-013) |
+| **Scorecard** | Characteristics (age group, DSR, tenure) split into bins; each bin adds points to a base score. Bins are half-open intervals `[min, max)` that must cover every valid value exactly once, so each application lands in exactly one bin per characteristic. | Can be configured and checked (RF-008); scoring is planned (RF-013) |
 | **Decision matrix** | Maps the total score to a risk grade and a decision (`APPROVE`, `REFER`, `REJECT`). | Planned (RF-009, RF-013) |
 | **Policy package / version** | One publishable unit: dictionary reference, RAC, scorecard, matrix, and test cases. A policy is the package for one product and scope; it has numbered versions. A version is a draft until it is submitted. Submitting freezes a canonical snapshot (including the dictionary definitions it was written against) with a SHA-256 checksum, and nothing about it changes afterwards. To revise it, clone it into a new draft. RAC, scorecard, and matrix content arrives with RF-007 to RF-009. | Implemented (RF-006) |
 | **Reason code** | A stable machine-readable code that explains an outcome, such as `AGE_BELOW_MINIMUM`. Messages can change; codes do not. | Planned |
@@ -97,7 +97,7 @@ Rejecting an applicant because a database timed out would turn an outage into a 
 | Role | Today | When policies exist |
 |---|---|---|
 | `ADMIN` | Creates and updates products; defines and versions dictionary variables. Cannot read policies. | Manages users and approval workflow configuration. Cannot approve policies or edit them. |
-| `RISK_ANALYST` | Reads products; defines and versions dictionary variables; opens, edits, clones, and submits policy drafts. | Creates, edits, simulates, and submits drafts. Cannot approve. |
+| `RISK_ANALYST` | Reads products; defines and versions dictionary variables; opens, edits, clones, and submits policy drafts, with their RAC rules and scorecard. | Creates, edits, simulates, and submits drafts. Cannot approve. |
 | `RISK_APPROVER` | Reads products and the dictionary. | Reviews diffs and approves or rejects. Cannot edit drafts. |
 | `AUDITOR` | Reads products and the dictionary. | Reads decision traces and histories. Read-only everywhere. |
 | `API_CONSUMER` (the Loan Application) | No product or dictionary access. | Calls the decision API and reads its own decisions. |

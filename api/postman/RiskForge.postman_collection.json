@@ -9188,7 +9188,7 @@
           "request": {
             "name": "Freeze a draft for approval",
             "description": {
-              "content": "Captures the canonical snapshot of the draft, including the data dictionary definitions\nit was written against, stores its SHA-256 checksum, and moves the version to\n`PENDING_APPROVAL`. After this nothing about the version changes: edits and a second\nsubmit are 409 `POLICY_VERSION_FROZEN`. No request body.\nBefore freezing, every RAC expression is checked again against the dictionary version the\ndraft is pinned to; if one no longer compiles, the answer is a 422 `POLICY_VALIDATION_FAILED`\nand the draft stays a DRAFT. The remaining checks of SYSTEM_DESIGN.md 9.3 (scorecard bins,\ndecision matrix, golden tests) arrive with RF-008 to RF-010, and approving or rejecting a\npending version arrives with M4.\n",
+              "content": "Captures the canonical snapshot of the draft, including the data dictionary definitions\nit was written against, stores its SHA-256 checksum, and moves the version to\n`PENDING_APPROVAL`. After this nothing about the version changes: edits and a second\nsubmit are 409 `POLICY_VERSION_FROZEN`. No request body.\nBefore freezing, the RAC rules and the scorecard are checked again against the dictionary version\nthe draft is pinned to; if anything no longer validates, the answer is a 422 `POLICY_VALIDATION_FAILED`\nlisting every problem (scorecard paths start with `scorecard.`) and the draft stays a DRAFT. The\nremaining checks of SYSTEM_DESIGN.md 9.3 (decision matrix, golden tests) arrive with RF-009 and RF-010, and approving or rejecting a\npending version arrives with M4.\n",
               "type": "text/plain"
             },
             "url": {
@@ -10997,6 +10997,1745 @@
           "protocolProfileBehavior": {
             "disableBodyPruning": true
           }
+        },
+        {
+          "name": "Get the scorecard of a version",
+          "request": {
+            "name": "Get the scorecard of a version",
+            "description": {
+              "content": "The scorecard with its characteristics and bins in order, and the derived `score_range`\n(lowest and highest total score it can produce). `scorecard` is null when none is\nconfigured. Works for any status; a frozen version returns the scorecard it was frozen with.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policy-versions",
+                ":version_id",
+                "scorecard"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{versionId}}",
+                  "key": "version_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The scorecard, or null.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"policy_version_id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"status\": \"DRAFT\",\n  \"dictionary_schema_version\": 8,\n  \"updated_at\": \"2026-11-23T08:00:00Z\",\n  \"scorecard\": {\n    \"base_score\": \"350.00\",\n    \"score_range\": {\n      \"min\": \"420.00\",\n      \"max\": \"685.00\"\n    },\n    \"characteristics\": [\n      {\n        \"order\": 1,\n        \"characteristic_code\": \"age_group\",\n        \"variable\": \"age_years\",\n        \"description\": \"Applicant age band.\",\n        \"missing_points\": null,\n        \"bins\": [\n          {\n            \"order\": 1,\n            \"min_value\": null,\n            \"max_value\": \"25\",\n            \"points\": \"40.00\",\n            \"label\": \"under 25\"\n          },\n          {\n            \"order\": 2,\n            \"min_value\": \"25\",\n            \"max_value\": \"46\",\n            \"points\": \"85.00\",\n            \"label\": \"25 to 45\"\n          },\n          {\n            \"order\": 3,\n            \"min_value\": \"46\",\n            \"max_value\": null,\n            \"points\": \"60.00\",\n            \"label\": \"46 and over\"\n          }\n        ]\n      },\n      {\n        \"order\": 2,\n        \"characteristic_code\": \"dsr_band\",\n        \"variable\": \"dsr_ratio\",\n        \"description\": \"Debt service ratio band (0 to 1 ratio).\",\n        \"missing_points\": null,\n        \"bins\": [\n          {\n            \"order\": 1,\n            \"min_value\": \"0\",\n            \"max_value\": \"0.3\",\n            \"points\": \"150.00\",\n            \"label\": \"below 0.30\"\n          },\n          {\n            \"order\": 2,\n            \"min_value\": \"0.3\",\n            \"max_value\": \"0.5\",\n            \"points\": \"70.00\",\n            \"label\": \"0.30 to below 0.50\"\n          },\n          {\n            \"order\": 3,\n            \"min_value\": \"0.5\",\n            \"max_value\": null,\n            \"points\": \"0.00\",\n            \"label\": \"0.50 and over\"\n          }\n        ]\n      },\n      {\n        \"order\": 3,\n        \"characteristic_code\": \"employment_tenure\",\n        \"variable\": \"employment_tenure_months\",\n        \"description\": \"Months in current employment.\",\n        \"missing_points\": null,\n        \"bins\": [\n          {\n            \"order\": 1,\n            \"min_value\": \"0\",\n            \"max_value\": \"24\",\n            \"points\": \"30.00\",\n            \"label\": \"under 24 months\"\n          },\n          {\n            \"order\": 2,\n            \"min_value\": \"24\",\n            \"max_value\": null,\n            \"points\": \"100.00\",\n            \"label\": \"24 months or more\"\n          }\n        ]\n      }\n    ]\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No policy version has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_NOT_FOUND\",\n    \"message\": \"policy version not found\"\n  },\n  \"request_id\": \"9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "name": "Replace the scorecard of a draft",
+          "request": {
+            "name": "Replace the scorecard of a draft",
+            "description": {
+              "content": "Replaces the whole scorecard in one step: `total_score = base_score + the points of the one\nbin each characteristic selects` (SYSTEM_DESIGN.md 10.3). Characteristics keep the order\ngiven, and each one scores one numeric data dictionary variable.\n\n**Bins are half-open intervals `[min_value, max_value)`**: `min_value` is included,\n`max_value` is not. An omitted or null `min_value` means no lower limit and an omitted or\nnull `max_value` means no upper limit. Bins are listed in ascending order and must cover\nevery value the variable can have exactly once: the first bin starts at or below the\nvariable's dictionary minimum (or has no `min_value`), each bin starts where the previous\none ends (`gap` / `overlap` otherwise), and the last bin ends above the dictionary maximum\n(or has no `max_value`). So every valid input selects exactly one bin. Bounds follow the\nvariable type: whole numbers for INTEGER (`must_be_integer`), at most the variable's scale\nfor DECIMAL (`exceeds_scale`). They are returned in shortest form (`\"0.30\"` becomes `\"0.3\"`).\n\n`base_score`, `points`, and `missing_points` are decimal strings with at most two decimals\n(NUMERIC(12,2)); they are returned with exactly two and may be negative. Sums are exact.\n`missing_points` is the explicit outcome when the variable is absent or null, and is only\nallowed for an optional input variable (`variable_always_present` otherwise).\n\nEverything is checked against the dictionary version the draft is pinned to. Nothing is\nstored unless the whole scorecard is valid; every problem is reported with its path\n(`characteristics[1].bins[2].min_value`). Sending the scorecard the draft already has\nchanges nothing. Only a DRAFT can change (409 `POLICY_VERSION_FROZEN`).\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policy-versions",
+                ":version_id",
+                "scorecard"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{versionId}}",
+                  "key": "version_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "PUT",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"base_score\": \"350.00\",\n  \"characteristics\": [\n    {\n      \"characteristic_code\": \"age_group\",\n      \"variable\": \"age_years\",\n      \"bins\": [\n        {\n          \"max_value\": \"25\",\n          \"points\": \"40.00\",\n          \"label\": \"under 25\"\n        },\n        {\n          \"min_value\": \"25\",\n          \"max_value\": \"46\",\n          \"points\": \"85.00\",\n          \"label\": \"25 to 45\"\n        },\n        {\n          \"min_value\": \"46\",\n          \"points\": \"60.00\",\n          \"label\": \"46 and over\"\n        }\n      ]\n    },\n    {\n      \"characteristic_code\": \"dsr_band\",\n      \"variable\": \"dsr_ratio\",\n      \"bins\": [\n        {\n          \"min_value\": \"0\",\n          \"max_value\": \"0.30\",\n          \"points\": \"150.00\"\n        },\n        {\n          \"min_value\": \"0.30\",\n          \"max_value\": \"0.50\",\n          \"points\": \"70.00\"\n        },\n        {\n          \"min_value\": \"0.50\",\n          \"points\": \"0.00\"\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The scorecard as stored.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"base_score\": \"350.00\",\n  \"characteristics\": [\n    {\n      \"characteristic_code\": \"age_group\",\n      \"variable\": \"age_years\",\n      \"bins\": [\n        {\n          \"max_value\": \"25\",\n          \"points\": \"40.00\",\n          \"label\": \"under 25\"\n        },\n        {\n          \"min_value\": \"25\",\n          \"max_value\": \"46\",\n          \"points\": \"85.00\",\n          \"label\": \"25 to 45\"\n        },\n        {\n          \"min_value\": \"46\",\n          \"points\": \"60.00\",\n          \"label\": \"46 and over\"\n        }\n      ]\n    },\n    {\n      \"characteristic_code\": \"dsr_band\",\n      \"variable\": \"dsr_ratio\",\n      \"bins\": [\n        {\n          \"min_value\": \"0\",\n          \"max_value\": \"0.30\",\n          \"points\": \"150.00\"\n        },\n        {\n          \"min_value\": \"0.30\",\n          \"max_value\": \"0.50\",\n          \"points\": \"70.00\"\n        },\n        {\n          \"min_value\": \"0.50\",\n          \"points\": \"0.00\"\n        }\n      ]\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"policy_version_id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"status\": \"DRAFT\",\n  \"dictionary_schema_version\": 8,\n  \"updated_at\": \"2026-11-23T08:00:00Z\",\n  \"scorecard\": {\n    \"base_score\": \"350.00\",\n    \"score_range\": {\n      \"min\": \"420.00\",\n      \"max\": \"685.00\"\n    },\n    \"characteristics\": [\n      {\n        \"order\": 1,\n        \"characteristic_code\": \"age_group\",\n        \"variable\": \"age_years\",\n        \"description\": \"Applicant age band.\",\n        \"missing_points\": null,\n        \"bins\": [\n          {\n            \"order\": 1,\n            \"min_value\": null,\n            \"max_value\": \"25\",\n            \"points\": \"40.00\",\n            \"label\": \"under 25\"\n          },\n          {\n            \"order\": 2,\n            \"min_value\": \"25\",\n            \"max_value\": \"46\",\n            \"points\": \"85.00\",\n            \"label\": \"25 to 45\"\n          },\n          {\n            \"order\": 3,\n            \"min_value\": \"46\",\n            \"max_value\": null,\n            \"points\": \"60.00\",\n            \"label\": \"46 and over\"\n          }\n        ]\n      },\n      {\n        \"order\": 2,\n        \"characteristic_code\": \"dsr_band\",\n        \"variable\": \"dsr_ratio\",\n        \"description\": \"Debt service ratio band (0 to 1 ratio).\",\n        \"missing_points\": null,\n        \"bins\": [\n          {\n            \"order\": 1,\n            \"min_value\": \"0\",\n            \"max_value\": \"0.3\",\n            \"points\": \"150.00\",\n            \"label\": \"below 0.30\"\n          },\n          {\n            \"order\": 2,\n            \"min_value\": \"0.3\",\n            \"max_value\": \"0.5\",\n            \"points\": \"70.00\",\n            \"label\": \"0.30 to below 0.50\"\n          },\n          {\n            \"order\": 3,\n            \"min_value\": \"0.5\",\n            \"max_value\": null,\n            \"points\": \"0.00\",\n            \"label\": \"0.50 and over\"\n          }\n        ]\n      },\n      {\n        \"order\": 3,\n        \"characteristic_code\": \"employment_tenure\",\n        \"variable\": \"employment_tenure_months\",\n        \"description\": \"Months in current employment.\",\n        \"missing_points\": null,\n        \"bins\": [\n          {\n            \"order\": 1,\n            \"min_value\": \"0\",\n            \"max_value\": \"24\",\n            \"points\": \"30.00\",\n            \"label\": \"under 24 months\"\n          },\n          {\n            \"order\": 2,\n            \"min_value\": \"24\",\n            \"max_value\": null,\n            \"points\": \"100.00\",\n            \"label\": \"24 months or more\"\n          }\n        ]\n      }\n    ]\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"base_score\": \"350.00\",\n  \"characteristics\": [\n    {\n      \"characteristic_code\": \"age_group\",\n      \"variable\": \"age_years\",\n      \"bins\": [\n        {\n          \"max_value\": \"25\",\n          \"points\": \"40.00\",\n          \"label\": \"under 25\"\n        },\n        {\n          \"min_value\": \"25\",\n          \"max_value\": \"46\",\n          \"points\": \"85.00\",\n          \"label\": \"25 to 45\"\n        },\n        {\n          \"min_value\": \"46\",\n          \"points\": \"60.00\",\n          \"label\": \"46 and over\"\n        }\n      ]\n    },\n    {\n      \"characteristic_code\": \"dsr_band\",\n      \"variable\": \"dsr_ratio\",\n      \"bins\": [\n        {\n          \"min_value\": \"0\",\n          \"max_value\": \"0.30\",\n          \"points\": \"150.00\"\n        },\n        {\n          \"min_value\": \"0.30\",\n          \"max_value\": \"0.50\",\n          \"points\": \"70.00\"\n        },\n        {\n          \"min_value\": \"0.50\",\n          \"points\": \"0.00\"\n        }\n      ]\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"base_score\": \"350.00\",\n  \"characteristics\": [\n    {\n      \"characteristic_code\": \"age_group\",\n      \"variable\": \"age_years\",\n      \"bins\": [\n        {\n          \"max_value\": \"25\",\n          \"points\": \"40.00\",\n          \"label\": \"under 25\"\n        },\n        {\n          \"min_value\": \"25\",\n          \"max_value\": \"46\",\n          \"points\": \"85.00\",\n          \"label\": \"25 to 45\"\n        },\n        {\n          \"min_value\": \"46\",\n          \"points\": \"60.00\",\n          \"label\": \"46 and over\"\n        }\n      ]\n    },\n    {\n      \"characteristic_code\": \"dsr_band\",\n      \"variable\": \"dsr_ratio\",\n      \"bins\": [\n        {\n          \"min_value\": \"0\",\n          \"max_value\": \"0.30\",\n          \"points\": \"150.00\"\n        },\n        {\n          \"min_value\": \"0.30\",\n          \"max_value\": \"0.50\",\n          \"points\": \"70.00\"\n        },\n        {\n          \"min_value\": \"0.50\",\n          \"points\": \"0.00\"\n        }\n      ]\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No policy version has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"base_score\": \"350.00\",\n  \"characteristics\": [\n    {\n      \"characteristic_code\": \"age_group\",\n      \"variable\": \"age_years\",\n      \"bins\": [\n        {\n          \"max_value\": \"25\",\n          \"points\": \"40.00\",\n          \"label\": \"under 25\"\n        },\n        {\n          \"min_value\": \"25\",\n          \"max_value\": \"46\",\n          \"points\": \"85.00\",\n          \"label\": \"25 to 45\"\n        },\n        {\n          \"min_value\": \"46\",\n          \"points\": \"60.00\",\n          \"label\": \"46 and over\"\n        }\n      ]\n    },\n    {\n      \"characteristic_code\": \"dsr_band\",\n      \"variable\": \"dsr_ratio\",\n      \"bins\": [\n        {\n          \"min_value\": \"0\",\n          \"max_value\": \"0.30\",\n          \"points\": \"150.00\"\n        },\n        {\n          \"min_value\": \"0.30\",\n          \"max_value\": \"0.50\",\n          \"points\": \"70.00\"\n        },\n        {\n          \"min_value\": \"0.50\",\n          \"points\": \"0.00\"\n        }\n      ]\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_NOT_FOUND\",\n    \"message\": \"policy version not found\"\n  },\n  \"request_id\": \"9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"base_score\": \"350.00\",\n  \"characteristics\": [\n    {\n      \"characteristic_code\": \"age_group\",\n      \"variable\": \"age_years\",\n      \"bins\": [\n        {\n          \"max_value\": \"25\",\n          \"points\": \"40.00\",\n          \"label\": \"under 25\"\n        },\n        {\n          \"min_value\": \"25\",\n          \"max_value\": \"46\",\n          \"points\": \"85.00\",\n          \"label\": \"25 to 45\"\n        },\n        {\n          \"min_value\": \"46\",\n          \"points\": \"60.00\",\n          \"label\": \"46 and over\"\n        }\n      ]\n    },\n    {\n      \"characteristic_code\": \"dsr_band\",\n      \"variable\": \"dsr_ratio\",\n      \"bins\": [\n        {\n          \"min_value\": \"0\",\n          \"max_value\": \"0.30\",\n          \"points\": \"150.00\"\n        },\n        {\n          \"min_value\": \"0.30\",\n          \"max_value\": \"0.50\",\n          \"points\": \"70.00\"\n        },\n        {\n          \"min_value\": \"0.50\",\n          \"points\": \"0.00\"\n        }\n      ]\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The version is not a DRAFT, so it can no longer be edited or submitted.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"base_score\": \"350.00\",\n  \"characteristics\": [\n    {\n      \"characteristic_code\": \"age_group\",\n      \"variable\": \"age_years\",\n      \"bins\": [\n        {\n          \"max_value\": \"25\",\n          \"points\": \"40.00\",\n          \"label\": \"under 25\"\n        },\n        {\n          \"min_value\": \"25\",\n          \"max_value\": \"46\",\n          \"points\": \"85.00\",\n          \"label\": \"25 to 45\"\n        },\n        {\n          \"min_value\": \"46\",\n          \"points\": \"60.00\",\n          \"label\": \"46 and over\"\n        }\n      ]\n    },\n    {\n      \"characteristic_code\": \"dsr_band\",\n      \"variable\": \"dsr_ratio\",\n      \"bins\": [\n        {\n          \"min_value\": \"0\",\n          \"max_value\": \"0.30\",\n          \"points\": \"150.00\"\n        },\n        {\n          \"min_value\": \"0.30\",\n          \"max_value\": \"0.50\",\n          \"points\": \"70.00\"\n        },\n        {\n          \"min_value\": \"0.50\",\n          \"points\": \"0.00\"\n        }\n      ]\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_FROZEN\",\n    \"message\": \"only a DRAFT version can be changed or submitted\"\n  },\n  \"request_id\": \"0d9c8b7a6e5f4a3b2c1d0e9f8a7b6c5d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request body exceeds 64 KiB. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"base_score\": \"350.00\",\n  \"characteristics\": [\n    {\n      \"characteristic_code\": \"age_group\",\n      \"variable\": \"age_years\",\n      \"bins\": [\n        {\n          \"max_value\": \"25\",\n          \"points\": \"40.00\",\n          \"label\": \"under 25\"\n        },\n        {\n          \"min_value\": \"25\",\n          \"max_value\": \"46\",\n          \"points\": \"85.00\",\n          \"label\": \"25 to 45\"\n        },\n        {\n          \"min_value\": \"46\",\n          \"points\": \"60.00\",\n          \"label\": \"46 and over\"\n        }\n      ]\n    },\n    {\n      \"characteristic_code\": \"dsr_band\",\n      \"variable\": \"dsr_ratio\",\n      \"bins\": [\n        {\n          \"min_value\": \"0\",\n          \"max_value\": \"0.30\",\n          \"points\": \"150.00\"\n        },\n        {\n          \"min_value\": \"0.30\",\n          \"max_value\": \"0.50\",\n          \"points\": \"70.00\"\n        },\n        {\n          \"min_value\": \"0.50\",\n          \"points\": \"0.00\"\n        }\n      ]\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Entity Too Large",
+              "code": 413,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Entity Too Large",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The scorecard is invalid. Nothing was stored.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"base_score\": \"350.00\",\n  \"characteristics\": [\n    {\n      \"characteristic_code\": \"age_group\",\n      \"variable\": \"age_years\",\n      \"bins\": [\n        {\n          \"max_value\": \"25\",\n          \"points\": \"40.00\",\n          \"label\": \"under 25\"\n        },\n        {\n          \"min_value\": \"25\",\n          \"max_value\": \"46\",\n          \"points\": \"85.00\",\n          \"label\": \"25 to 45\"\n        },\n        {\n          \"min_value\": \"46\",\n          \"points\": \"60.00\",\n          \"label\": \"46 and over\"\n        }\n      ]\n    },\n    {\n      \"characteristic_code\": \"dsr_band\",\n      \"variable\": \"dsr_ratio\",\n      \"bins\": [\n        {\n          \"min_value\": \"0\",\n          \"max_value\": \"0.30\",\n          \"points\": \"150.00\"\n        },\n        {\n          \"min_value\": \"0.30\",\n          \"max_value\": \"0.50\",\n          \"points\": \"70.00\"\n        },\n        {\n          \"min_value\": \"0.50\",\n          \"points\": \"0.00\"\n        }\n      ]\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INPUT_VALIDATION_ERROR\",\n    \"message\": \"invalid policy\",\n    \"details\": [\n      {\n        \"field\": \"characteristics[0].bins[1].min_value\",\n        \"issue\": \"gap\",\n        \"message\": \"values from 25 up to this bin's min_value belong to no bin\"\n      },\n      {\n        \"field\": \"characteristics[1].variable\",\n        \"issue\": \"unknown_variable\",\n        \"message\": \"unknown variable \\\"salary\\\"\"\n      }\n    ]\n  },\n  \"request_id\": \"5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"base_score\": \"350.00\",\n  \"characteristics\": [\n    {\n      \"characteristic_code\": \"age_group\",\n      \"variable\": \"age_years\",\n      \"bins\": [\n        {\n          \"max_value\": \"25\",\n          \"points\": \"40.00\",\n          \"label\": \"under 25\"\n        },\n        {\n          \"min_value\": \"25\",\n          \"max_value\": \"46\",\n          \"points\": \"85.00\",\n          \"label\": \"25 to 45\"\n        },\n        {\n          \"min_value\": \"46\",\n          \"points\": \"60.00\",\n          \"label\": \"46 and over\"\n        }\n      ]\n    },\n    {\n      \"characteristic_code\": \"dsr_band\",\n      \"variable\": \"dsr_ratio\",\n      \"bins\": [\n        {\n          \"min_value\": \"0\",\n          \"max_value\": \"0.30\",\n          \"points\": \"150.00\"\n        },\n        {\n          \"min_value\": \"0.30\",\n          \"max_value\": \"0.50\",\n          \"points\": \"70.00\"\n        },\n        {\n          \"min_value\": \"0.50\",\n          \"points\": \"0.00\"\n        }\n      ]\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "name": "Remove the scorecard of a draft",
+          "request": {
+            "name": "Remove the scorecard of a draft",
+            "description": {
+              "content": "Removes the scorecard; `GET` then returns `scorecard` null. Answers 204 also when there was none. Only a DRAFT can change.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policy-versions",
+                ":version_id",
+                "scorecard"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{versionId}}",
+                  "key": "version_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "DELETE",
+            "body": {},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Removed (or there was nothing to remove).",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "DELETE",
+                "body": {}
+              },
+              "status": "No Content",
+              "code": 204,
+              "header": [
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "DELETE",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "DELETE",
+                "body": {}
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No policy version has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "DELETE",
+                "body": {}
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_NOT_FOUND\",\n    \"message\": \"policy version not found\"\n  },\n  \"request_id\": \"9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "DELETE",
+                "body": {}
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The version is not a DRAFT, so it can no longer be edited or submitted.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "DELETE",
+                "body": {}
+              },
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_FROZEN\",\n    \"message\": \"only a DRAFT version can be changed or submitted\"\n  },\n  \"request_id\": \"0d9c8b7a6e5f4a3b2c1d0e9f8a7b6c5d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "scorecard"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/scorecard"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "DELETE",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
         }
       ]
     }
@@ -11023,7 +12762,7 @@
     "name": "RiskForge API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": {
-      "content": "Contract for the endpoints implemented so far (RF-001 to RF-007, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; the role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
+      "content": "Contract for the endpoints implemented so far (RF-001 to RF-008, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; the role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
       "type": "text/plain"
     },
     "_postman_id": "4b6e2f0a-9c3d-4e51-8a7b-1f2e3d4c5b6a"

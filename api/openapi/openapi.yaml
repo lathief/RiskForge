@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.7.0
+  version: 0.8.0
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
-    Contract for the endpoints implemented so far (RF-001 to RF-007, plus M1 hardening).
+    Contract for the endpoints implemented so far (RF-001 to RF-008, plus M1 hardening).
 
     - All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.
     - Authorization is permission-based. Each operation lists the required permission
@@ -659,10 +659,10 @@ paths:
         it was written against, stores its SHA-256 checksum, and moves the version to
         `PENDING_APPROVAL`. After this nothing about the version changes: edits and a second
         submit are 409 `POLICY_VERSION_FROZEN`. No request body.
-        Before freezing, every RAC expression is checked again against the dictionary version the
-        draft is pinned to; if one no longer compiles, the answer is a 422 `POLICY_VALIDATION_FAILED`
-        and the draft stays a DRAFT. The remaining checks of SYSTEM_DESIGN.md 9.3 (scorecard bins,
-        decision matrix, golden tests) arrive with RF-008 to RF-010, and approving or rejecting a
+        Before freezing, the RAC rules and the scorecard are checked again against the dictionary version
+        the draft is pinned to; if anything no longer validates, the answer is a 422 `POLICY_VALIDATION_FAILED`
+        listing every problem (scorecard paths start with `scorecard.`) and the draft stays a DRAFT. The
+        remaining checks of SYSTEM_DESIGN.md 9.3 (decision matrix, golden tests) arrive with RF-009 and RF-010, and approving or rejecting a
         pending version arrives with M4.
       operationId: submitPolicyVersion
       x-required-permission: policy:submit
@@ -771,6 +771,130 @@ paths:
                     - { field: "rules[1].reason_code", issue: required }
                     - { field: "rules[2].rule_code", issue: duplicate, message: "already used by rules[0]" }
                 request_id: 2b1a0c9d8e7f6a5b4c3d2e1f0a9b8c7d
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policy-versions/{version_id}/scorecard:
+    parameters:
+      - name: version_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyVersionId" }
+    get:
+      tags: [Policies]
+      summary: Get the scorecard of a version
+      description: |
+        The scorecard with its characteristics and bins in order, and the derived `score_range`
+        (lowest and highest total score it can produce). `scorecard` is null when none is
+        configured. Works for any status; a frozen version returns the scorecard it was frozen with.
+      operationId: getScorecard
+      x-required-permission: policy:read
+      responses:
+        "200":
+          description: The scorecard, or null.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScorecardResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
+    put:
+      tags: [Policies]
+      summary: Replace the scorecard of a draft
+      description: |
+        Replaces the whole scorecard in one step: `total_score = base_score + the points of the one
+        bin each characteristic selects` (SYSTEM_DESIGN.md 10.3). Characteristics keep the order
+        given, and each one scores one numeric data dictionary variable.
+
+        **Bins are half-open intervals `[min_value, max_value)`**: `min_value` is included,
+        `max_value` is not. An omitted or null `min_value` means no lower limit and an omitted or
+        null `max_value` means no upper limit. Bins are listed in ascending order and must cover
+        every value the variable can have exactly once: the first bin starts at or below the
+        variable's dictionary minimum (or has no `min_value`), each bin starts where the previous
+        one ends (`gap` / `overlap` otherwise), and the last bin ends above the dictionary maximum
+        (or has no `max_value`). So every valid input selects exactly one bin. Bounds follow the
+        variable type: whole numbers for INTEGER (`must_be_integer`), at most the variable's scale
+        for DECIMAL (`exceeds_scale`). They are returned in shortest form (`"0.30"` becomes `"0.3"`).
+
+        `base_score`, `points`, and `missing_points` are decimal strings with at most two decimals
+        (NUMERIC(12,2)); they are returned with exactly two and may be negative. Sums are exact.
+        `missing_points` is the explicit outcome when the variable is absent or null, and is only
+        allowed for an optional input variable (`variable_always_present` otherwise).
+
+        Everything is checked against the dictionary version the draft is pinned to. Nothing is
+        stored unless the whole scorecard is valid; every problem is reported with its path
+        (`characteristics[1].bins[2].min_value`). Sending the scorecard the draft already has
+        changes nothing. Only a DRAFT can change (409 `POLICY_VERSION_FROZEN`).
+      operationId: replaceScorecard
+      x-required-permission: policy:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScorecardReplace" }
+            example:
+              base_score: "350.00"
+              characteristics:
+                - characteristic_code: age_group
+                  variable: age_years
+                  bins:
+                    - { max_value: "25", points: "40.00", label: under 25 }
+                    - { min_value: "25", max_value: "46", points: "85.00", label: 25 to 45 }
+                    - { min_value: "46", points: "60.00", label: 46 and over }
+                - characteristic_code: dsr_band
+                  variable: dsr_ratio
+                  bins:
+                    - { min_value: "0", max_value: "0.30", points: "150.00" }
+                    - { min_value: "0.30", max_value: "0.50", points: "70.00" }
+                    - { min_value: "0.50", points: "0.00" }
+      responses:
+        "200":
+          description: The scorecard as stored.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScorecardResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422":
+          description: The scorecard is invalid. Nothing was stored.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error:
+                  code: INPUT_VALIDATION_ERROR
+                  message: invalid policy
+                  details:
+                    - { field: "characteristics[0].bins[1].min_value", issue: gap, message: "values from 25 up to this bin's min_value belong to no bin" }
+                    - { field: "characteristics[1].variable", issue: unknown_variable, message: "unknown variable \"salary\"" }
+                request_id: 5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a
+        "500": { $ref: "#/components/responses/InternalError" }
+    delete:
+      tags: [Policies]
+      summary: Remove the scorecard of a draft
+      description: Removes the scorecard; `GET` then returns `scorecard` null. Answers 204 also when there was none. Only a DRAFT can change.
+      operationId: deleteScorecard
+      x-required-permission: policy:write
+      responses:
+        "204":
+          description: Removed (or there was nothing to remove).
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
         "500": { $ref: "#/components/responses/InternalError" }
 
 security:
@@ -1099,8 +1223,8 @@ components:
       description: |
         Frozen content of a submitted version in canonical form (keys sorted, no whitespace
         outside strings). `checksum` is the SHA-256 of exactly this form.
-        `scorecard` and `decision_matrix` are empty until RF-008 and RF-009; `rac_rules` lists the
-        rules in evaluation order (RF-007).
+        `decision_matrix` is empty until RF-009. `rac_rules` lists the RAC rules in evaluation order
+        (RF-007), and `scorecard` is the scorecard without the derived `score_range`, or null (RF-008).
       required: [format, evaluator_version, package, version_number, dictionary, rac_rules, scorecard, decision_matrix]
       example:
         format: 1
@@ -1365,6 +1489,136 @@ components:
         rules:
           type: array
           items: { $ref: "#/components/schemas/RacRule" }
+    ScoreDecimal:
+      type: string
+      pattern: "^-?(0|[1-9][0-9]{0,9})(\\.[0-9]{1,2})?$"
+      description: Decimal string with at most two decimals (NUMERIC(12,2)); returned with exactly two. May be negative.
+      example: "85.00"
+    BinBound:
+      type: [string, "null"]
+      pattern: "^-?(0|[1-9][0-9]{0,17})(\\.[0-9]+)?$"
+      description: Decimal string; whole number for an INTEGER variable, at most the variable's scale for DECIMAL. Null or omitted means unbounded on that side.
+      example: "25"
+    ScorecardBinInput:
+      type: object
+      additionalProperties: false
+      required: [points]
+      properties:
+        min_value: { $ref: "#/components/schemas/BinBound", description: "Included. Omit or null for no lower limit (first bin only)." }
+        max_value: { $ref: "#/components/schemas/BinBound", description: "Excluded. Omit or null for no upper limit (last bin only)." }
+        points: { $ref: "#/components/schemas/ScoreDecimal" }
+        label: { type: string, maxLength: 100, description: Optional single-line label for reviewers. }
+    ScorecardCharacteristicInput:
+      type: object
+      additionalProperties: false
+      required: [characteristic_code, variable, bins]
+      properties:
+        characteristic_code: { type: string, pattern: "^[a-z][a-z0-9_]{2,63}$", example: age_group, description: Unique within the scorecard. }
+        variable: { type: string, example: age_years, description: An INTEGER or DECIMAL data dictionary variable. Several characteristics may use the same one. }
+        description: { type: string, maxLength: 200 }
+        missing_points:
+          oneOf: [{ $ref: "#/components/schemas/ScoreDecimal" }, { type: "null" }]
+          description: Points when the variable is absent or null. Only for an optional input variable.
+        bins:
+          type: array
+          minItems: 1
+          maxItems: 50
+          description: Ascending, edge to edge, covering every valid value of the variable exactly once.
+          items: { $ref: "#/components/schemas/ScorecardBinInput" }
+    ScorecardReplace:
+      type: object
+      additionalProperties: false
+      required: [base_score, characteristics]
+      properties:
+        base_score: { $ref: "#/components/schemas/ScoreDecimal" }
+        characteristics:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: { $ref: "#/components/schemas/ScorecardCharacteristicInput" }
+    ScorecardBin:
+      type: object
+      required: [order, min_value, max_value, points, label]
+      properties:
+        order: { type: integer, minimum: 1 }
+        min_value: { $ref: "#/components/schemas/BinBound" }
+        max_value: { $ref: "#/components/schemas/BinBound" }
+        points: { $ref: "#/components/schemas/ScoreDecimal" }
+        label: { type: string }
+    ScorecardCharacteristic:
+      type: object
+      required: [order, characteristic_code, variable, description, missing_points, bins]
+      properties:
+        order: { type: integer, minimum: 1 }
+        characteristic_code: { type: string }
+        variable: { type: string }
+        description: { type: string }
+        missing_points:
+          oneOf: [{ $ref: "#/components/schemas/ScoreDecimal" }, { type: "null" }]
+        bins:
+          type: array
+          items: { $ref: "#/components/schemas/ScorecardBin" }
+    Scorecard:
+      type: object
+      required: [base_score, score_range, characteristics]
+      properties:
+        base_score: { $ref: "#/components/schemas/ScoreDecimal" }
+        score_range:
+          type: object
+          required: [min, max]
+          description: Lowest and highest total score the scorecard can produce (base score plus the lowest or highest points of every characteristic, including missing_points). Derived, not stored; the decision matrix must cover it.
+          properties:
+            min: { $ref: "#/components/schemas/ScoreDecimal" }
+            max: { $ref: "#/components/schemas/ScoreDecimal" }
+        characteristics:
+          type: array
+          items: { $ref: "#/components/schemas/ScorecardCharacteristic" }
+    ScorecardResponse:
+      type: object
+      required: [policy_version_id, status, dictionary_schema_version, updated_at, scorecard]
+      example:
+        policy_version_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+        status: DRAFT
+        dictionary_schema_version: 8
+        updated_at: "2026-11-23T08:00:00Z"
+        scorecard:
+          base_score: "350.00"
+          score_range: { min: "420.00", max: "685.00" }
+          characteristics:
+            - order: 1
+              characteristic_code: age_group
+              variable: age_years
+              description: Applicant age band.
+              missing_points: null
+              bins:
+                - { order: 1, min_value: null, max_value: "25", points: "40.00", label: under 25 }
+                - { order: 2, min_value: "25", max_value: "46", points: "85.00", label: 25 to 45 }
+                - { order: 3, min_value: "46", max_value: null, points: "60.00", label: 46 and over }
+            - order: 2
+              characteristic_code: dsr_band
+              variable: dsr_ratio
+              description: Debt service ratio band (0 to 1 ratio).
+              missing_points: null
+              bins:
+                - { order: 1, min_value: "0", max_value: "0.3", points: "150.00", label: below 0.30 }
+                - { order: 2, min_value: "0.3", max_value: "0.5", points: "70.00", label: 0.30 to below 0.50 }
+                - { order: 3, min_value: "0.5", max_value: null, points: "0.00", label: 0.50 and over }
+            - order: 3
+              characteristic_code: employment_tenure
+              variable: employment_tenure_months
+              description: Months in current employment.
+              missing_points: null
+              bins:
+                - { order: 1, min_value: "0", max_value: "24", points: "30.00", label: under 24 months }
+                - { order: 2, min_value: "24", max_value: null, points: "100.00", label: 24 months or more }
+      properties:
+        policy_version_id: { $ref: "#/components/schemas/PolicyVersionId" }
+        status: { $ref: "#/components/schemas/PolicyStatus" }
+        dictionary_schema_version: { type: integer, minimum: 0, description: The dictionary version the scorecard is checked against. }
+        updated_at: { type: string, format: date-time }
+        scorecard:
+          oneOf: [{ $ref: "#/components/schemas/Scorecard" }, { type: "null" }]
+          description: Null when no scorecard is configured.
     ErrorResponse:
       type: object
       required: [error]
@@ -1402,7 +1656,7 @@ components:
                   field: { type: string }
                   issue:
                     type: string
-                    description: Stable issue code, e.g. required, too_long, invalid_format, invalid_value, invalid_characters, must_be_string, must_be_boolean, must_be_integer, not_allowed, no_changes, exceeds_scale, less_than_min_value, not_allowed_for_type, not_allowed_when_required, must_be_false_for_derived, exceeds_current_version, unknown_product, product_inactive, not_in_policy, must_be_a_non_negative_integer, must_be_array, must_be_object, too_many, duplicate, syntax_error, unsupported_syntax, unknown_variable, type_error.
+                    description: Stable issue code, e.g. required, too_long, invalid_format, invalid_value, invalid_characters, must_be_string, must_be_boolean, must_be_integer, not_allowed, no_changes, exceeds_scale, less_than_min_value, not_allowed_for_type, not_allowed_when_required, must_be_false_for_derived, exceeds_current_version, unknown_product, product_inactive, not_in_policy, must_be_a_non_negative_integer, must_be_array, must_be_object, too_many, duplicate, syntax_error, unsupported_syntax, unknown_variable, type_error, no_characteristics, no_bins, gap, overlap, min_not_less_than_max, does_not_cover_lower_bound, does_not_cover_upper_bound, must_be_integer, out_of_range, variable_not_numeric, variable_always_present.
                   message:
                     type: string
                     description: Explanation in words for issues that need one, for example the position of a syntax error. Absent for most details.

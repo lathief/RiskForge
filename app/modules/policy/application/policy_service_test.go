@@ -24,19 +24,21 @@ func ptr[T any](v T) *T { return &v }
 // fakeRepo is an in-memory PolicyRepository. snapshot/restore let fakeTx undo a failed
 // transaction, which is what the real database does.
 type fakeRepo struct {
-	packages  map[string]domain.Package
-	versions  []domain.Version
-	seq       int
-	locks     []string
-	frozen    int
-	failDraft error
-	rules     map[string]domain.RuleSet
-	touched   int
-	replaced  int
+	packages        map[string]domain.Package
+	versions        []domain.Version
+	seq             int
+	locks           []string
+	frozen          int
+	failDraft       error
+	rules           map[string]domain.RuleSet
+	touched         int
+	replaced        int
+	scorecards      map[string]*domain.Scorecard
+	scorecardWrites int
 }
 
 func newFakeRepo() *fakeRepo {
-	return &fakeRepo{packages: map[string]domain.Package{}, rules: map[string]domain.RuleSet{}}
+	return &fakeRepo{packages: map[string]domain.Package{}, rules: map[string]domain.RuleSet{}, scorecards: map[string]*domain.Scorecard{}}
 }
 
 type repoState struct {
@@ -44,6 +46,7 @@ type repoState struct {
 	versions []domain.Version
 	seq      int
 	rules    map[string]domain.RuleSet
+	sc       map[string]*domain.Scorecard
 }
 
 func (f *fakeRepo) snapshot() repoState {
@@ -55,11 +58,15 @@ func (f *fakeRepo) snapshot() repoState {
 	for k, v := range f.rules {
 		rs[k] = append(domain.RuleSet(nil), v...)
 	}
-	return repoState{pk, append([]domain.Version(nil), f.versions...), f.seq, rs}
+	sc := map[string]*domain.Scorecard{}
+	for k, v := range f.scorecards {
+		sc[k] = v
+	}
+	return repoState{pk, append([]domain.Version(nil), f.versions...), f.seq, rs, sc}
 }
 
 func (f *fakeRepo) restore(s repoState) {
-	f.packages, f.versions, f.seq, f.rules = s.packages, s.versions, s.seq, s.rules
+	f.packages, f.versions, f.seq, f.rules, f.scorecards = s.packages, s.versions, s.seq, s.rules, s.sc
 }
 
 type fakeTx struct {

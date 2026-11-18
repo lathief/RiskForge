@@ -45,9 +45,18 @@ type snapshotDictionary struct {
 	Variables     []DictionaryVariable `json:"variables"`
 }
 
+// Content is the editable policy content of a version that goes into its snapshot. RF-009 adds
+// the decision matrix here.
+type Content struct {
+	Rules     RuleSet
+	Scorecard *Scorecard // nil when no scorecard has been configured
+}
+
 // snapshotDocument is the frozen content of a version. RF-007 fills rac_rules (in evaluation
-// order); the scorecard and decision matrix stay empty until RF-008 and RF-009. All sections are
-// always present so the layout is stable and a reader never has to guess whether one was omitted.
+// order) and RF-008 fills scorecard (null when none is configured); the decision matrix stays
+// empty until RF-009. All sections are always present so the layout is stable and a reader
+// never has to guess whether one was omitted. Sections were empty or null in snapshots frozen
+// before they existed; those remain valid under format 1.
 // Rules were empty in snapshots frozen before RF-007; they remain valid under format 1.
 type snapshotDocument struct {
 	Format           int                `json:"format"`
@@ -56,13 +65,13 @@ type snapshotDocument struct {
 	VersionNumber    int                `json:"version_number"`
 	Dictionary       snapshotDictionary `json:"dictionary"`
 	RACRules         []snapshotRule     `json:"rac_rules"`
-	Scorecard        any                `json:"scorecard"`
+	Scorecard        *snapshotScorecard `json:"scorecard"`
 	DecisionMatrix   []any              `json:"decision_matrix"`
 }
 
-// BuildSnapshot freezes v, its RAC rules, and the dictionary it is written against into canonical JSON and
+// BuildSnapshot freezes v, its content, and the dictionary it is written against into canonical JSON and
 // returns it with its SHA-256 checksum. The same inputs always give the same bytes.
-func BuildSnapshot(v Version, dictionary []DictionaryVariable, rules RuleSet) (canonical []byte, checksum string, err error) {
+func BuildSnapshot(v Version, dictionary []DictionaryVariable, content Content) (canonical []byte, checksum string, err error) {
 	vars := append([]DictionaryVariable{}, dictionary...)
 	sort.Slice(vars, func(i, j int) bool { return vars[i].Code < vars[j].Code })
 	doc := snapshotDocument{
@@ -71,7 +80,8 @@ func BuildSnapshot(v Version, dictionary []DictionaryVariable, rules RuleSet) (c
 		Package:          snapshotPackage{ProductCode: v.ProductCode, Scope: v.Scope},
 		VersionNumber:    v.Number,
 		Dictionary:       snapshotDictionary{SchemaVersion: v.DictionarySchemaVersion, Variables: vars},
-		RACRules:         rules.snapshot(),
+		RACRules:         content.Rules.snapshot(),
+		Scorecard:        content.Scorecard.snapshot(),
 		DecisionMatrix:   []any{},
 	}
 	raw, err := json.Marshal(doc)

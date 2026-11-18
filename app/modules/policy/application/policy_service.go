@@ -97,6 +97,12 @@ type PolicyRepository interface {
 	ReplaceRules(ctx context.Context, versionID string, rules domain.RuleSet) error
 	// CopyRules copies the RAC rules of one version onto another.
 	CopyRules(ctx context.Context, fromVersionID, toVersionID string) error
+	// GetScorecard returns the scorecard of a version, or nil when none is configured.
+	GetScorecard(ctx context.Context, versionID string) (*domain.Scorecard, error)
+	// ReplaceScorecard replaces the scorecard of a DRAFT with sc, which carries its orders.
+	ReplaceScorecard(ctx context.Context, versionID string, sc *domain.Scorecard) error
+	// CopyScorecard copies the scorecard of one version onto another (nothing if there is none).
+	CopyScorecard(ctx context.Context, fromVersionID, toVersionID string) error
 	// TouchDraft records that a DRAFT changed, by moving its updated_at.
 	TouchDraft(ctx context.Context, versionID string) error
 }
@@ -222,10 +228,13 @@ func (s *PolicyService) Clone(ctx context.Context, actorID, packageID string, in
 		if err != nil {
 			return err
 		}
-		// The copy is exact. The rules are not re-validated here: the draft may be written
-		// against a newer dictionary, and validation happens when the rules are edited and
+		// The copy of the rules and the scorecard is exact. Neither is re-validated here: the draft may be written
+		// against a newer dictionary, and validation happens when the content is edited and
 		// again at submit.
-		return s.repo.CopyRules(ctx, source.ID, out.ID)
+		if err := s.repo.CopyRules(ctx, source.ID, out.ID); err != nil {
+			return err
+		}
+		return s.repo.CopyScorecard(ctx, source.ID, out.ID)
 	})
 	return out, err
 }
@@ -298,10 +307,10 @@ func (s *PolicyService) UpdateDraft(ctx context.Context, id string, c domain.Cha
 // definitions the draft was written against), stores its checksum, and moves the version to
 // PENDING_APPROVAL. After this nothing about the version changes.
 //
-// The content gates of SYSTEM_DESIGN.md 9.3 (expressions compile, bins and matrix are
-// unambiguous, golden tests pass) arrive with RF-010. Until the RAC, scorecard, and matrix
-// exist there is nothing to check, and the approval workflow that consumes a pending version
-// arrives with RF-018 and RF-019.
+// Before freezing, the content gates of SYSTEM_DESIGN.md 9.3 that exist so far run against the
+// dictionary the draft is pinned to: RAC expressions (RF-007) and the scorecard (RF-008). The
+// decision matrix and golden tests follow with RF-009 and RF-010, and the approval workflow that
+// consumes a pending version arrives with RF-018 and RF-019.
 func (s *PolicyService) Submit(ctx context.Context, actorID, id string) (domain.Version, error) {
 	if !domain.IsValidID(id) {
 		return domain.Version{}, ErrVersionNotFound
@@ -323,17 +332,16 @@ func (s *PolicyService) Submit(ctx context.Context, actorID, id string) (domain.
 		if err != nil {
 			return err
 		}
-		// Gate (SYSTEM_DESIGN.md 9.3): every expression must still compile against the
-		// dictionary this version is pinned to. Rules copied by clone, or a dictionary
-		// version chosen after the rules were written, can break that.
-		if _, err := domain.ValidateRules(ruleInputs(rules), domain.DictionaryEnvironment(dictionary)); err != nil {
-			var verr *domain.ValidationError
-			if errors.As(err, &verr) {
-				return &InvalidPolicyError{Fields: verr.Fields}
-			}
+		scorecard, err := s.repo.GetScorecard(ctx, current.ID)
+		if err != nil {
 			return err
 		}
-		snapshot, checksum, err := domain.BuildSnapshot(current, dictionary, rules)
+		// Content copied by clone, or a dictionary version chosen after it was written, can be
+		// invalid now. Every problem of every section is reported together.
+		if fields := contentIssues(rules, scorecard, dictionary); len(fields) > 0 {
+			return &InvalidPolicyError{Fields: fields}
+		}
+		snapshot, checksum, err := domain.BuildSnapshot(current, dictionary, domain.Content{Rules: rules, Scorecard: scorecard})
 		if err != nil {
 			return err
 		}
@@ -341,4 +349,29 @@ func (s *PolicyService) Submit(ctx context.Context, actorID, id string) (domain.
 		return err
 	})
 	return out, err
+}
+
+// contentIssues re-validates the stored content of a draft and returns every problem, with
+// the field paths of the editing endpoints ("rules[1].expression",
+// "scorecard.characteristics[0].bins[2].min_value").
+func contentIssues(rules domain.RuleSet, scorecard *domain.Scorecard, dictionary []domain.DictionaryVariable) []domain.FieldError {
+	var out []domain.FieldError
+	if _, err := domain.ValidateRules(ruleInputs(rules), domain.DictionaryEnvironment(dictionary)); err != nil {
+		var verr *domain.ValidationError
+		if errors.As(err, &verr) {
+			out = append(out, verr.Fields...)
+		}
+	}
+	if scorecard != nil {
+		if _, err := domain.ValidateScorecard(scorecardInput(scorecard), dictionary); err != nil {
+			var verr *domain.ValidationError
+			if errors.As(err, &verr) {
+				for _, f := range verr.Fields {
+					f.Field = "scorecard." + f.Field
+					out = append(out, f)
+				}
+			}
+		}
+	}
+	return out
 }

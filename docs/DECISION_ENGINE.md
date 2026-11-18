@@ -90,6 +90,8 @@ Each rule has a `rule_code`, a boolean expression that must hold to pass, an act
 - Zero or several matching bins is a `POLICY_CONFIGURATION_ERROR`. Pre-publish validation rejects overlapping bins and gaps, so this should never happen in production.
 - Points are `NUMERIC(12,2)` with deterministic rounding.
 
+**Managing the scorecard (implemented, RF-008).** An analyst edits the scorecard of a draft with `GET`, `PUT`, and `DELETE /api/v1/policy-versions/{version_id}/scorecard`. Saving checks that the bins of every characteristic are listed in ascending order, meet edge to edge, and cover the whole valid range of the dictionary variable, so every application that passes input validation selects exactly one bin; zero or several matches cannot happen in a version that saved and submitted successfully. Points have two decimals and are added with exact decimal arithmetic, so no rounding happens at all: the total of two-decimal points is itself exact to two decimals. A characteristic may give explicit `missing_points` for an optional variable that is absent. The response shows `score_range`, the lowest and highest total the scorecard can produce. Nothing is scored yet: bin selection at decision time arrives with RF-013.
+
 ### 5. Decision matrix
 
 Maps the total score to a grade and a decision. Supported domain `0` to `900` inclusive:

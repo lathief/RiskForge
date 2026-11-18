@@ -35,7 +35,7 @@ LOANAPP=$(token demo_loan_application)
 | 403 | `FORBIDDEN` | Authenticated but missing the permission. |
 | 404 | `PRODUCT_NOT_FOUND`, `VARIABLE_NOT_FOUND`, `POLICY_NOT_FOUND`, `POLICY_VERSION_NOT_FOUND`, `ROUTE_NOT_FOUND` | Unknown product code / dictionary variable / policy / policy version / route. |
 | 409 | `PRODUCT_CODE_CONFLICT`, `VARIABLE_CODE_CONFLICT`, `POLICY_CONFLICT`, `POLICY_VERSION_FROZEN` | Product, variable, or policy already exists / an edit or submit of a version that is no longer a draft. |
-| 422 | `INPUT_VALIDATION_ERROR`, `POLICY_VALIDATION_FAILED` | Invalid JSON, field, query parameter, or a field that cannot be set / a draft whose content (RAC expressions) does not validate at submit. |
+| 422 | `INPUT_VALIDATION_ERROR`, `POLICY_VALIDATION_FAILED` | Invalid JSON, field, query parameter, or a field that cannot be set / a draft whose content (RAC expressions, scorecard) does not validate at submit. |
 | 503 | `SERVICE_BUSY` | Login capacity saturated; honour `Retry-After`. |
 | 500 | `INTERNAL_ERROR` | Unexpected failure; the cause is only in `error.log`. |
 
@@ -279,7 +279,7 @@ curl -s -X POST $B/api/v1/policy-versions/$VERSION/submit -H "Authorization: Bea
 ```json
 {"id":"0827ba94-23b3-49a1-bfdb-9a3c8d6d9476","policy_id":"66f857ed-0569-41fe-9a20-8ee1910a9e1a","product_code":"KTA_DEMO","scope":"DEFAULT","version_number":2,"status":"PENDING_APPROVAL","description":"Raise the minimum income.","based_on_version_id":"1b1e533f-1ec5-4e33-94b1-4f390ff4fa70","dictionary_schema_version":10,"checksum":"773209c1dc1ee8b482e7f6c396b859da4f4142d331605b27b9d6131ba9ede1db","submitted_by":"ee3972dc-04e9-44a3-9a2e-3057df2f7e19","submitted_at":"2026-11-18T02:39:00Z","created_by":"ee3972dc-04e9-44a3-9a2e-3057df2f7e19","created_at":"2026-11-18T02:38:59Z","updated_at":"2026-11-18T02:39:00Z","snapshot":{"decision_matrix":[],"dictionary":{"schema_version":10,"variables":[{"code":"age_years","description":"Applicant age on the application date.","max_value":"120","min_value":"0","nullable":false,"origin":"INPUT","required":true,"scale":null,"schema_version":1,"type":"INTEGER","unit":"years","version":1}]},"evaluator_version":"1","format":1,"package":{"product_code":"KTA_DEMO","scope":"DEFAULT"},"rac_rules":[],"scorecard":null,"version_number":2}}
 ```
-The snapshot above is shortened to one dictionary variable; the real one lists all of them. It is in canonical form (keys sorted, no whitespace), and `checksum` is the SHA-256 of exactly that form. The snapshot contains the dictionary definitions themselves, so later dictionary edits do not change it. `rac_rules` holds the draft's RAC rules in order (see [RAC rules](#rac-rules)); scorecard and decision matrix are empty until RF-008 and RF-009. After submit the version cannot change, and a second submit fails too:
+The snapshot above is shortened to one dictionary variable; the real one lists all of them. It is in canonical form (keys sorted, no whitespace), and `checksum` is the SHA-256 of exactly that form. The snapshot contains the dictionary definitions themselves, so later dictionary edits do not change it. `rac_rules` holds the draft's RAC rules in order (see [RAC rules](#rac-rules)); `scorecard` holds its scorecard (see [Scorecard](#scorecard)); the decision matrix is empty until RF-009. After submit the version cannot change, and a second submit fails too:
 ```http
 HTTP/1.1 409 Conflict
 {"error":{"code":"POLICY_VERSION_FROZEN","message":"only a DRAFT version can be changed or submitted"},"request_id":"ca3b6d46c7a0bf3572851fd7a3e85b82"}
@@ -326,6 +326,55 @@ HTTP/1.1 422 Unprocessable Entity
 {"error":{"code":"POLICY_VALIDATION_FAILED","message":"the draft cannot be submitted until its content is valid","details":[{"field":"rules[1].expression","issue":"unknown_variable","message":"unknown variable \"is_blacklisted\""},{"field":"rules[2].expression","issue":"unknown_variable","message":"unknown variable \"slik_max_kol\""}]},"request_id":"881754208599bacdf79e12ef026fe7ae"}
 ```
 The draft stays a `DRAFT`; fix it and submit again.
+## Scorecard
+Read (`policy:read`): `RISK_ANALYST`, `RISK_APPROVER`, `AUDITOR`. Write (`policy:write`): `RISK_ANALYST` only. The `ADMIN` and the Loan Application have no access.
+A scorecard turns an application into a number: `total_score = base_score + the points of the one bin each characteristic selects`. A **characteristic** scores one numeric dictionary variable, and its **bins** split that variable's range into intervals that each give a number of points. The scorecard is checked when you save it, not run (scoring arrives with RF-013).
+### Read
+```sh
+curl -s $B/api/v1/policy-versions/$VERSION/scorecard -H "Authorization: Bearer $AUDITOR"
+```
+```json
+{"policy_version_id":"fafce0be-c39a-4e31-aaa2-d6f4ff1dff31","status":"DRAFT","dictionary_schema_version":10,"updated_at":"2026-11-18T05:03:59Z","scorecard":null}
+```
+`scorecard` is `null` until one is configured. A cloned draft starts with a copy of its source's scorecard.
+### Replace
+```sh
+curl -s -X PUT $B/api/v1/policy-versions/$VERSION/scorecard -H "Authorization: Bearer $ANALYST" -H 'Content-Type: application/json' -d '{
+  "base_score": "350.00",
+  "characteristics": [
+    {"characteristic_code":"age_group","variable":"age_years","bins":[
+      {"max_value":"25","points":"40.00","label":"under 25"},
+      {"min_value":"25","max_value":"46","points":"85.00","label":"25 to 45"},
+      {"min_value":"46","points":"60.00","label":"46 and over"}]},
+    {"characteristic_code":"dsr_band","variable":"dsr_ratio","bins":[
+      {"min_value":"0","max_value":"0.30","points":"150.00"},
+      {"min_value":"0.30","max_value":"0.50","points":"70.00"},
+      {"min_value":"0.50","points":"0.00"}]},
+    {"characteristic_code":"employment_tenure","variable":"employment_tenure_months","bins":[
+      {"min_value":"0","max_value":"24","points":"30.00"},
+      {"min_value":"24","points":"100.00"}]}]}'
+```
+```json
+{"policy_version_id":"fafce0be-c39a-4e31-aaa2-d6f4ff1dff31","status":"DRAFT","dictionary_schema_version":10,"updated_at":"2026-11-18T05:04:00Z","scorecard":{"base_score":"350.00","score_range":{"min":"420.00","max":"685.00"},"characteristics":[{"order":1,"characteristic_code":"age_group","variable":"age_years","description":"","missing_points":null,"bins":[{"order":1,"min_value":null,"max_value":"25","points":"40.00","label":"under 25"},{"order":2,"min_value":"25","max_value":"46","points":"85.00","label":"25 to 45"},{"order":3,"min_value":"46","max_value":null,"points":"60.00","label":"46 and over"}]},{"order":2,"characteristic_code":"dsr_band","variable":"dsr_ratio","description":"","missing_points":null,"bins":[{"order":1,"min_value":"0","max_value":"0.3","points":"150.00","label":""},{"order":2,"min_value":"0.3","max_value":"0.5","points":"70.00","label":""},{"order":3,"min_value":"0.5","max_value":null,"points":"0.00","label":""}]},{"order":3,"characteristic_code":"employment_tenure","variable":"employment_tenure_months","description":"","missing_points":null,"bins":[{"order":1,"min_value":"0","max_value":"24","points":"30.00","label":""},{"order":2,"min_value":"24","max_value":null,"points":"100.00","label":""}]}]}}
+```
+This is the illustrative scorecard of `SYSTEM_DESIGN.md` 20.2. The example applicant of 20.4 (age 29, DSR 0.208, 36 months) falls in the 85, 150, and 100 point bins and scores 685.00. `score_range` is the lowest and highest total the scorecard can produce; the decision matrix (RF-009) will have to cover it. `DELETE /api/v1/policy-versions/{version_id}/scorecard` removes the scorecard (`204`). A frozen version answers `409 POLICY_VERSION_FROZEN` to `PUT` and `DELETE`.
+### Rules for bins
+- A bin is the half-open interval **`[min_value, max_value)`**: `min_value` is included, `max_value` is not. So `25` belongs to `[25, 46)`, not to the bin that ends at 25. A missing or `null` `min_value` means no lower limit, a missing `max_value` no upper limit.
+- List the bins in ascending order, edge to edge: each bin starts where the previous one ends. Together they must cover **every value the variable can have, exactly once**: the first starts at or below the dictionary minimum (or has no `min_value`), the last ends above the dictionary maximum (or has no `max_value`). For `age_years` (0 to 120) a last bin `[46, 120)` would leave 120 uncovered; `[46, 121)` or an open end works.
+- Bounds follow the variable: whole numbers for `INTEGER`, at most the variable's scale for `DECIMAL`. They are returned in shortest form (`0.30` becomes `0.3`).
+- `base_score`, `points`, and `missing_points` are strings with at most two decimals, returned with exactly two, and may be negative. Totals are exact (no floating point).
+- `missing_points` gives the points when the variable is absent or `null`. Only an optional input variable can be missing, so it is refused for required and derived variables.
+Every problem is reported together:
+```http
+HTTP/1.1 422 Unprocessable Entity
+{"error":{"code":"INPUT_VALIDATION_ERROR","message":"invalid policy","details":[{"field":"base_score","issue":"exceeds_scale"},{"field":"characteristics[0].bins[0].min_value","issue":"does_not_cover_lower_bound","message":"the first bin must start at or below the lowest value the variable can have, or have no min_value"},{"field":"characteristics[0].bins[1].min_value","issue":"gap","message":"values from 25 up to this bin's min_value belong to no bin"},{"field":"characteristics[0].bins[2].min_value","issue":"overlap","message":"starts before bins[1] ends; bins must be in ascending order"},{"field":"characteristics[1].variable","issue":"variable_not_numeric","message":"\"is_blacklisted\" is BOOLEAN; bins are numeric intervals"},{"field":"characteristics[2].missing_points","issue":"variable_always_present","message":"\"employment_tenure_months\" is required or derived, so it is never missing"},{"field":"characteristics[2].bins[0].max_value","issue":"must_be_integer"},{"field":"characteristics[2].bins[1].min_value","issue":"must_be_integer"}]},"request_id":"2a3253f35c325c5085cfdfc014014418"}
+```
+Other issues: `characteristic_code` (`required`, `invalid_format`, `duplicate`), `variable` (`required`, `unknown_variable`), bins (`no_bins`, `too_many` above 50, `min_not_less_than_max`, `does_not_cover_upper_bound`, `exceeds_scale`), points (`required`, `invalid_format`, `out_of_range`), `characteristics` (`required`, `no_characteristics`, `too_many` above 20). Variables are looked up in the dictionary at the draft's `dictionary_schema_version`.
+### In the snapshot and at submit
+Submit checks the scorecard again, together with the RAC rules, and refuses the draft with `422 POLICY_VALIDATION_FAILED` if either no longer validates (scorecard paths start with `scorecard.`). The frozen snapshot contains the scorecard without `score_range`, or `null`:
+```json
+"scorecard":{"base_score":"350.00","characteristics":[{"bins":[{"label":"under 25","max_value":"25","min_value":null,"order":1,"points":"40.00"},{"label":"25 to 45","max_value":"46","min_value":"25","order":2,"points":"85.00"}, ...
+```
 ## Unknown routes
 
 ```http
@@ -363,4 +412,4 @@ grep -h '"requestID":"doc-login-00001"' storage/logs/{activity,error,query}.log
 
 ## Planned endpoints
 
-Not live yet; see `SYSTEM_DESIGN.md` 13.1 for the target contract: policies and versions (RF-006..RF-010), simulation (RF-017), approval requests (RF-019..RF-021), `POST /api/v1/decisions/evaluate` with `Idempotency-Key` (RF-014, RF-015), and decision lookup. Each will be added to the OpenAPI contract, Swagger UI, and the Postman collection in the same change.
+Not live yet; see `SYSTEM_DESIGN.md` 13.1 for the target contract: decision matrix and full policy validation (RF-009, RF-010), simulation (RF-017), approval requests (RF-019..RF-021), `POST /api/v1/decisions/evaluate` with `Idempotency-Key` (RF-014, RF-015), and decision lookup. Each will be added to the OpenAPI contract, Swagger UI, and the Postman collection in the same change.

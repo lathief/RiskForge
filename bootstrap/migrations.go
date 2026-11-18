@@ -15,5 +15,6 @@ func Migrations() []schema.Migration {
 		&migrations.M20261120000001CreateDictionaryTables{},
 		&migrations.M20261121000001CreatePolicyTables{},
 		&migrations.M20261122000001CreatePolicyRacRulesTable{},
+		&migrations.M20261123000001CreatePolicyScorecardTables{},
 	}
 }
