@@ -1,6 +1,6 @@
 # Test coverage
 
-Statement coverage of the Go code, measured at RF-006 (branch `feature/RF-006-policy-package-version-model`). The numbers come from `./scripts/coverage.sh`, which runs the tests in a disposable `rf-test-*` Compose project with a real PostgreSQL and removes the project afterwards. There is no coverage gate yet; CI with a threshold arrives with RF-025. Re-measure after each ticket and update this file. Do not run it while another stack (for example `rf-dev`) is writing to `storage/logs`.
+Statement coverage of the Go code, measured at RF-007 (branch `feature/RF-007-rac-management`). The numbers come from `./scripts/coverage.sh`, which runs the tests in a disposable `rf-test-*` Compose project with a real PostgreSQL and removes the project afterwards. There is no coverage gate yet; CI with a threshold arrives with RF-025. Re-measure after each ticket and update this file. Do not run it while another stack (for example `rf-dev`) is writing to `storage/logs`.
 
 > This file and `scripts/coverage.sh` were added to this branch afterwards. The original commit of the ticket left them out because `.gitignore` ignored `coverage.*`, which also matched these two files (fixed with explicit exceptions). The tables below were measured again on this branch's code.
 
@@ -19,13 +19,14 @@ Both count every statement in `app/`, including packages that have no unit test 
 | Ticket | Unit | Unit + integration | What was added |
 |---|---:|---:|---|
 | RF-006 | 48.7% | 89.1% | Policy packages and versions |
+| RF-007 | 51.0% | 89.3% | `ruleengine`, RAC rules |
 
 ## Unit tests
 
 | Package | Statements | Covered | Coverage |
 |---|---:|---:|---:|
 | `app/http/auth` | 19 | 0 | 0.0% |
-| `app/http/controllers` | 412 | 0 | 0.0% |
+| `app/http/controllers` | 464 | 0 | 0.0% |
 | `app/http/middleware` | 103 | 13 | 12.6% |
 | `app/http/responses` | 11 | 0 | 0.0% |
 | `app/modules/catalog/application` | 31 | 29 | 93.5% |
@@ -37,13 +38,14 @@ Both count every statement in `app/`, including packages that have no unit test 
 | `app/modules/identity/application` | 29 | 29 | 100.0% |
 | `app/modules/identity/domain` | 30 | 22 | 73.3% |
 | `app/modules/identity/infrastructure` | 43 | 18 | 41.9% |
-| `app/modules/policy/application` | 119 | 111 | 93.3% |
-| `app/modules/policy/domain` | 80 | 74 | 92.5% |
-| `app/modules/policy/infrastructure` | 96 | 0 | 0.0% |
+| `app/modules/policy/application` | 172 | 156 | 90.7% |
+| `app/modules/policy/domain` | 137 | 131 | 95.6% |
+| `app/modules/policy/infrastructure` | 114 | 0 | 0.0% |
+| `app/modules/ruleengine` | 61 | 58 | 95.1% |
 | `app/platform/database` | 51 | 35 | 68.6% |
 | `app/platform/logging` | 188 | 156 | 83.0% |
 | `app/support` | 23 | 23 | 100.0% |
-| **total** | **1654** | **806** | **48.7%** |
+| **total** | **1895** | **966** | **51.0%** |
 
 The business-rule packages (`*/domain`, `*/application`) are the ones unit tests are meant to cover. The unit total is low because the packages that talk to HTTP or SQL (`controllers`, `infrastructure`, `responses`, `auth`) have no unit tests by design; they are covered by the integration suites below.
 
@@ -52,7 +54,7 @@ The business-rule packages (`*/domain`, `*/application`) are the ones unit tests
 | Package | Statements | Covered | Coverage |
 |---|---:|---:|---:|
 | `app/http/auth` | 19 | 17 | 89.5% |
-| `app/http/controllers` | 412 | 385 | 93.4% |
+| `app/http/controllers` | 464 | 437 | 94.2% |
 | `app/http/middleware` | 103 | 93 | 90.3% |
 | `app/http/responses` | 11 | 11 | 100.0% |
 | `app/modules/catalog/application` | 31 | 29 | 93.5% |
@@ -64,16 +66,17 @@ The business-rule packages (`*/domain`, `*/application`) are the ones unit tests
 | `app/modules/identity/application` | 29 | 29 | 100.0% |
 | `app/modules/identity/domain` | 30 | 30 | 100.0% |
 | `app/modules/identity/infrastructure` | 43 | 39 | 90.7% |
-| `app/modules/policy/application` | 119 | 111 | 93.3% |
-| `app/modules/policy/domain` | 80 | 78 | 97.5% |
-| `app/modules/policy/infrastructure` | 96 | 82 | 85.4% |
+| `app/modules/policy/application` | 172 | 157 | 91.3% |
+| `app/modules/policy/domain` | 137 | 135 | 98.5% |
+| `app/modules/policy/infrastructure` | 114 | 97 | 85.1% |
+| `app/modules/ruleengine` | 61 | 58 | 95.1% |
 | `app/platform/database` | 51 | 47 | 92.2% |
 | `app/platform/logging` | 188 | 172 | 91.5% |
 | `app/support` | 23 | 23 | 100.0% |
-| `database/migrations` | 72 | 6 | 8.3% |
-| `database/seeders` | 59 | 41 | 69.5% |
-| `routes` | 54 | 54 | 100.0% |
-| **total** | **1839** | **1639** | **89.1%** |
+| `database/migrations` | 81 | 7 | 8.6% |
+| `database/seeders` | 75 | 53 | 70.7% |
+| `routes` | 56 | 56 | 100.0% |
+| **total** | **2107** | **1882** | **89.3%** |
 
 `database/migrations` is low because the migration `Up()` bodies are SQL strings run once by `./artisan migrate`, which the suites call in a separate step; their effect is verified by the constraint and trigger tests. `database/seeders` is below 100% because the `Run()` wrappers that check `APP_ENV` are not invoked by tests, which call the `Seed...` functions directly. A per-function breakdown of the business-rule packages is kept from RF-008 on.
 
