@@ -105,6 +105,63 @@ docker run --rm -v "$PWD/api/openapi:/spec:ro" redocly/cli:2.79.0 lint /spec/ope
 
 Di Git Bash Windows, jalankan dengan `MSYS_NO_PATHCONV=1` dan ganti `$PWD` dengan `$(pwd -W)`.
 
+## Data dictionary (RF-005)
+- `./artisan db:seed` juga menjalankan `DemoDictionarySeeder` (8 variabel dari `SYSTEM_DESIGN.md` bagian 8). Seeder tunggal: `--seeder DemoDictionarySeeder`. Seeder membuat variabel lewat service, jadi setiap variabel mendapat riwayat versi dan menaikkan schema version; variabel yang sudah ada tidak disentuh.
+- Endpoint: `/api/v1/dictionary/variables` (GET, POST) dan `/api/v1/dictionary/variables/{variable_code}` (GET, PATCH). Izin `dictionary:read` / `dictionary:write` (admin dan analyst boleh menulis).
+- Dictionary bersifat **append-only**: tidak ada DELETE, dan trigger PostgreSQL menolak UPDATE/DELETE pada `dictionary.variables` dan `dictionary.variable_versions`. Untuk mengosongkan database test gunakan `TRUNCATE` (tidak memicu trigger) atau `down -v`; di `rf-dev` gunakan `migrate:reset` (destruktif, lihat bagian reset).
+- Setiap penulisan dictionary harus lewat `VariableService`: ia mengunci `dictionary.schema_state` dulu (satu penulis pada satu waktu), sehingga schema version berurutan tanpa celah. Jangan menulis ke tabelnya langsung dari kode aplikasi lain.
+- `domain.ValidateInput(dictionary, input)` adalah validasi input applicant terhadap dictionary. Pakai fungsi ini di feature builder dan Decision API; jangan menulis ulang aturan tipe/rentang.
+- Test baru yang menyentuh tabel dictionary mengosongkannya dengan `TRUNCATE TABLE dictionary.variable_versions, dictionary.variables` dan `UPDATE dictionary.schema_state SET current_version = 0` (lihat `DictionaryTestSuite.SetupTest`).
+- Smoke Postman memakai token `demo_auditor` (role read-only). `demo_analyst` tidak dipakai karena boleh menulis dictionary, sehingga request tulis akan mengubah data. Variabel environment `variableCode` (default `age_years`) dipakai request `{variable_code}`.
+
+## Decision matrix (RF-009)
+- Endpoint: `GET`, `PUT`, dan `DELETE /api/v1/policy-versions/{version_id}/decision-matrix` (izin `policy:read` / `policy:write`). `PUT` mengganti seluruh matrix; `DELETE` menghapusnya (204). Hanya `DRAFT`.
+- Validasi di `domain.ValidateMatrix` (`app/modules/policy/domain/matrix.go`): baris `[min_score, max_score)` menaik tanpa celah/tumpang tindih; bila draft punya scorecard, baris harus menutup `Scorecard.ScoreRange()` (`does_not_cover_score_range`). Skor `NUMERIC(12,2)`, dihitung dengan `math/big.Rat`.
+- `PUT` scorecard tidak memeriksa matrix; submit memeriksa semuanya bersama (`domain.ValidatePolicy` sejak RF-010, path matrix diawali `decision_matrix.`). Bagian konten baru mengikuti pola yang sama: validator domain, prefix path, dan masuk ke `domain.Content`.
+- `DecisionMatrix.Lookup` dipakai evaluator RF-013; tidak pernah mengembalikan keputusan bawaan.
+- Tabel `policy.decision_matrix_rows` hanya dapat ditulis saat versi induknya `DRAFT` (trigger). Test yang mengosongkan tabel policy menyertakannya di awal `TRUNCATE` (lihat `PolicyTestSuite.SetupTest`).
+- `./artisan db:seed` mengisi matrix `SYSTEM_DESIGN.md` 20.3 pada draft versi 1 `KTA_DEMO` selama draft itu belum punya matrix; draft demo lengkap lolos submit.
+- **Log bersama:** `storage/logs` di-mount oleh semua project Compose. Jangan menjalankan dua stack (mis. `rf-dev` dan `./scripts/coverage.sh`) pada waktu yang sama: penulisan bersamaan lewat bind mount Windows dapat memotong baris `query.log`, dan `LoggingTestSuite` lalu gagal dengan "invalid JSON line". Bila terjadi, pindahkan file log yang rusak (jangan menjalankan suite terhadapnya) dan jalankan ulang.
+
+## Test case dan validasi penuh (RF-010)
+- Endpoint: `GET` dan `PUT /api/v1/policy-versions/{version_id}/test-cases` (izin `policy:read` / `policy:write`, `PUT` hanya `DRAFT`) dan `POST /api/v1/policy-versions/{version_id}/validate` (izin `policy:submit`, status apa pun, tidak menulis apa pun).
+- Satu-satunya titik validasi penuh adalah `domain.ValidatePolicy` (`app/modules/policy/domain/validation.go`); `PolicyService.Validate` dan `PolicyService.Submit` memanggil fungsi yang sama lewat `PolicyService.validate`. Bagian konten baru (mis. feature definition di RF-011) ditambahkan ke `domain.Content`, `loadContent`, dan `ValidatePolicy`, bukan ke submit secara terpisah.
+- Kelengkapan: submit butuh scorecard, decision matrix, dan minimal satu test case `required`. Test yang hanya ingin menyubmit memakai helper `s.submit(versionID)` di `tests/feature` (melengkapi bagian yang kosong lalu submit) atau `f.submit` di unit test; `s.submitRaw` untuk menguji penolakan.
+- Input test case dijalankan terhadap dictionary lewat port `DictionaryReader.CheckInput` (adapter di `infrastructure/adapters.go` memanggil `dictionary/domain.ValidateInput`). Domain policy tidak mengimpor domain dictionary.
+- **Eksekusi golden test belum ada.** Laporan selalu memuat `pending_checks` `golden_test_execution`. Jangan menghapusnya sebelum RF-013 benar-benar mengevaluasi test case; `valid: true` tidak boleh dibaca sebagai "golden test lulus".
+- `SnapshotFormat` = 2 (menambah `test_cases`). Snapshot format 1 lama tidak pernah ditulis ulang.
+- Tabel `policy.test_cases` hanya dapat ditulis saat versi induknya `DRAFT` (trigger) dan selalu disebut pertama dalam `TRUNCATE` tabel policy.
+- `./artisan db:seed` mengisi enam golden case (`DemoTestCases`) pada draft versi 1 `KTA_DEMO` selama draft itu belum punya test case; draft demo lolos `POST .../validate` (`TestTheSeededDemoPolicyIsValid`).
+## Scorecard (RF-008)
+- Endpoint: `GET`, `PUT`, dan `DELETE /api/v1/policy-versions/{version_id}/scorecard` (izin `policy:read` / `policy:write`). `PUT` mengganti seluruh scorecard dalam satu transaksi; `DELETE` menghapusnya (204). Hanya `DRAFT`; versi beku: `409 POLICY_VERSION_FROZEN`.
+- Validasi ada di `domain.ValidateScorecard` (`app/modules/policy/domain/scorecard.go`). Bin adalah `[min, max)`, ditulis menaik tanpa celah atau tumpang tindih, dan harus menutup seluruh rentang variabel dictionary (`does_not_cover_lower_bound`/`does_not_cover_upper_bound`). Variabel harus `INTEGER` atau `DECIMAL` pada `dictionary_schema_version` draft.
+- Semua angka skor adalah `math/big.Rat` dan string desimal; jangan pernah memakai `float64` untuk poin, batas bin, atau total. Poin `NUMERIC(12,2)`, batas `NUMERIC(26,8)`; batas dibaca kembali lewat `domain.CanonicalDecimal`, sehingga scorecard tersimpan sama persis dengan yang tervalidasi.
+- `Characteristic.SelectBin` dan `Scorecard.TotalScore` adalah fungsi yang akan dipakai evaluator RF-013; ubah keduanya hanya bersama test properti di `scorecard_test.go` (`TestTheValidationGuaranteesExactlyOneBinForEveryValue`).
+- Tabel `policy.scorecards`, `policy.scorecard_characteristics`, `policy.scorecard_bins` hanya dapat ditulis saat versi induknya `DRAFT` (trigger). Test yang mengosongkan tabel policy menyertakan ketiganya dalam satu `TRUNCATE` (lihat `PolicyTestSuite.SetupTest`).
+- Clone menyalin scorecard; submit memeriksa ulang aturan RAC dan scorecard bersama (`422 POLICY_VALIDATION_FAILED`, path scorecard diawali `scorecard.`). Snapshot memuat `scorecard` atau `null`.
+- `./artisan db:seed` mengisi scorecard ilustratif `SYSTEM_DESIGN.md` 20.2 pada draft versi 1 `KTA_DEMO` hanya selama draft itu belum punya scorecard.
+
+## RAC rules dan bahasa expression (RF-007)
+- Endpoint: `GET` dan `PUT /api/v1/policy-versions/{version_id}/rac-rules` (izin `policy:read` / `policy:write`). `PUT` mengganti seluruh daftar dalam satu transaksi; urutan array adalah urutan evaluasi. Hanya `DRAFT`; versi beku: `409 POLICY_VERSION_FROZEN`.
+- Setiap expression diperiksa oleh `ruleengine.Analyze` (paket murni di `app/modules/ruleengine`): sintaks, subset bahasa `expr` yang diizinkan, nama variabel yang ada di dictionary pada `dictionary_schema_version` draft, dan hasil boolean. Hasilnya `syntax_error`, `unsupported_syntax`, `unknown_variable`, `type_error` di `details[].issue`, dengan `message` bila perlu.
+- Menambah fitur bahasa (fungsi, operator, tipe) berarti mengubah allowlist di `check.go` **dan** menambah test penolakan/penerimaan di `check_test.go`. Jangan membuka built-in `expr`; semuanya dimatikan (`DisableAllBuiltins`) dan hanya node AST yang ada di daftar yang lolos. Nilai `DECIMAL` dicek sebagai bilangan tanpa mengubah semantik hitungnya; ketepatan desimal saat evaluasi diputuskan di RF-012 (ADR 0008).
+- `rule_code` unik per versi, `reason_code` wajib dan boleh dipakai bersama, maksimum 100 aturan, expression satu baris maksimum 500 karakter.
+- Tabel `policy.rac_rules` hanya dapat ditulis saat versi induknya `DRAFT` (trigger). Test yang mengosongkan tabel policy harus menyertakan `policy.rac_rules` dalam satu `TRUNCATE` (lihat `PolicyTestSuite.SetupTest`, `ProductTestSuite.SetupTest`).
+- Clone menyalin aturan secara apa adanya (tanpa validasi ulang); submit memeriksa ulang semua expression terhadap dictionary draft dan gagal dengan `422 POLICY_VALIDATION_FAILED` (draft tetap `DRAFT`). Snapshot memuat `rac_rules` berurutan dan ikut checksum.
+- `./artisan db:seed` mengisi tiga aturan contoh pada draft versi 1 `KTA_DEMO` hanya selama draft itu belum punya aturan.
+
+## Policy package dan version (RF-006)
+- `./artisan db:seed` juga menjalankan `DemoPolicySeeder`: package `KTA_DEMO`/`DEFAULT` dengan draft versi 1 (butuh produk dan dictionary demo; urutan seeder sudah benar). Sejak RF-007..RF-010 seeder juga mengisi RAC, scorecard, matrix, dan test case pada draft itu, hanya bila versi terbaru package masih draft versi 1 dan bagian itu kosong; data lama (mis. `rf-dev`) tidak disentuh (`docs/M2_NOTES.md`). Seeder tunggal: `--seeder DemoPolicySeeder`. Seeder tidak pernah menyubmit atau mengaktifkan.
+- Endpoint: `/api/v1/policies` (GET, POST), `/api/v1/policies/{policy_id}` (GET), `/api/v1/policies/{policy_id}/clone` (POST), `/api/v1/policy-versions/{version_id}` (GET, PATCH), `/api/v1/policy-versions/{version_id}/submit` (POST). Hanya `RISK_ANALYST` yang menulis dan menyubmit; `ADMIN` tidak bisa membaca policy.
+- Versi yang bukan `DRAFT` beku: service menolak (`409 POLICY_VERSION_FROZEN`) dan trigger PostgreSQL menolak perubahan isi, `DELETE`, dan perpindahan status di luar `SYSTEM_DESIGN.md` 9.2. Package tidak pernah diubah atau dihapus. Untuk mereset database test gunakan `TRUNCATE` (tidak memicu trigger) atau `down -v`.
+- Test yang mengosongkan `catalog.products` harus ikut mengosongkan tabel policy dalam satu `TRUNCATE` (`TRUNCATE TABLE policy.test_cases, policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages, catalog.products`), karena foreign key dari policy ke produk. Lihat `ProductTestSuite.SetupTest` dan `PolicyTestSuite.SetupTest`.
+- Isi draft yang ditambahkan RF-007..RF-010 harus ditulis hanya saat versi `DRAFT`, ikut disalin oleh clone dalam transaksi yang sama (setelah package dikunci), dan masuk ke `snapshotDocument` (`app/modules/policy/domain/snapshot.go`). Ubah `SnapshotFormat` bila makna snapshot berubah.
+- Modul lain dibaca lewat port (`ProductLookup`, `DictionaryReader`), bukan lewat tabelnya.
+- Smoke Postman memerlukan stack yang sudah di-seed: `scripts/postman/resolve-ids.js` mengambil id policy pertama untuk variabel `policyId` dan `versionId`.
+
+## Coverage
+`./scripts/coverage.sh [rf-test-<nama>]` mengukur coverage statement (unit saja, lalu unit + integrasi) di project Compose sekali pakai dan mencetak tabel Markdown. Hasilnya dicatat di `docs/coverage.md`; perbarui file itu setelah setiap tiket.
+
 ## Structured logs
 
 File di `storage/logs` (JSON per baris): `activity.log`, `error.log`, `lifetime.log`, `query.log`. Detail format: `SYSTEM_DESIGN.md` bagian 15.4 dan `docs/adr/0004-structured-logging.md`.

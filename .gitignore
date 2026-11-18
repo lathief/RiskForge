@@ -16,6 +16,9 @@ tmp/
 *.test
 *.out
 coverage.*
+# The coverage report and the script that produces it are committed (docs/coverage.md).
+!docs/coverage.md
+!scripts/coverage.sh
 api/postman/.check.json
 node_modules/
 

@@ -56,7 +56,7 @@ func (s *ProductTestSuite) SetupSuite() {
 }
 
 func (s *ProductTestSuite) SetupTest() {
-	s.Require().NoError(facades.DB().Statement("TRUNCATE TABLE catalog.products"))
+	s.Require().NoError(facades.DB().Statement("TRUNCATE TABLE policy.test_cases, policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages, catalog.products"))
 	s.Require().NoError(seeders.SeedDemoProducts())
 }
 

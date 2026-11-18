@@ -33,9 +33,9 @@ LOANAPP=$(token demo_loan_application)
 | 401 | `UNAUTHENTICATED` | Missing, malformed, tampered, or expired token, or disabled user. |
 | 401 | `INVALID_CREDENTIALS` | Login failed (same body for unknown user, wrong password, disabled account). |
 | 403 | `FORBIDDEN` | Authenticated but missing the permission. |
-| 404 | `PRODUCT_NOT_FOUND`, `ROUTE_NOT_FOUND` | Unknown product code / unknown route. |
-| 409 | `PRODUCT_CODE_CONFLICT` | Product code already used. |
-| 422 | `INPUT_VALIDATION_ERROR` | Invalid JSON, field, query parameter, or a field that cannot be set. |
+| 404 | `PRODUCT_NOT_FOUND`, `VARIABLE_NOT_FOUND`, `POLICY_NOT_FOUND`, `POLICY_VERSION_NOT_FOUND`, `ROUTE_NOT_FOUND` | Unknown product code / dictionary variable / policy / policy version / route. |
+| 409 | `PRODUCT_CODE_CONFLICT`, `VARIABLE_CODE_CONFLICT`, `POLICY_CONFLICT`, `POLICY_VERSION_FROZEN` | Product, variable, or policy already exists / an edit or submit of a version that is no longer a draft. |
+| 422 | `INPUT_VALIDATION_ERROR`, `POLICY_VALIDATION_FAILED` | Invalid JSON, field, query parameter, or a field that cannot be set / a draft that is incomplete or whose content (RAC expressions, scorecard, decision matrix, test cases) does not validate at submit. |
 | 503 | `SERVICE_BUSY` | Login capacity saturated; honour `Retry-After`. |
 | 500 | `INTERNAL_ERROR` | Unexpected failure; the cause is only in `error.log`. |
 
@@ -187,6 +187,292 @@ HTTP/1.1 422 Unprocessable Entity
 
 An empty JSON object `{}` gives `422` with `details` `body: no_changes`. A body that is not a JSON object gives `422` "request body must be a JSON object".
 
+## Data dictionary
+Read (`dictionary:read`): `ADMIN`, `RISK_ANALYST`, `RISK_APPROVER`, `AUDITOR`. Write (`dictionary:write`): `ADMIN`, `RISK_ANALYST`. The Loan Application (`API_CONSUMER`) has no dictionary access.
+The dictionary defines the typed inputs the decision engine accepts. Every change to any variable creates a new immutable version of that variable and advances one dictionary-wide **schema version**, shown as `meta.schema_version` and as `schema_version` on each variable. Variables are never deleted. Decimal amounts and bounds are strings, never JSON numbers. Seed data (`./artisan db:seed`) contains the eight variables of `SYSTEM_DESIGN.md` section 8.
+```sh
+AUDITOR=$(token demo_auditor)
+```
+### List and show
+```sh
+curl -s "$B/api/v1/dictionary/variables?per_page=2" -H "Authorization: Bearer $AUDITOR"
+```
+```json
+{"data":[{"id":"edcad928-add3-4f52-86ba-9bad60ee756f","code":"age_years","origin":"INPUT","type":"INTEGER","description":"Applicant age on the application date.","unit":"years","required":true,"nullable":false,"scale":null,"min_value":"0","max_value":"120","version":1,"schema_version":1,"created_at":"2026-11-18T01:14:01Z","updated_at":"2026-11-18T01:14:01Z"},{"id":"a0dd0e84-f6ea-4839-a507-6d286bebb161","code":"dsr_ratio","origin":"DERIVED","type":"DECIMAL","description":"existing_installment / monthly_income (simplified demo formula, not a banking standard).","unit":"ratio","required":false,"nullable":false,"scale":6,"min_value":"0.000000","max_value":null,"version":1,"schema_version":7,"created_at":"2026-11-18T01:14:02Z","updated_at":"2026-11-18T01:14:02Z"}],"meta":{"page":1,"per_page":2,"schema_version":8,"total":8}}
+```
+Query parameters: `page`, `per_page` (max 100), `origin=INPUT|DERIVED`, and `schema_version=N` to read the dictionary as it was at version `N` (`0` is empty; a version above the current one is a `422` with `schema_version: exceeds_current_version`). `GET /api/v1/dictionary/variables/{variable_code}` returns the latest version of one variable, or `404 VARIABLE_NOT_FOUND`.
+### Define a variable
+```sh
+curl -i -X POST $B/api/v1/dictionary/variables -H "Authorization: Bearer $ANALYST" -H 'Content-Type: application/json' \
+  -d '{"code":"loan_tenor_months","type":"INTEGER","description":"Requested loan tenor.","unit":"months","min_value":"1","max_value":"60"}'
+```
+```http
+HTTP/1.1 201 Created
+Location: /api/v1/dictionary/variables/loan_tenor_months
+{"id":"00d2b20a-72a1-4b32-a95f-baeca1fcca4e","code":"loan_tenor_months","origin":"INPUT","type":"INTEGER","description":"Requested loan tenor.","unit":"months","required":true,"nullable":false,"scale":null,"min_value":"1","max_value":"60","version":1,"schema_version":9,"created_at":"2026-11-18T01:16:59Z","updated_at":"2026-11-18T01:16:59Z"}
+```
+Defaults: `origin` `INPUT`; `required` true for `INPUT` and false for `DERIVED`; `nullable` false; `scale` 2 for `DECIMAL`. Rules and their issue codes are in `SYSTEM_DESIGN.md` section 8.1. All problems are reported together:
+```http
+HTTP/1.1 422 Unprocessable Entity
+{"error":{"code":"INPUT_VALIDATION_ERROR","message":"invalid variable","details":[{"field":"code","issue":"invalid_format"},{"field":"max_value","issue":"exceeds_scale"}]},"request_id":"cc4284290b4f0353d54ef812f7e70c87"}
+```
+Reusing a code gives `409 VARIABLE_CODE_CONFLICT` and consumes no schema version.
+### Change a variable (new version)
+```sh
+curl -s -X PATCH $B/api/v1/dictionary/variables/loan_tenor_months -H "Authorization: Bearer $ANALYST" \
+  -H 'Content-Type: application/json' -d '{"max_value":"84"}'
+```
+```json
+{"id":"00d2b20a-72a1-4b32-a95f-baeca1fcca4e","code":"loan_tenor_months","origin":"INPUT","type":"INTEGER","description":"Requested loan tenor.","unit":"months","required":true,"nullable":false,"scale":null,"min_value":"1","max_value":"84","version":2,"schema_version":10,"created_at":"2026-11-18T01:16:59Z","updated_at":"2026-11-18T01:16:59Z"}
+```
+Sending the same request again returns this same body (`version` still 2): a request that changes nothing creates no version. `null` clears `min_value` or `max_value`; an empty `unit` clears the unit. `code`, `origin`, and `type` cannot be changed (`422`, `not_allowed`). Version 1 stays readable through the history parameter:
+```sh
+curl -s "$B/api/v1/dictionary/variables?schema_version=9" -H "Authorization: Bearer $AUDITOR"
+```
+This returns `loan_tenor_months` with `"max_value":"60","version":1`, and `meta.schema_version` is 9. A role without `dictionary:write` (approver, auditor) gets `403 FORBIDDEN` on writes.
+## Policies
+Read (`policy:read`): `RISK_ANALYST`, `RISK_APPROVER`, `AUDITOR`. Write (`policy:write`) and submit (`policy:submit`): `RISK_ANALYST` only. The `ADMIN` has no policy access at all (`403` even for reads), and the Loan Application has none either.
+A **policy** is the package for one product and scope (scope defaults to `DEFAULT`). It has numbered **versions**. A new version is a `DRAFT`; submitting it freezes it. Seed data (`./artisan db:seed`) opens the `KTA_DEMO` policy with draft version 1, filled with the demo RAC rules, scorecard, decision matrix, and six test cases, so it passes validation; it is never submitted or activated by seeding.
+```sh
+AUDITOR=$(token demo_auditor)
+POLICY=$(curl -s "$B/api/v1/policies?per_page=1" -H "Authorization: Bearer $AUDITOR" | sed -n 's/.*"data":\[{"id":"\([^"]*\)".*/\1/p')
+```
+### List and show
+```sh
+curl -s "$B/api/v1/policies?product_code=KTA_DEMO" -H "Authorization: Bearer $AUDITOR"
+```
+```json
+{"data":[{"id":"66f857ed-0569-41fe-9a20-8ee1910a9e1a","product_code":"KTA_DEMO","scope":"DEFAULT","version_count":1,"latest_version":{"id":"1b1e533f-1ec5-4e33-94b1-4f390ff4fa70","policy_id":"66f857ed-0569-41fe-9a20-8ee1910a9e1a","product_code":"KTA_DEMO","scope":"DEFAULT","version_number":1,"status":"DRAFT","description":"Initial draft of the KTA_DEMO policy.","based_on_version_id":null,"dictionary_schema_version":10,"checksum":null,"submitted_by":null,"submitted_at":null,"created_by":null,"created_at":"2026-11-18T02:38:28Z","updated_at":"2026-11-18T02:38:28Z"},"created_at":"2026-11-18T02:38:28Z"}],"meta":{"page":1,"per_page":20,"total":1}}
+```
+Query parameters: `page`, `per_page` (max 100), `product_code`. `GET /api/v1/policies/{policy_id}` returns the policy with all its versions, newest first and without snapshots; `GET /api/v1/policy-versions/{version_id}` returns one version, with `snapshot` and `checksum` once it is frozen and `null` for both while it is a draft. An unknown or malformed id gives `404 POLICY_NOT_FOUND` or `POLICY_VERSION_NOT_FOUND`.
+### Open a policy
+```sh
+curl -s -X POST $B/api/v1/policies -H "Authorization: Bearer $ANALYST" -H 'Content-Type: application/json' \
+  -d '{"product_code":"KPR_DEMO","description":"First draft"}'
+```
+`201` with a `Location` header and the policy including its draft version 1, written against the current dictionary schema version. The product must exist and be `ACTIVE` (`product_code: unknown_product` or `product_inactive`, both `422`). A product and scope can have one policy, so asking again gives:
+```http
+HTTP/1.1 409 Conflict
+{"error":{"code":"POLICY_CONFLICT","message":"a policy already exists for this product and scope; clone it to create a new draft"},"request_id":"2666f506992d5ea80424ead22c1bf74b"}
+```
+### Clone into a new draft
+```sh
+curl -si -X POST $B/api/v1/policies/$POLICY/clone -H "Authorization: Bearer $ANALYST" \
+  -H 'Content-Type: application/json' -d '{"description":"Tighten the DSR threshold."}'
+```
+```http
+HTTP/1.1 201 Created
+Location: /api/v1/policy-versions/0827ba94-23b3-49a1-bfdb-9a3c8d6d9476
+{"id":"0827ba94-23b3-49a1-bfdb-9a3c8d6d9476","policy_id":"66f857ed-0569-41fe-9a20-8ee1910a9e1a","product_code":"KTA_DEMO","scope":"DEFAULT","version_number":2,"status":"DRAFT","description":"Tighten the DSR threshold.","based_on_version_id":"1b1e533f-1ec5-4e33-94b1-4f390ff4fa70","dictionary_schema_version":10,"checksum":null,"submitted_by":null,"submitted_at":null,"created_by":"ee3972dc-04e9-44a3-9a2e-3057df2f7e19","created_at":"2026-11-18T02:38:59Z","updated_at":"2026-11-18T02:38:59Z","snapshot":null}
+```
+The body is optional. Without `source_version_id` the active version is copied, or the newest one when none is active; with it, any version of this policy can be the source, including a frozen or rejected one. The change note is inherited unless `description` is given. A source from another policy is a `422` (`source_version_id: not_in_policy`).
+### Edit a draft
+```sh
+curl -s -X PATCH $B/api/v1/policy-versions/$VERSION -H "Authorization: Bearer $ANALYST" \
+  -H 'Content-Type: application/json' -d '{"description":"Raise the minimum income."}'
+```
+Editable: `description` and `dictionary_schema_version` (0 up to the current dictionary version; above it is `422 exceeds_current_version`). `status`, `version_number`, `checksum`, and the other fields cannot be sent (`422`, `not_allowed`). A request that changes nothing returns the draft as it is.
+### Submit (freeze)
+```sh
+curl -s -X POST $B/api/v1/policy-versions/$VERSION/submit -H "Authorization: Bearer $ANALYST"
+```
+```json
+{"id":"0827ba94-23b3-49a1-bfdb-9a3c8d6d9476","policy_id":"66f857ed-0569-41fe-9a20-8ee1910a9e1a","product_code":"KTA_DEMO","scope":"DEFAULT","version_number":2,"status":"PENDING_APPROVAL","description":"Raise the minimum income.","based_on_version_id":"1b1e533f-1ec5-4e33-94b1-4f390ff4fa70","dictionary_schema_version":10,"checksum":"773209c1dc1ee8b482e7f6c396b859da4f4142d331605b27b9d6131ba9ede1db","submitted_by":"ee3972dc-04e9-44a3-9a2e-3057df2f7e19","submitted_at":"2026-11-18T02:39:00Z","created_by":"ee3972dc-04e9-44a3-9a2e-3057df2f7e19","created_at":"2026-11-18T02:38:59Z","updated_at":"2026-11-18T02:39:00Z","snapshot":{"decision_matrix":[],"dictionary":{"schema_version":10,"variables":[{"code":"age_years","description":"Applicant age on the application date.","max_value":"120","min_value":"0","nullable":false,"origin":"INPUT","required":true,"scale":null,"schema_version":1,"type":"INTEGER","unit":"years","version":1}]},"evaluator_version":"1","format":1,"package":{"product_code":"KTA_DEMO","scope":"DEFAULT"},"rac_rules":[],"scorecard":null,"version_number":2}}
+```
+The snapshot above is shortened to one dictionary variable; the real one lists all of them. It is in canonical form (keys sorted, no whitespace), and `checksum` is the SHA-256 of exactly that form. The snapshot contains the dictionary definitions themselves, so later dictionary edits do not change it. `rac_rules` holds the draft's RAC rules in order (see [RAC rules](#rac-rules)); `scorecard` holds its scorecard (see [Scorecard](#scorecard)); `decision_matrix` holds its matrix rows (see [Decision matrix](#decision-matrix)); `test_cases` holds its test cases (see [Test cases and validation](#test-cases-and-validation)). The example above was captured before RF-010 (`"format":1`, no `test_cases`); a version submitted now has `"format":2`, and submit first runs the [full validation](#validate-a-whole-version). After submit the version cannot change, and a second submit fails too:
+```http
+HTTP/1.1 409 Conflict
+{"error":{"code":"POLICY_VERSION_FROZEN","message":"only a DRAFT version can be changed or submitted"},"request_id":"ca3b6d46c7a0bf3572851fd7a3e85b82"}
+```
+Approving, rejecting, and publishing a pending version arrive with M4. To revise a pending version now, clone it.
+## RAC rules
+Read (`policy:read`): `RISK_ANALYST`, `RISK_APPROVER`, `AUDITOR`. Write (`policy:write`): `RISK_ANALYST` only. The `ADMIN` and the Loan Application have no access.
+A RAC rule has a `rule_code`, a `reason_code`, an `expression`, an `action`, and an optional `description`. The **expression is the condition an applicant must meet to pass the rule**. If it is false, `action` applies: `REJECT` ends the evaluation with a rejection, `REFER` sends the application to manual review and scoring continues. The order of the rules in the list is the order they run in. Rules are checked when you save them, not run (evaluation arrives with RF-012).
+```sh
+VERSION=<id of a draft version>      # for example the id returned by the clone call above
+```
+### Read
+```sh
+curl -s $B/api/v1/policy-versions/$VERSION/rac-rules -H "Authorization: Bearer $AUDITOR"
+```
+```json
+{"policy_version_id":"7181d11d-3868-45fe-88f3-bfd1e3447bb1","status":"DRAFT","dictionary_schema_version":10,"rules":[],"updated_at":"2026-11-18T03:46:04Z"}
+```
+### Replace the list
+```sh
+curl -s -X PUT $B/api/v1/policy-versions/$VERSION/rac-rules -H "Authorization: Bearer $ANALYST" -H 'Content-Type: application/json' -d '{
+  "rules": [
+    {"rule_code":"RAC_MIN_AGE","reason_code":"AGE_BELOW_MINIMUM","action":"REJECT","expression":"age_years >= 21","description":"Applicant must be at least 21 years old."},
+    {"rule_code":"RAC_BLACKLIST","reason_code":"BLACKLISTED","action":"REJECT","expression":"is_blacklisted == false","description":"Blacklisted applicants are rejected."},
+    {"rule_code":"RAC_SLIK","reason_code":"SLIK_REVIEW_REQUIRED","action":"REFER","expression":"slik_max_kol <= 2","description":"Worse collectability goes to manual review."}
+  ]}'
+```
+```json
+{"policy_version_id":"7181d11d-3868-45fe-88f3-bfd1e3447bb1","status":"DRAFT","dictionary_schema_version":10,"rules":[{"order":1,"rule_code":"RAC_MIN_AGE","reason_code":"AGE_BELOW_MINIMUM","expression":"age_years \u003e= 21","action":"REJECT","description":"Applicant must be at least 21 years old."},{"order":2,"rule_code":"RAC_BLACKLIST","reason_code":"BLACKLISTED","expression":"is_blacklisted == false","action":"REJECT","description":"Blacklisted applicants are rejected."},{"order":3,"rule_code":"RAC_SLIK","reason_code":"SLIK_REVIEW_REQUIRED","expression":"slik_max_kol \u003c= 2","action":"REFER","description":"Worse collectability goes to manual review."}],"updated_at":"2026-11-18T03:46:04Z"}
+```
+(`\u003e` is `>` and `\u003c` is `<`: the server escapes them in JSON.) `PUT` replaces the whole list: to reorder, send the same rules in another order; to remove a rule, leave it out; `{"rules":[]}` removes all. Sending the list the draft already has changes nothing. A frozen version answers `409 POLICY_VERSION_FROZEN`.
+### What an expression may contain
+Comparisons (`== != < <= > >=`), `and` / `or` / `not` (or `&& || !`), arithmetic (`+ - * / %`), `in` and `not in` with a list of numbers or booleans, number and boolean literals, `nil`, parentheses, and the names of variables in the data dictionary. Nothing else: no function calls, strings, member access, or conditionals. The expression must be boolean and well typed, for example `monthly_income - existing_installment > 2000000 and not is_blacklisted`. Variable names and types come from the data dictionary at the draft's `dictionary_schema_version`, so a variable that is newer than that version is unknown.
+### Every problem at once
+```http
+HTTP/1.1 422 Unprocessable Entity
+{"error":{"code":"INPUT_VALIDATION_ERROR","message":"invalid policy","details":[{"field":"rules[0].expression","issue":"unknown_variable","message":"unknown variable \"agee_years\""},{"field":"rules[1].reason_code","issue":"required"},{"field":"rules[1].expression","issue":"syntax_error","message":"unexpected token EOF"},{"field":"rules[2].expression","issue":"unsupported_syntax","message":"function calls are not supported"},{"field":"rules[3].expression","issue":"type_error","message":"invalid operation: \u003e= (mismatched types bool and int)"}]},"request_id":"be9630618291aa2237aaa461521405d6"}
+```
+Nothing is stored when any rule is invalid. Issues for a rule: `rule_code` (`required`, `invalid_format`, `duplicate`), `reason_code` (`required`, `invalid_format`), `action` (`required`, `invalid_value`), `expression` (`required`, `too_long`, `invalid_characters`, `syntax_error`, `unsupported_syntax`, `unknown_variable`, `type_error`), `description` (`too_long`, `invalid_characters`); and for the list, `rules: required`, `must_be_array`, `too_many` (more than 100). `message` explains the issue when the code alone is not enough.
+### Rules in a snapshot, and the submit check
+Submitting freezes the rules, in order, into the snapshot (`snapshot.rac_rules`) and into the checksum. Cloning a version copies its rules to the new draft. Submit checks every expression again against the dictionary the draft is pinned to; for example a clone that you pointed at an older dictionary (`PATCH` with `dictionary_schema_version: 1`) no longer knows the variables its rules use:
+```http
+HTTP/1.1 422 Unprocessable Entity
+{"error":{"code":"POLICY_VALIDATION_FAILED","message":"the draft cannot be submitted until its content is valid","details":[{"field":"rules[1].expression","issue":"unknown_variable","message":"unknown variable \"is_blacklisted\""},{"field":"rules[2].expression","issue":"unknown_variable","message":"unknown variable \"slik_max_kol\""}]},"request_id":"881754208599bacdf79e12ef026fe7ae"}
+```
+The draft stays a `DRAFT`; fix it and submit again.
+## Scorecard
+Read (`policy:read`): `RISK_ANALYST`, `RISK_APPROVER`, `AUDITOR`. Write (`policy:write`): `RISK_ANALYST` only. The `ADMIN` and the Loan Application have no access.
+A scorecard turns an application into a number: `total_score = base_score + the points of the one bin each characteristic selects`. A **characteristic** scores one numeric dictionary variable, and its **bins** split that variable's range into intervals that each give a number of points. The scorecard is checked when you save it, not run (scoring arrives with RF-013).
+### Read
+```sh
+curl -s $B/api/v1/policy-versions/$VERSION/scorecard -H "Authorization: Bearer $AUDITOR"
+```
+```json
+{"policy_version_id":"fafce0be-c39a-4e31-aaa2-d6f4ff1dff31","status":"DRAFT","dictionary_schema_version":10,"updated_at":"2026-11-18T05:03:59Z","scorecard":null}
+```
+`scorecard` is `null` until one is configured. A cloned draft starts with a copy of its source's scorecard.
+### Replace
+```sh
+curl -s -X PUT $B/api/v1/policy-versions/$VERSION/scorecard -H "Authorization: Bearer $ANALYST" -H 'Content-Type: application/json' -d '{
+  "base_score": "350.00",
+  "characteristics": [
+    {"characteristic_code":"age_group","variable":"age_years","bins":[
+      {"max_value":"25","points":"40.00","label":"under 25"},
+      {"min_value":"25","max_value":"46","points":"85.00","label":"25 to 45"},
+      {"min_value":"46","points":"60.00","label":"46 and over"}]},
+    {"characteristic_code":"dsr_band","variable":"dsr_ratio","bins":[
+      {"min_value":"0","max_value":"0.30","points":"150.00"},
+      {"min_value":"0.30","max_value":"0.50","points":"70.00"},
+      {"min_value":"0.50","points":"0.00"}]},
+    {"characteristic_code":"employment_tenure","variable":"employment_tenure_months","bins":[
+      {"min_value":"0","max_value":"24","points":"30.00"},
+      {"min_value":"24","points":"100.00"}]}]}'
+```
+```json
+{"policy_version_id":"fafce0be-c39a-4e31-aaa2-d6f4ff1dff31","status":"DRAFT","dictionary_schema_version":10,"updated_at":"2026-11-18T05:04:00Z","scorecard":{"base_score":"350.00","score_range":{"min":"420.00","max":"685.00"},"characteristics":[{"order":1,"characteristic_code":"age_group","variable":"age_years","description":"","missing_points":null,"bins":[{"order":1,"min_value":null,"max_value":"25","points":"40.00","label":"under 25"},{"order":2,"min_value":"25","max_value":"46","points":"85.00","label":"25 to 45"},{"order":3,"min_value":"46","max_value":null,"points":"60.00","label":"46 and over"}]},{"order":2,"characteristic_code":"dsr_band","variable":"dsr_ratio","description":"","missing_points":null,"bins":[{"order":1,"min_value":"0","max_value":"0.3","points":"150.00","label":""},{"order":2,"min_value":"0.3","max_value":"0.5","points":"70.00","label":""},{"order":3,"min_value":"0.5","max_value":null,"points":"0.00","label":""}]},{"order":3,"characteristic_code":"employment_tenure","variable":"employment_tenure_months","description":"","missing_points":null,"bins":[{"order":1,"min_value":"0","max_value":"24","points":"30.00","label":""},{"order":2,"min_value":"24","max_value":null,"points":"100.00","label":""}]}]}}
+```
+This is the illustrative scorecard of `SYSTEM_DESIGN.md` 20.2. The example applicant of 20.4 (age 29, DSR 0.208, 36 months) falls in the 85, 150, and 100 point bins and scores 685.00. `score_range` is the lowest and highest total the scorecard can produce; the decision matrix (RF-009) will have to cover it. `DELETE /api/v1/policy-versions/{version_id}/scorecard` removes the scorecard (`204`). A frozen version answers `409 POLICY_VERSION_FROZEN` to `PUT` and `DELETE`.
+### Rules for bins
+- A bin is the half-open interval **`[min_value, max_value)`**: `min_value` is included, `max_value` is not. So `25` belongs to `[25, 46)`, not to the bin that ends at 25. A missing or `null` `min_value` means no lower limit, a missing `max_value` no upper limit.
+- List the bins in ascending order, edge to edge: each bin starts where the previous one ends. Together they must cover **every value the variable can have, exactly once**: the first starts at or below the dictionary minimum (or has no `min_value`), the last ends above the dictionary maximum (or has no `max_value`). For `age_years` (0 to 120) a last bin `[46, 120)` would leave 120 uncovered; `[46, 121)` or an open end works.
+- Bounds follow the variable: whole numbers for `INTEGER`, at most the variable's scale for `DECIMAL`. They are returned in shortest form (`0.30` becomes `0.3`).
+- `base_score`, `points`, and `missing_points` are strings with at most two decimals, returned with exactly two, and may be negative. Totals are exact (no floating point).
+- `missing_points` gives the points when the variable is absent or `null`. Only an optional input variable can be missing, so it is refused for required and derived variables.
+Every problem is reported together:
+```http
+HTTP/1.1 422 Unprocessable Entity
+{"error":{"code":"INPUT_VALIDATION_ERROR","message":"invalid policy","details":[{"field":"base_score","issue":"exceeds_scale"},{"field":"characteristics[0].bins[0].min_value","issue":"does_not_cover_lower_bound","message":"the first bin must start at or below the lowest value the variable can have, or have no min_value"},{"field":"characteristics[0].bins[1].min_value","issue":"gap","message":"values from 25 up to this bin's min_value belong to no bin"},{"field":"characteristics[0].bins[2].min_value","issue":"overlap","message":"starts before bins[1] ends; bins must be in ascending order"},{"field":"characteristics[1].variable","issue":"variable_not_numeric","message":"\"is_blacklisted\" is BOOLEAN; bins are numeric intervals"},{"field":"characteristics[2].missing_points","issue":"variable_always_present","message":"\"employment_tenure_months\" is required or derived, so it is never missing"},{"field":"characteristics[2].bins[0].max_value","issue":"must_be_integer"},{"field":"characteristics[2].bins[1].min_value","issue":"must_be_integer"}]},"request_id":"2a3253f35c325c5085cfdfc014014418"}
+```
+Other issues: `characteristic_code` (`required`, `invalid_format`, `duplicate`), `variable` (`required`, `unknown_variable`), bins (`no_bins`, `too_many` above 50, `min_not_less_than_max`, `does_not_cover_upper_bound`, `exceeds_scale`), points (`required`, `invalid_format`, `out_of_range`), `characteristics` (`required`, `no_characteristics`, `too_many` above 20). Variables are looked up in the dictionary at the draft's `dictionary_schema_version`.
+### In the snapshot and at submit
+Submit checks the scorecard again, together with the RAC rules, and refuses the draft with `422 POLICY_VALIDATION_FAILED` if either no longer validates (scorecard paths start with `scorecard.`). The frozen snapshot contains the scorecard without `score_range`, or `null`:
+```json
+"scorecard":{"base_score":"350.00","characteristics":[{"bins":[{"label":"under 25","max_value":"25","min_value":null,"order":1,"points":"40.00"},{"label":"25 to 45","max_value":"46","min_value":"25","order":2,"points":"85.00"}, ...
+```
+## Decision matrix
+Read (`policy:read`): `RISK_ANALYST`, `RISK_APPROVER`, `AUDITOR`. Write (`policy:write`): `RISK_ANALYST` only. The `ADMIN` and the Loan Application have no access.
+The decision matrix turns the total score into a risk **grade** and a **decision** (`APPROVE`, `REFER`, or `REJECT`). Each row is a score interval. The matrix is checked when you save it, not run (lookup at decision time arrives with RF-013).
+### Read
+```sh
+curl -s $B/api/v1/policy-versions/$VERSION/decision-matrix -H "Authorization: Bearer $AUDITOR"
+```
+```json
+{"policy_version_id":"d6b6bbb7-aba1-465c-aef9-5adbd65845ea","status":"DRAFT","dictionary_schema_version":10,"updated_at":"2026-11-18T05:54:19Z","score_range":{"min":"420.00","max":"685.00"},"covers_score_range":null,"decision_matrix":null}
+```
+`score_range` is the lowest and highest total the version's scorecard can produce (`null` without a scorecard). `covers_score_range` says whether the stored rows cover it (`null` when there is no scorecard or no matrix).
+### Replace
+```sh
+curl -s -X PUT $B/api/v1/policy-versions/$VERSION/decision-matrix -H "Authorization: Bearer $ANALYST" -H 'Content-Type: application/json' -d '{
+  "rows": [
+    {"min_score":"0","max_score":"500","grade":"D","decision":"REJECT","label":"below 500"},
+    {"min_score":"500","max_score":"650","grade":"B","decision":"REFER","label":"500 to below 650"},
+    {"min_score":"650","max_score":"901","grade":"A","decision":"APPROVE","label":"650 to 900"}]}'
+```
+```json
+{"policy_version_id":"d6b6bbb7-aba1-465c-aef9-5adbd65845ea","status":"DRAFT","dictionary_schema_version":10,"updated_at":"2026-11-18T05:54:19Z","score_range":{"min":"420.00","max":"685.00"},"covers_score_range":true,"decision_matrix":{"rows":[{"order":1,"min_score":"0.00","max_score":"500.00","grade":"D","decision":"REJECT","label":"below 500"},{"order":2,"min_score":"500.00","max_score":"650.00","grade":"B","decision":"REFER","label":"500 to below 650"},{"order":3,"min_score":"650.00","max_score":"901.00","grade":"A","decision":"APPROVE","label":"650 to 900"}]}}
+```
+This is the matrix of `SYSTEM_DESIGN.md` 20.3 for the score domain 0 to 900 (the last row ends at `901` so that 900 is included). The example applicant's 685.00 is grade A, `APPROVE`. `DELETE /api/v1/policy-versions/{version_id}/decision-matrix` removes the matrix (`204`). A frozen version answers `409 POLICY_VERSION_FROZEN`.
+### Rules for rows
+- A row is the half-open interval **`[min_score, max_score)`**, like a scorecard bin: 500 belongs to `[500, 650)`, not to `[0, 500)`. Only the first row may omit `min_score` and only the last may omit `max_score`.
+- List rows in ascending order, edge to edge.
+- When the draft has a scorecard, the rows must cover its whole `score_range`: start at or below its minimum and end above its maximum. So every score the version can produce lands in exactly one row; there is never a default decision.
+- Scores have at most two decimals and are returned with exactly two. Grades are short upper-case codes and may repeat.
+```http
+HTTP/1.1 422 Unprocessable Entity
+{"error":{"code":"INPUT_VALIDATION_ERROR","message":"invalid policy","details":[{"field":"rows[1].grade","issue":"invalid_format"},{"field":"rows[1].decision","issue":"invalid_value"},{"field":"rows[1].min_score","issue":"gap","message":"scores from 500.00 up to this row's min_score belong to no row"},{"field":"rows[0].min_score","issue":"does_not_cover_score_range","message":"the scorecard can produce scores down to 420.00; the first row must start at or below it, or have no min_score"},{"field":"rows[2].max_score","issue":"does_not_cover_score_range","message":"the scorecard can produce scores up to 685.00; max_score is excluded, so the last row must end above it, or have no max_score"}]},"request_id":"8c11067bdc477c961d00993a08a29cf7"}
+```
+Other issues: `rows` (`required`, `must_be_array`, `no_rows`, `too_many` above 50), `overlap`, `min_not_less_than_max`, `exceeds_scale`, `out_of_range`, `invalid_format`, `grade` and `decision` `required`, `label` `too_long` or `invalid_characters`.
+### When the scorecard changes afterwards
+Editing the scorecard does not re-check the matrix, so you can edit them in any order. `GET` shows the mismatch, and submit refuses it. After raising the demo base score to 700 (range 770.00 to 1035.00):
+```http
+HTTP/1.1 422 Unprocessable Entity
+{"error":{"code":"POLICY_VALIDATION_FAILED","message":"the draft cannot be submitted until its content is valid","details":[{"field":"decision_matrix.rows[2].max_score","issue":"does_not_cover_score_range","message":"the scorecard can produce scores up to 1035.00; max_score is excluded, so the last row must end above it, or have no max_score"}]},"request_id":"f3b2b6702af7e92ebb3b427be772ed3f"}
+```
+Open-ended first and last rows cover any range. With them the draft submits, and the snapshot holds the rows:
+```json
+"decision_matrix":[{"decision":"REJECT","grade":"D","label":"","max_score":"500.00","min_score":null,"order":1},{"decision":"REFER","grade":"B","label":"","max_score":"650.00","min_score":"500.00","order":2},{"decision":"APPROVE","grade":"A","label":"","max_score":null,"min_score":"650.00","order":3}]
+```
+## Test cases and validation
+Read test cases (`policy:read`): `RISK_ANALYST`, `RISK_APPROVER`, `AUDITOR`. Write test cases and validate (`policy:write`, `policy:submit`): `RISK_ANALYST` only. The `ADMIN` and the Loan Application have no access.
+
+A test case ("golden case") is an example application stored with the policy and the result the policy must give for it. Cases are checked when you save them and again at validate and submit. **They are not run through the policy yet**: comparing the expected decision with the actual one needs the decision engine (RF-011 to RF-013), and every validation report says so in `pending_checks`.
+### Read
+```sh
+curl -s $B/api/v1/policy-versions/$VERSION/test-cases -H "Authorization: Bearer $AUDITOR"
+```
+The seeded `KTA_DEMO` draft has six cases (shortened here to two):
+```json
+{"policy_version_id":"b1a5c3b2-f9c3-46ef-9a89-a311f0c799da","status":"DRAFT","dictionary_schema_version":8,"updated_at":"2026-11-18T07:57:49Z","test_cases":[{"order":1,"case_code":"GOLDEN_HAPPY_PATH","description":"Example applicant of section 20.4: score 685, grade A.","required":true,"input":{"age_years":29,"employment_tenure_months":36,"existing_installment":"2500000.00","is_blacklisted":false,"monthly_income":"12000000.00","slik_max_kol":1},"expected":{"outcome":"DECISION","decision":"APPROVE","grade":"A","reason_codes":[]}},{"order":2,"case_code":"GOLDEN_AGE_BELOW_MINIMUM","description":"age_years below the RAC threshold: hard reject.","required":true,"input":{"age_years":19,"employment_tenure_months":36,"existing_installment":"2500000.00","is_blacklisted":false,"monthly_income":"12000000.00","slik_max_kol":1},"expected":{"outcome":"DECISION","decision":"REJECT","grade":null,"reason_codes":["AGE_BELOW_MINIMUM"]}}]}
+```
+The others are `GOLDEN_BLACKLISTED` (REJECT), `GOLDEN_SLIK_REFER` (REFER, grade A), `GOLDEN_MISSING_INCOME`, and `GOLDEN_ZERO_INCOME` (both `INPUT_VALIDATION_ERROR`).
+### Replace
+```sh
+curl -s -X PUT $B/api/v1/policy-versions/$VERSION/test-cases -H "Authorization: Bearer $ANALYST" -H 'Content-Type: application/json' -d '{
+  "test_cases": [
+    {"case_code":"GOLDEN_HAPPY_PATH","description":"Example applicant of section 20.4: score 685, grade A.",
+     "input":{"age_years":29,"monthly_income":"12000000.00","existing_installment":"2500000.00","employment_tenure_months":36,"slik_max_kol":1,"is_blacklisted":false},
+     "expected":{"outcome":"DECISION","decision":"APPROVE","grade":"A"}},
+    {"case_code":"GOLDEN_ZERO_INCOME","required":false,
+     "input":{"age_years":29,"monthly_income":"0.00","existing_installment":"2500000.00","employment_tenure_months":36,"slik_max_kol":1,"is_blacklisted":false},
+     "expected":{"outcome":"INPUT_VALIDATION_ERROR"}}]}'
+```
+```json
+{"policy_version_id":"5251f2d5-33a1-4dba-88d7-118e0a910989","status":"DRAFT","dictionary_schema_version":8,"updated_at":"2026-11-18T07:58:25Z","test_cases":[{"order":1,"case_code":"GOLDEN_HAPPY_PATH","description":"Example applicant of section 20.4: score 685, grade A.","required":true,"input":{"age_years":29,"employment_tenure_months":36,"existing_installment":"2500000.00","is_blacklisted":false,"monthly_income":"12000000.00","slik_max_kol":1},"expected":{"outcome":"DECISION","decision":"APPROVE","grade":"A","reason_codes":[]}},{"order":2,"case_code":"GOLDEN_ZERO_INCOME","description":"","required":false,"input":{"age_years":29,"employment_tenure_months":36,"existing_installment":"2500000.00","is_blacklisted":false,"monthly_income":"0.00","slik_max_kol":1},"expected":{"outcome":"INPUT_VALIDATION_ERROR","decision":null,"grade":null,"reason_codes":[]}}]}
+```
+`input` holds the facts the decision API will take: integers as JSON numbers, decimals as strings, booleans. `expected.outcome` is `DECISION` (with `decision`, and optionally `grade` and `reason_codes`) or `INPUT_VALIDATION_ERROR` (nothing else). Cases are `required` unless you say otherwise, and submit needs at least one required case. The list replaces the stored one; an identical list writes nothing and `[]` removes all cases. A frozen version answers `409 POLICY_VERSION_FROZEN`.
+### What a case is checked against
+- Input keys must be input variables of the dictionary version the draft is pinned to. Derived variables such as `dsr_ratio` are computed, never supplied.
+- `grade` must be a grade of the draft's decision matrix, and each reason code a reason code of one of its RAC rules.
+- The input is **run through the data dictionary**: a `DECISION` case needs an input that passes it, and an `INPUT_VALIDATION_ERROR` case one that fails it.
+```http
+HTTP/1.1 422 Unprocessable Entity
+{"error":{"code":"INPUT_VALIDATION_ERROR","message":"invalid policy","details":[{"field":"test_cases[0].expected.grade","issue":"unknown_grade","message":"no decision matrix row has grade \"AA\""},{"field":"test_cases[0].input.monthly_income","issue":"below_min_value","message":"the expected outcome is a decision, so the input must pass the data dictionary"},{"field":"test_cases[1].input.dsr_ratio","issue":"derived_not_allowed","message":"\"dsr_ratio\" is computed by the engine, not supplied"},{"field":"test_cases[1].expected.reason_codes[0]","issue":"unknown_reason_code","message":"no RAC rule of this version has reason code \"NOT_A_REASON\""},{"field":"test_cases[2].expected.decision","issue":"not_allowed_for_outcome"},{"field":"test_cases[2].input","issue":"validation_error_not_raised","message":"the input passes the data dictionary, so it cannot produce INPUT_VALIDATION_ERROR"}]},"request_id":"b2cb03a33592e4fb64fd89cffbaa0049"}
+```
+Other issues: `test_cases` (`required`, `must_be_array`, `too_many` above 100), `case_code` (`required`, `invalid_format`, `duplicate`), `description` (`too_long` above 200, `invalid_characters`), `input` (`required`, `must_be_object`, `invalid_json`, `too_large` above 8 KiB; `unknown_variable` per key), `expected.outcome` and `expected.decision` (`required`, `invalid_value`), `expected.grade` (`invalid_format`), `reason_codes` (`invalid_format`, `duplicate`, `too_many` above 20), and the dictionary's own issues (`required`, `null_not_allowed`, `invalid_type`, `exceeds_scale`, `below_min_value`, `above_max_value`) at `input.<variable>`.
+### Validate a whole version
+```sh
+curl -s -X POST $B/api/v1/policy-versions/$VERSION/validate -H "Authorization: Bearer $ANALYST"
+```
+The seeded demo draft:
+```json
+{"policy_version_id":"b1a5c3b2-f9c3-46ef-9a89-a311f0c799da","status":"DRAFT","dictionary_schema_version":8,"valid":true,"summary":{"rac_rules":3,"scorecard_characteristics":3,"decision_matrix_rows":3,"test_cases":6,"required_test_cases":6},"score_range":{"min":"420.00","max":"685.00"},"issues":[],"pending_checks":[{"check":"golden_test_execution","reason":"evaluating the expected decision, grade, and reason codes of a test case needs the decision evaluator (RF-011 to RF-013); test cases are checked statically and their inputs are run against the data dictionary"}]}
+```
+Validate is the dry run of submit: it runs the same checks and changes nothing, for a version in any status. It needs `policy:submit`, so the auditor gets `403`. `valid: true` means every check that exists passed; `pending_checks` lists the one that cannot run yet. The checks are: a scorecard, a decision matrix, and at least one required test case (`missing_section`, `no_required_test_cases`); every RAC expression; the scorecard bins; matrix coverage of the scorecard's `score_range`; and the test cases as above. After `DELETE .../decision-matrix` on a copy of that draft:
+```json
+{"policy_version_id":"5251f2d5-33a1-4dba-88d7-118e0a910989","status":"DRAFT","dictionary_schema_version":8,"valid":false,"summary":{"rac_rules":3,"scorecard_characteristics":3,"decision_matrix_rows":0,"test_cases":2,"required_test_cases":1},"score_range":{"min":"420.00","max":"685.00"},"issues":[{"field":"decision_matrix","issue":"missing_section","message":"a policy needs a decision matrix to turn the score into a decision"}],"pending_checks":[{"check":"golden_test_execution","reason":"..."}]}
+```
+and submit refuses it with the same issues:
+```http
+HTTP/1.1 422 Unprocessable Entity
+{"error":{"code":"POLICY_VALIDATION_FAILED","message":"the draft cannot be submitted until its content is valid","details":[{"field":"decision_matrix","issue":"missing_section","message":"a policy needs a decision matrix to turn the score into a decision"}]},"request_id":"1fca60b8b01408612c436031ba3c856c"}
+```
+The snapshot of a version submitted since RF-010 has `"format":2` and holds the test cases under `test_cases`.
 ## Unknown routes
 
 ```http
@@ -224,4 +510,4 @@ grep -h '"requestID":"doc-login-00001"' storage/logs/{activity,error,query}.log
 
 ## Planned endpoints
 
-Not live yet; see `SYSTEM_DESIGN.md` 13.1 for the target contract: data dictionary (RF-005), policies and versions (RF-006..RF-010), simulation (RF-017), approval requests (RF-019..RF-021), `POST /api/v1/decisions/evaluate` with `Idempotency-Key` (RF-014, RF-015), and decision lookup. Each will be added to the OpenAPI contract, Swagger UI, and the Postman collection in the same change.
+Not live yet; see `SYSTEM_DESIGN.md` 13.1 for the target contract: simulation (RF-017), approval requests (RF-019..RF-021), `POST /api/v1/decisions/evaluate` with `Idempotency-Key` (RF-014, RF-015), and decision lookup. Each will be added to the OpenAPI contract, Swagger UI, and the Postman collection in the same change.

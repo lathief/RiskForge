@@ -1,5 +1,5 @@
 // Checks a Newman JSON report produced by scripts/smoke-postman.sh.
-// Expectations for a read-only token (demo_analyst):
+// Expectations for a read-only token (demo_auditor):
 //   public requests (noauth)        -> 200
 //   protected GET                   -> 200
 //   protected POST/PUT/PATCH/DELETE -> 403 (no write permission, so nothing is changed)

@@ -43,7 +43,7 @@ How it works:
 
 1. **Install** (network): `npm ci` from `scripts/postman/package-lock.json` into the Docker volume `riskforge-postman-tools`. npm verifies every package against the lockfile. The step is skipped while the lockfile is unchanged.
 2. **Convert** (no network): `openapi-to-postmanv2` converts the spec in a container started with `--network none` and a read-only filesystem. Only `api/openapi` (read-only), `scripts/postman` (read-only), the tools volume (read-only), and `api/postman` (writable) are mounted; `.env.agent` never is.
-3. **Normalize:** `scripts/postman/normalize.js` removes random ids, sets `{{baseUrl}}`, `{{accessToken}}`, `{{productCode}}`, and sets auth per request from the spec (`noauth` for `security: []`, bearer otherwise). It fails if the collection and the spec disagree on any `(METHOD, path)`.
+3. **Normalize:** `scripts/postman/normalize.js` removes random ids, sets `{{baseUrl}}`, `{{accessToken}}`, `{{productCode}}`, `{{variableCode}}`, `{{policyId}}`, `{{versionId}}`, and sets auth per request from the spec (`noauth` for `security: []`, bearer otherwise). It fails if the collection and the spec disagree on any `(METHOD, path)`.
 
 The output is byte-identical between runs. If `--check` fails right after you regenerated, a schema in the spec is probably missing an `example` (the converter then invents random values); add one.
 
@@ -63,7 +63,7 @@ To upgrade a tool: edit `scripts/postman/package.json`, regenerate the lockfile 
 ./scripts/smoke-postman.sh rf-test-x    # against another running, seeded project
 ```
 
-Proves the committed collection imports and works against the real API. Newman runs inside the project's Compose network and calls `http://api:3000`; the database port stays closed. It logs in as `demo_analyst` (read-only) through the API, so no data changes, and expects:
+Proves the committed collection imports and works against the real API. Newman runs inside the project's Compose network and calls `http://api:3000`; the database port stays closed. It logs in as `demo_auditor` through the API. The auditor has no write permission, so every write answers 403 and no data changes (`demo_analyst` cannot be used since RF-005: it may write the dictionary). It also sets `productCode=KTA_DEMO`, `variableCode=age_years`, and the ids of the first policy, so the stack must be seeded. Expected statuses:
 
 | Request | Expected |
 |---|---|
@@ -83,11 +83,40 @@ ok   200 GET List products
 ok   403 POST Create a product
 ok   200 GET Get a product by code
 ok   403 PATCH Update name, description, or status
-postman smoke: 8/8 requests as expected
+ok   200 GET List data dictionary variables
+ok   403 POST Define a variable
+ok   200 GET Get the latest definition of a variable
+ok   403 PATCH Record a new version of a variable
+ok   200 GET List policies
+ok   403 POST Open a policy for a product
+ok   200 GET Get a policy with all of its versions
+ok   403 POST Clone a version into a new draft
+ok   200 GET Get one policy version
+ok   403 PATCH Edit a draft
+ok   403 POST Freeze a draft for approval
+ok   200 GET List the RAC rules of a version
+ok   403 PUT Replace the RAC rules of a draft
+ok   200 GET Get the scorecard of a version
+ok   403 PUT Replace the scorecard of a draft
+ok   403 DELETE Remove the scorecard of a draft
+ok   200 GET Get the decision matrix of a version
+ok   403 PUT Replace the decision matrix of a draft
+ok   403 DELETE Remove the decision matrix of a draft
+ok   200 GET List the test cases of a version
+ok   403 PUT Replace the test cases of a draft
+ok   403 POST Validate a whole policy version
+postman smoke: 30/30 requests as expected
 ```
 
 The stack must be up, migrated, and seeded with the current `DEMO_USER_PASSWORD`. A test project whose users were created by the Go test suite has a different password, so login fails there.
 
+Policy ids are not fixed, so before running Newman the script asks the API for the first policy (`scripts/postman/resolve-ids.js`, `GET /api/v1/policies?per_page=1`) and passes its id and its latest version id as `policyId` and `versionId`. A stack without a policy fails early with "seed the stack first".
+## coverage.sh
+```sh
+./scripts/coverage.sh                 # project rf-test-coverage
+./scripts/coverage.sh rf-test-rf007   # another disposable project; the name must start with rf-test-
+```
+Measures Go statement coverage and prints two Markdown tables: unit tests only (`./app/...`, no database), and unit plus integration tests (`./...` with the HTTP and database suites). It starts a disposable Compose project with PostgreSQL, migrates it, runs both measurements inside the `api` container with `HASH_BCRYPT_ROUNDS=4`, and removes the project (`down -v` on that project only, also when a step fails). Every test binary writes the whole block list into the profile, so the script merges blocks before summing per package, and it leaves out the generated stubs in `app/facades`. The output is the source of [coverage.md](coverage.md).
 ## update-swagger-ui.sh
 
 ```sh

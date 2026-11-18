@@ -1,6 +1,6 @@
 # Decision engine
 
-> **Status: Planned behavior.** Nothing on this page is implemented yet. It is the engineering specification for milestone M3 (RF-011 to RF-016), distilled from `SYSTEM_DESIGN.md` sections 8, 10, 12, and 20. Implemented pieces will be marked here as tickets land. `app/modules/ruleengine` is currently an empty placeholder.
+> **Status: Planned behavior.** Evaluation is not implemented yet. This page is the engineering specification for milestone M3 (RF-011 to RF-016), distilled from `SYSTEM_DESIGN.md` sections 8, 10, 12, and 20. The configuration side is implemented and marked where it applies: RAC expressions are checked by `app/modules/ruleengine` (RF-007), scorecard bins and matrix rows are validated (RF-008, RF-009), and golden test cases are stored and checked statically (RF-010).
 
 The engine turns one loan application plus one immutable policy version into one decision and a complete trace. It is the part of RiskForge that is not CRUD: correctness, determinism, and explainability matter more than speed.
 
@@ -73,6 +73,8 @@ Each rule has a `rule_code`, a boolean expression that must hold to pass, an act
 - A **soft fail** (`REFER`) sets `refer_flag = true`, records the reason, and continues to scoring.
 - An expression that errors at runtime is an `EVALUATION_ERROR`, not a failed rule.
 
+**Managing rules (implemented, RF-007).** An analyst edits the rules of a draft with `GET` and `PUT /api/v1/policy-versions/{version_id}/rac-rules`. The array order is the order above, and every list is checked before it is stored. The expression language is a small allowlist of the `expr` language: comparisons, `and` / `or` / `not`, arithmetic, `in` with a list of numbers or booleans, number and boolean literals, `nil`, parentheses, and dictionary variable names. Function calls, strings, member access, conditionals, and everything else are refused, so an expression cannot do anything except compute a yes or no from the applicant's values. Each expression must be a boolean over variables that exist in the dictionary version the draft is pinned to. Rules are checked, not run: nothing evaluates them until RF-012. Submitting a draft checks the rules again and freezes them in the snapshot.
+
 ### 4. Scorecard
 
 `total_score = base_score + Σ points of the selected bin of each characteristic`
@@ -88,6 +90,8 @@ Each rule has a `rule_code`, a boolean expression that must hold to pass, an act
 - Zero or several matching bins is a `POLICY_CONFIGURATION_ERROR`. Pre-publish validation rejects overlapping bins and gaps, so this should never happen in production.
 - Points are `NUMERIC(12,2)` with deterministic rounding.
 
+**Managing the scorecard (implemented, RF-008).** An analyst edits the scorecard of a draft with `GET`, `PUT`, and `DELETE /api/v1/policy-versions/{version_id}/scorecard`. Saving checks that the bins of every characteristic are listed in ascending order, meet edge to edge, and cover the whole valid range of the dictionary variable, so every application that passes input validation selects exactly one bin; zero or several matches cannot happen in a version that saved and submitted successfully. Points have two decimals and are added with exact decimal arithmetic, so no rounding happens at all: the total of two-decimal points is itself exact to two decimals. A characteristic may give explicit `missing_points` for an optional variable that is absent. The response shows `score_range`, the lowest and highest total the scorecard can produce. Nothing is scored yet: bin selection at decision time arrives with RF-013.
+
 ### 5. Decision matrix
 
 Maps the total score to a grade and a decision. Supported domain `0` to `900` inclusive:
@@ -99,6 +103,8 @@ Maps the total score to a grade and a decision. Supported domain `0` to `900` in
 | `[650, 901)` | A | `APPROVE` |
 
 `901` is an exclusive bound so a score of 900 is included. The grades follow the design's illustrative dataset (`SYSTEM_DESIGN.md` 20.3), which uses three bands and skips C; a real policy defines its own bands. Ranges must be complete and non-overlapping; no matching row is a configuration error, **never a default APPROVE**.
+
+**Managing the matrix (implemented, RF-009).** An analyst edits the matrix of a draft with `GET`, `PUT`, and `DELETE /api/v1/policy-versions/{version_id}/decision-matrix`. Rows follow the same `[min, max)` rule as scorecard bins and must be ascending and edge to edge. The supported score domain is the scorecard's own `score_range` (lowest to highest total it can produce), and when the draft has a scorecard the rows must cover it; submit checks this again, because the scorecard can change after the matrix. A version that saved and submitted therefore cannot produce a score without a row. Lookup and precedence at decision time arrive with RF-013.
 
 ### 6. Precedence
 
@@ -186,7 +192,9 @@ From `SYSTEM_DESIGN.md` 12 (golden cases for `KTA_DEMO`):
 5. Total score exactly on each matrix boundary (499.99/500.00, 649.99/650.00, 900.00).
 6. Missing, `null`, or wrong-type input → validation error.
 7. `monthly_income = 0` → validation error, no division by zero.
-8. Overlapping bins or a matrix gap → policy fails validation and cannot be published.
+8. Overlapping bins or a matrix gap → policy fails validation and cannot be published. (Implemented: RF-008 to RF-010.)
+
+**Storing the golden cases (implemented, RF-010).** Cases 1 to 4, 6, and 7 are stored with the demo policy as test cases (`GET`/`PUT /api/v1/policy-versions/{version_id}/test-cases`) with their expected outcome. Today each case is checked statically: its references must exist and its input is run against the data dictionary, so a validation-error case must really fail validation and a decision case must pass it. `POST .../validate` and submit report the comparison of expected and actual decisions as the pending check `golden_test_execution`; RF-013 runs the cases through this engine and makes failing required cases block submit.
 9. Simulating a draft does not affect decisions made with the active version.
 10. Re-evaluating the same input and policy snapshot gives the same output.
 

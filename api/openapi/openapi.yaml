@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.4.2
+  version: 0.10.0
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
-    Contract for the endpoints implemented so far (RF-001 to RF-004, plus M1 hardening).
+    Contract for the endpoints implemented so far (RF-001 to RF-010, plus M1 hardening).
 
     - All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.
     - Authorization is permission-based. Each operation lists the required permission
@@ -39,6 +39,10 @@ tags:
     description: Login and caller identity.
   - name: Products
     description: Credit product catalog (RF-004).
+  - name: Dictionary
+    description: Data dictionary of typed input and derived variables, with schema versions (RF-005).
+  - name: Policies
+    description: Policy packages and their versions, with immutable snapshots on submit (RF-006).
 
 paths:
   /health/live:
@@ -282,7 +286,876 @@ paths:
         "413": { $ref: "#/components/responses/PayloadTooLarge" }
         "422": { $ref: "#/components/responses/ValidationError" }
         "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/dictionary/variables:
+    get:
+      tags: [Dictionary]
+      summary: List data dictionary variables
+      description: |
+        Returns the latest definition of every variable, ordered by `code`. `meta.schema_version`
+        is the dictionary schema version the page was read at. Pass `schema_version` to read
+        the dictionary as it was at an earlier version (history is append-only, so the answer
+        for a given version never changes).
+      operationId: listVariables
+      x-required-permission: dictionary:read
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 10000, default: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: origin
+          in: query
+          schema: { $ref: "#/components/schemas/VariableOrigin" }
+        - name: schema_version
+          in: query
+          description: Read the dictionary as of this schema version. 0 is the empty dictionary; a version newer than the current one is a 422.
+          schema: { type: integer, minimum: 0, example: 8 }
+      responses:
+        "200":
+          description: One page of variables. A page past the end returns an empty `data` array.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VariableList" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
+    post:
+      tags: [Dictionary]
+      summary: Define a variable
+      description: |
+        Creates version 1 of the variable and advances the dictionary schema version by one.
+        `code`, `origin`, and `type` can never change afterwards.
+        Defaults: `origin` INPUT; `required` true for INPUT and false for DERIVED; `nullable` false;
+        `scale` 2 for DECIMAL. Amounts and bounds are decimal strings, never JSON numbers.
+        Ranges are sanity limits on the data, not credit policy: eligibility limits belong in RAC rules.
+      operationId: createVariable
+      x-required-permission: dictionary:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VariableCreate" }
+            example:
+              code: monthly_income
+              type: DECIMAL
+              description: Verified (synthetic) monthly income. Must be positive.
+              unit: IDR
+              scale: 2
+              min_value: "0.01"
+              max_value: "1000000000000.00"
+      responses:
+        "201":
+          description: Created.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+            Location:
+              schema: { type: string }
+              example: /api/v1/dictionary/variables/monthly_income
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Variable" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409":
+          description: The code is already used.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error: { code: VARIABLE_CODE_CONFLICT, message: a variable with this code already exists }
+                request_id: 3b2a1c0d9e8f7a6b5c4d3e2f1a0b9c8d
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422":
+          description: The definition is invalid. Every problem is listed in `details`.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error:
+                  code: INPUT_VALIDATION_ERROR
+                  message: invalid variable
+                  details:
+                    - { field: code, issue: invalid_format }
+                    - { field: max_value, issue: less_than_min_value }
+                request_id: 1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/dictionary/variables/{variable_code}:
+    parameters:
+      - name: variable_code
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/VariableCode" }
+    get:
+      tags: [Dictionary]
+      summary: Get the latest definition of a variable
+      operationId: getVariable
+      x-required-permission: dictionary:read
+      responses:
+        "200":
+          description: The variable at its latest version.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Variable" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/VariableNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
+    patch:
+      tags: [Dictionary]
+      summary: Record a new version of a variable
+      description: |
+        Partial update. Omitted fields are unchanged, `null` clears `min_value` or `max_value`,
+        and an empty `unit` clears the unit. A change that alters something creates the next
+        version and advances the dictionary schema version; earlier versions stay readable via
+        `schema_version` on the list. Sending only values the variable already has changes
+        nothing: the response is the current version with no new version.
+        `code`, `origin`, and `type` are immutable and sending them is a 422. Variables are never deleted.
+      operationId: updateVariable
+      x-required-permission: dictionary:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VariableUpdate" }
+            example: { max_value: "2000000000000.00" }
+      responses:
+        "200":
+          description: The variable at its latest version (new, or unchanged when nothing differed).
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Variable" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/VariableNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policies:
+    get:
+      tags: [Policies]
+      summary: List policies
+      description: |
+        A policy is the package of versions for one product and scope. Each item shows its newest
+        version. Ordered by product code and scope.
+      operationId: listPolicies
+      x-required-permission: policy:read
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 10000, default: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: product_code
+          in: query
+          description: Only policies of this product code.
+          schema: { type: string, maxLength: 32, example: KTA_DEMO }
+      responses:
+        "200":
+          description: One page of policies. A page past the end returns an empty `data` array.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolicyList" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
+    post:
+      tags: [Policies]
+      summary: Open a policy for a product
+      description: |
+        Creates the policy for a product and scope together with its first draft (version 1).
+        The draft is written against the current data dictionary schema version. A product and
+        scope can have only one policy; to get another draft use `POST /policies/{policy_id}/clone`.
+        The product must exist and be ACTIVE. `scope` defaults to `DEFAULT`.
+      operationId: createPolicy
+      x-required-permission: policy:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PolicyCreate" }
+            example: { product_code: KTA_DEMO, scope: DEFAULT, description: Initial draft of the KTA_DEMO policy. }
+      responses:
+        "201":
+          description: Created.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+            Location:
+              schema: { type: string }
+              example: /api/v1/policies/3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolicyDetail" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409":
+          description: The product and scope already have a policy.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error: { code: POLICY_CONFLICT, message: "a policy already exists for this product and scope; clone it to create a new draft" }
+                request_id: 4c3b2a1d0e9f8a7b6c5d4e3f2a1b0c9d
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policies/{policy_id}:
+    parameters:
+      - name: policy_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyId" }
+    get:
+      tags: [Policies]
+      summary: Get a policy with all of its versions
+      description: Versions are listed newest first, without their snapshots. Use `GET /policy-versions/{version_id}` for one version with its snapshot.
+      operationId: getPolicy
+      x-required-permission: policy:read
+      responses:
+        "200":
+          description: The policy.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolicyDetail" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policies/{policy_id}/clone:
+    parameters:
+      - name: policy_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyId" }
+    post:
+      tags: [Policies]
+      summary: Clone a version into a new draft
+      description: |
+        Creates the next numbered draft as a copy of an existing version of this policy, whatever
+        its status. This is also how a rejected version is revised. The body may be omitted.
+        Without `source_version_id` the ACTIVE version is copied, or the newest version when none
+        is active. The change note is inherited unless `description` is given. The new draft is
+        written against the current data dictionary schema version. Content sections
+        (RAC, scorecard, decision matrix) are copied once they exist (RF-007 to RF-009).
+      operationId: clonePolicy
+      x-required-permission: policy:write
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PolicyClone" }
+            example: { description: Tighten the DSR threshold. }
+      responses:
+        "201":
+          description: The new draft.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+            Location:
+              schema: { type: string }
+              example: /api/v1/policy-versions/9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolicyVersion" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policy-versions/{version_id}:
+    parameters:
+      - name: version_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyVersionId" }
+    get:
+      tags: [Policies]
+      summary: Get one policy version
+      description: A frozen version includes its canonical `snapshot` and `checksum`; for a draft both are null.
+      operationId: getPolicyVersion
+      x-required-permission: policy:read
+      responses:
+        "200":
+          description: The version.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolicyVersion" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
+    patch:
+      tags: [Policies]
+      summary: Edit a draft
+      description: |
+        Changes the change note or repoints the draft at another dictionary schema version
+        (0 up to the current one). Only a DRAFT can change: any other status is a 409
+        `POLICY_VERSION_FROZEN`. A request that changes nothing returns the draft unchanged.
+      operationId: updatePolicyVersion
+      x-required-permission: policy:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PolicyVersionUpdate" }
+            example: { description: Raise the minimum income. }
+      responses:
+        "200":
+          description: The draft after the change.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolicyVersion" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policy-versions/{version_id}/submit:
+    parameters:
+      - name: version_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyVersionId" }
+    post:
+      tags: [Policies]
+      summary: Freeze a draft for approval
+      description: |
+        Captures the canonical snapshot of the draft, including the data dictionary definitions
+        it was written against, stores its SHA-256 checksum, and moves the version to
+        `PENDING_APPROVAL`. After this nothing about the version changes: edits and a second
+        submit are 409 `POLICY_VERSION_FROZEN`. No request body.
+        Before freezing, the full policy validation of `POST .../validate` runs (SYSTEM_DESIGN.md
+        9.3): completeness (a scorecard, a decision matrix, and at least one required test case),
+        the RAC rules, the scorecard, the decision matrix against the scorecard range, and the test
+        cases, all against the dictionary version the draft is pinned to. If any check fails, the
+        answer is a 422 `POLICY_VALIDATION_FAILED` listing every problem (paths start with
+        `scorecard.` or `decision_matrix.` for those sections) and the draft stays a DRAFT.
+        Executing the test cases against the policy (comparing expected and actual decisions) is
+        a pending check until the decision evaluator exists (RF-011 to RF-013); approving or
+        rejecting a pending version arrives with M4.
+      operationId: submitPolicyVersion
+      x-required-permission: policy:submit
+      responses:
+        "200":
+          description: The frozen version with its snapshot and checksum.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolicyVersion" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
+        "422": { $ref: "#/components/responses/PolicyInvalid" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policy-versions/{version_id}/rac-rules:
+    parameters:
+      - name: version_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyVersionId" }
+    get:
+      tags: [Policies]
+      summary: List the RAC rules of a version
+      description: Rules in evaluation order (`order` 1, 2, 3, ...). Works for any status; a frozen version returns the rules it was frozen with.
+      operationId: getRacRules
+      x-required-permission: policy:read
+      responses:
+        "200":
+          description: The rules, possibly none.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RacRuleSet" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
+    put:
+      tags: [Policies]
+      summary: Replace the RAC rules of a draft
+      description: |
+        Replaces the whole list in one step. The position in `rules` is the evaluation order, so
+        reordering is a PUT with the same rules in another order. An empty list removes all rules.
+        Nothing is stored unless every rule is valid, and every problem is reported together with
+        its path (`rules[2].expression`). Sending the list the draft already has changes nothing.
 
+        An `expression` is the condition an applicant must satisfy to **pass** the rule, written
+        in the `expr` language limited to: comparisons (`== != < <= > >=`), `and`/`or`/`not`
+        (also `&& || !`), arithmetic (`+ - * / %`), `in` / `not in` with a list of numbers or
+        booleans, number and boolean literals, `nil`, parentheses, and the names of data dictionary
+        variables. Function calls, strings, member access, conditionals, and everything else are
+        rejected (`unsupported_syntax`). The expression must be boolean and well typed against the
+        dictionary version the draft is pinned to (`dictionary_schema_version`). `action` says what
+        a failed rule does: `REJECT` ends the evaluation with a rejection, `REFER` sends the
+        application to manual review and scoring continues. Rules are only checked here, not run;
+        evaluation arrives with RF-012.
+
+        Issue codes for `expression`: `required`, `too_long`, `invalid_characters`, `syntax_error`,
+        `unsupported_syntax`, `unknown_variable`, `type_error`. `message` carries the explanation.
+        Only a DRAFT can change: any other status is a 409 `POLICY_VERSION_FROZEN`.
+      operationId: replaceRacRules
+      x-required-permission: policy:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RacRulesReplace" }
+            example:
+              rules:
+                - { rule_code: RAC_MIN_AGE, reason_code: AGE_BELOW_MINIMUM, action: REJECT, expression: "age_years >= 21", description: Applicant must be at least 21 years old. }
+                - { rule_code: RAC_BLACKLIST, reason_code: BLACKLISTED, action: REJECT, expression: "is_blacklisted == false", description: Blacklisted applicants are rejected. }
+                - { rule_code: RAC_SLIK, reason_code: SLIK_REVIEW_REQUIRED, action: REFER, expression: "slik_max_kol <= 2", description: Worse collectability goes to manual review. }
+      responses:
+        "200":
+          description: The rules as stored.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RacRuleSet" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422":
+          description: The list is invalid. Nothing was stored.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error:
+                  code: INPUT_VALIDATION_ERROR
+                  message: invalid policy
+                  details:
+                    - { field: "rules[0].expression", issue: unknown_variable, message: unknown variable "agee_years" }
+                    - { field: "rules[1].reason_code", issue: required }
+                    - { field: "rules[2].rule_code", issue: duplicate, message: "already used by rules[0]" }
+                request_id: 2b1a0c9d8e7f6a5b4c3d2e1f0a9b8c7d
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policy-versions/{version_id}/scorecard:
+    parameters:
+      - name: version_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyVersionId" }
+    get:
+      tags: [Policies]
+      summary: Get the scorecard of a version
+      description: |
+        The scorecard with its characteristics and bins in order, and the derived `score_range`
+        (lowest and highest total score it can produce). `scorecard` is null when none is
+        configured. Works for any status; a frozen version returns the scorecard it was frozen with.
+      operationId: getScorecard
+      x-required-permission: policy:read
+      responses:
+        "200":
+          description: The scorecard, or null.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScorecardResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
+    put:
+      tags: [Policies]
+      summary: Replace the scorecard of a draft
+      description: |
+        Replaces the whole scorecard in one step: `total_score = base_score + the points of the one
+        bin each characteristic selects` (SYSTEM_DESIGN.md 10.3). Characteristics keep the order
+        given, and each one scores one numeric data dictionary variable.
+
+        **Bins are half-open intervals `[min_value, max_value)`**: `min_value` is included,
+        `max_value` is not. An omitted or null `min_value` means no lower limit and an omitted or
+        null `max_value` means no upper limit. Bins are listed in ascending order and must cover
+        every value the variable can have exactly once: the first bin starts at or below the
+        variable's dictionary minimum (or has no `min_value`), each bin starts where the previous
+        one ends (`gap` / `overlap` otherwise), and the last bin ends above the dictionary maximum
+        (or has no `max_value`). So every valid input selects exactly one bin. Bounds follow the
+        variable type: whole numbers for INTEGER (`must_be_integer`), at most the variable's scale
+        for DECIMAL (`exceeds_scale`). They are returned in shortest form (`"0.30"` becomes `"0.3"`).
+
+        `base_score`, `points`, and `missing_points` are decimal strings with at most two decimals
+        (NUMERIC(12,2)); they are returned with exactly two and may be negative. Sums are exact.
+        `missing_points` is the explicit outcome when the variable is absent or null, and is only
+        allowed for an optional input variable (`variable_always_present` otherwise).
+
+        Everything is checked against the dictionary version the draft is pinned to. Nothing is
+        stored unless the whole scorecard is valid; every problem is reported with its path
+        (`characteristics[1].bins[2].min_value`). Sending the scorecard the draft already has
+        changes nothing. Only a DRAFT can change (409 `POLICY_VERSION_FROZEN`).
+      operationId: replaceScorecard
+      x-required-permission: policy:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScorecardReplace" }
+            example:
+              base_score: "350.00"
+              characteristics:
+                - characteristic_code: age_group
+                  variable: age_years
+                  bins:
+                    - { max_value: "25", points: "40.00", label: under 25 }
+                    - { min_value: "25", max_value: "46", points: "85.00", label: 25 to 45 }
+                    - { min_value: "46", points: "60.00", label: 46 and over }
+                - characteristic_code: dsr_band
+                  variable: dsr_ratio
+                  bins:
+                    - { min_value: "0", max_value: "0.30", points: "150.00" }
+                    - { min_value: "0.30", max_value: "0.50", points: "70.00" }
+                    - { min_value: "0.50", points: "0.00" }
+      responses:
+        "200":
+          description: The scorecard as stored.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScorecardResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422":
+          description: The scorecard is invalid. Nothing was stored.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error:
+                  code: INPUT_VALIDATION_ERROR
+                  message: invalid policy
+                  details:
+                    - { field: "characteristics[0].bins[1].min_value", issue: gap, message: "values from 25 up to this bin's min_value belong to no bin" }
+                    - { field: "characteristics[1].variable", issue: unknown_variable, message: "unknown variable \"salary\"" }
+                request_id: 5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a
+        "500": { $ref: "#/components/responses/InternalError" }
+    delete:
+      tags: [Policies]
+      summary: Remove the scorecard of a draft
+      description: Removes the scorecard; `GET` then returns `scorecard` null. Answers 204 also when there was none. Only a DRAFT can change.
+      operationId: deleteScorecard
+      x-required-permission: policy:write
+      responses:
+        "204":
+          description: Removed (or there was nothing to remove).
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /api/v1/policy-versions/{version_id}/decision-matrix:
+    parameters:
+      - name: version_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyVersionId" }
+    get:
+      tags: [Policies]
+      summary: Get the decision matrix of a version
+      description: |
+        The rows in ascending score order. `decision_matrix` is null when none is configured.
+        `score_range` is the range of total scores the version's scorecard can produce (null
+        without a scorecard), and `covers_score_range` says whether the stored rows still cover it
+        (null when there is no scorecard or no matrix); it turns false when the scorecard is
+        edited after the matrix. Works for any status.
+      operationId: getDecisionMatrix
+      x-required-permission: policy:read
+      responses:
+        "200":
+          description: The decision matrix, or null.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DecisionMatrixResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
+    put:
+      tags: [Policies]
+      summary: Replace the decision matrix of a draft
+      description: |
+        Replaces the whole matrix in one step. Each row maps a total score to a risk `grade` and a
+        `decision` (`APPROVE`, `REFER`, or `REJECT`; there is no default) (SYSTEM_DESIGN.md 10.4).
+
+        **Rows are half-open score intervals `[min_score, max_score)`**: `min_score` is included,
+        `max_score` is not, the same rule as scorecard bins. An omitted or null `min_score` means no
+        lower limit (first row only) and an omitted or null `max_score` no upper limit (last row
+        only). Rows are listed in ascending order and each starts where the previous one ends
+        (`gap` / `overlap` otherwise). When the draft has a scorecard, the rows must also cover
+        every total it can produce (`score_range`): the first row starts at or below its minimum
+        and the last ends above its maximum (`does_not_cover_score_range`). So no score of this
+        version can ever find no row. Bounds are decimal strings with at most two decimals and are
+        returned with exactly two. For the demo score domain 0 to 900 inclusive the last row ends
+        at `901`.
+
+        Nothing is stored unless the whole matrix is valid; every problem is reported with its path
+        (`rows[1].min_score`). Sending the matrix the draft already has changes nothing. At least
+        one row is required; remove a matrix with `DELETE`. Only a DRAFT can change (409
+        `POLICY_VERSION_FROZEN`). The matrix is checked, not run: lookup at decision time and the
+        precedence of RAC results over the matrix arrive with RF-013.
+      operationId: replaceDecisionMatrix
+      x-required-permission: policy:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DecisionMatrixReplace" }
+            example:
+              rows:
+                - { min_score: "0", max_score: "500", grade: D, decision: REJECT, label: below 500 }
+                - { min_score: "500", max_score: "650", grade: B, decision: REFER, label: 500 to below 650 }
+                - { min_score: "650", max_score: "901", grade: A, decision: APPROVE, label: 650 to 900 }
+      responses:
+        "200":
+          description: The matrix as stored.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DecisionMatrixResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422":
+          description: The matrix is invalid. Nothing was stored.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error:
+                  code: INPUT_VALIDATION_ERROR
+                  message: invalid policy
+                  details:
+                    - { field: "rows[1].min_score", issue: gap, message: "scores from 500.00 up to this row's min_score belong to no row" }
+                    - { field: "rows[2].max_score", issue: does_not_cover_score_range, message: "the scorecard can produce scores up to 685.00; max_score is excluded, so the last row must end above it, or have no max_score" }
+                request_id: 6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b
+        "500": { $ref: "#/components/responses/InternalError" }
+    delete:
+      tags: [Policies]
+      summary: Remove the decision matrix of a draft
+      description: Removes the matrix; `GET` then returns `decision_matrix` null. Answers 204 also when there was none. Only a DRAFT can change.
+      operationId: deleteDecisionMatrix
+      x-required-permission: policy:write
+      responses:
+        "204":
+          description: Removed (or there was nothing to remove).
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policy-versions/{version_id}/test-cases:
+    parameters:
+      - name: version_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyVersionId" }
+    get:
+      tags: [Policies]
+      summary: List the test cases of a version
+      description: The regression ("golden") cases of the version in order (SYSTEM_DESIGN.md 9.1 and 12). Works for any status.
+      operationId: getTestCases
+      x-required-permission: policy:read
+      responses:
+        "200":
+          description: The test cases, possibly none.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TestCaseSet" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
+    put:
+      tags: [Policies]
+      summary: Replace the test cases of a draft
+      description: |
+        Replaces the whole list. A test case is an applicant `input` (the same facts the decision
+        API will take: integers as JSON numbers, decimals as strings, booleans) and the result the
+        policy is expected to give: either a business `DECISION` (with `decision`, optional
+        `grade`, and optional `reason_codes`) or an `INPUT_VALIDATION_ERROR`. Cases are `required`
+        unless set to false; a version can only be submitted with at least one required case.
+
+        Each case is checked now, against the dictionary version the draft is pinned to and the
+        draft's current RAC rules and decision matrix:
+        input keys must be input variables of the dictionary (`unknown_variable`,
+        `derived_not_allowed`); `grade` must be a grade of the matrix (`unknown_grade`) and every
+        reason code a reason code of a RAC rule (`unknown_reason_code`); and the input is **run
+        against the data dictionary**: a `DECISION` case needs an input that passes it (the issue
+        of the dictionary is reported at `input.<variable>`), and an `INPUT_VALIDATION_ERROR` case
+        needs one that fails it (`validation_error_not_raised`). Whether the expected decision,
+        grade, and reason codes are what the policy gives is checked once the decision evaluator
+        exists (RF-011 to RF-013); `POST .../validate` lists that as a pending check.
+
+        Reason codes are a set and are returned sorted. Nothing is stored unless every case is
+        valid; every problem is reported with its path. Sending the list the draft already has
+        changes nothing; an empty list removes all cases. Only a DRAFT can change (409
+        `POLICY_VERSION_FROZEN`).
+      operationId: replaceTestCases
+      x-required-permission: policy:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TestCasesReplace" }
+            example:
+              test_cases:
+                - case_code: GOLDEN_HAPPY_PATH
+                  description: "Example applicant of section 20.4: score 685, grade A."
+                  input: { age_years: 29, monthly_income: "12000000.00", existing_installment: "2500000.00", employment_tenure_months: 36, slik_max_kol: 1, is_blacklisted: false }
+                  expected: { outcome: DECISION, decision: APPROVE, grade: A }
+                - case_code: GOLDEN_AGE_BELOW_MINIMUM
+                  input: { age_years: 19, monthly_income: "12000000.00", existing_installment: "2500000.00", employment_tenure_months: 36, slik_max_kol: 1, is_blacklisted: false }
+                  expected: { outcome: DECISION, decision: REJECT, reason_codes: [AGE_BELOW_MINIMUM] }
+                - case_code: GOLDEN_ZERO_INCOME
+                  input: { age_years: 29, monthly_income: "0.00", existing_installment: "2500000.00", employment_tenure_months: 36, slik_max_kol: 1, is_blacklisted: false }
+                  expected: { outcome: INPUT_VALIDATION_ERROR }
+      responses:
+        "200":
+          description: The test cases as stored.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TestCaseSet" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422":
+          description: The list is invalid. Nothing was stored.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error:
+                  code: INPUT_VALIDATION_ERROR
+                  message: invalid policy
+                  details:
+                    - { field: "test_cases[0].input.monthly_income", issue: below_min_value, message: "the expected outcome is a decision, so the input must pass the data dictionary" }
+                    - { field: "test_cases[1].expected.reason_codes[0]", issue: unknown_reason_code, message: "no RAC rule of this version has reason code \"NOT_A_REASON\"" }
+                request_id: 7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policy-versions/{version_id}/validate:
+    parameters:
+      - name: version_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyVersionId" }
+    post:
+      tags: [Policies]
+      summary: Validate a whole policy version
+      description: |
+        Runs the full policy validation of SYSTEM_DESIGN.md 9.3 and returns a report; nothing
+        changes. Submit runs the same checks and refuses the version (422
+        `POLICY_VALIDATION_FAILED`, same `issues`) when any fails, so this is the dry run of
+        submit and needs the same permission. Works for any status; a frozen version is checked
+        again against the dictionary version it is pinned to. No request body.
+
+        Checks: **completeness** (a scorecard, a decision matrix, and at least one required test
+        case: `missing_section`, `no_required_test_cases`; RAC rules are optional); every **RAC
+        expression** compiles and type-checks; the **scorecard** variables exist and are numeric
+        and its bins cover each variable exactly once; the **decision matrix** covers the
+        scorecard's score range; every **test case** references existing variables, grades, and
+        reason codes, and its input passes or fails the data dictionary as its expected outcome
+        says. Paths are those of the editing endpoints, prefixed `scorecard.` and
+        `decision_matrix.` for those sections.
+
+        `pending_checks` lists what cannot run yet: comparing each test case's expected decision,
+        grade, and reason codes with the policy's actual result needs the decision evaluator
+        (RF-011 to RF-013). `valid: true` therefore means "every check that exists passed", and
+        the pending check is always listed so it is never mistaken for a pass.
+      operationId: validatePolicyVersion
+      x-required-permission: policy:submit
+      responses:
+        "200":
+          description: The validation report.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationReport" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
 security:
   - bearerAuth: []
 
@@ -414,6 +1287,824 @@ components:
         per_page: { type: integer, minimum: 1, maximum: 100 }
         total: { type: integer, minimum: 0 }
 
+    VariableCode:
+      type: string
+      pattern: "^[a-z][a-z0-9_]{2,63}$"
+      example: monthly_income
+    VariableOrigin:
+      type: string
+      enum: [INPUT, DERIVED]
+      description: INPUT is supplied by the Loan Application; DERIVED is computed by the feature builder.
+      example: INPUT
+    VariableType:
+      type: string
+      enum: [INTEGER, DECIMAL, BOOLEAN]
+      description: On the wire INTEGER is a JSON number, DECIMAL is a decimal string, BOOLEAN is a JSON boolean.
+      example: DECIMAL
+    DecimalBound:
+      type: [string, "null"]
+      pattern: "^-?(0|[1-9][0-9]{0,17})(\\.[0-9]+)?$"
+      description: |
+        Inclusive bound as a decimal string (at most 18 integer digits, no exponent). For INTEGER
+        it must have no fraction. For DECIMAL it must fit `scale`. The response shows it with
+        exactly `scale` fraction digits. Not allowed for BOOLEAN.
+      example: "0.01"
+    Variable:
+      type: object
+      required: [id, code, origin, type, description, unit, required, nullable, scale, min_value, max_value, version, schema_version, created_at, updated_at]
+      example:
+        id: 0b9f1d4e-6a2c-4c8e-8d3a-5e7f9a1b2c3d
+        code: monthly_income
+        origin: INPUT
+        type: DECIMAL
+        description: Verified (synthetic) monthly income. Must be positive.
+        unit: IDR
+        required: true
+        nullable: false
+        scale: 2
+        min_value: "0.01"
+        max_value: "1000000000000.00"
+        version: 1
+        schema_version: 2
+        created_at: "2026-11-20T08:00:00Z"
+        updated_at: "2026-11-20T08:00:00Z"
+      properties:
+        id: { type: string, format: uuid }
+        code: { $ref: "#/components/schemas/VariableCode" }
+        origin: { $ref: "#/components/schemas/VariableOrigin" }
+        type: { $ref: "#/components/schemas/VariableType" }
+        description: { type: string, minLength: 1, maxLength: 500 }
+        unit: { type: string, maxLength: 20, description: Empty when the variable has no unit. }
+        required:
+          type: boolean
+          description: The input must be present and non-null. A missing key and an explicit null are both an input validation error, never a REJECT. Always false for DERIVED.
+        nullable:
+          type: boolean
+          description: An explicit null is an acceptable value. Never true together with `required`.
+        scale:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 8
+          description: Maximum fraction digits of a DECIMAL (display rounding scale for DERIVED). Null for other types.
+        min_value: { $ref: "#/components/schemas/DecimalBound" }
+        max_value: { $ref: "#/components/schemas/DecimalBound" }
+        version: { type: integer, minimum: 1, description: Version of this variable's definition. }
+        schema_version: { type: integer, minimum: 1, description: Dictionary schema version that introduced this version. }
+        created_at: { type: string, format: date-time, description: When version 1 was created. }
+        updated_at: { type: string, format: date-time, description: When this version was created. }
+    VariableCreate:
+      type: object
+      additionalProperties: false
+      required: [code, type, description]
+      properties:
+        code: { $ref: "#/components/schemas/VariableCode" }
+        origin: { $ref: "#/components/schemas/VariableOrigin", default: INPUT }
+        type: { $ref: "#/components/schemas/VariableType" }
+        description:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Leading and trailing whitespace is trimmed. Line breaks are allowed; other control characters (including NUL) are rejected.
+        unit: { type: string, maxLength: 20, description: "Single line, for example IDR, years, months, ratio." }
+        required: { type: boolean, description: "Default true for INPUT. DERIVED variables cannot be required." }
+        nullable: { type: boolean, default: false, description: Cannot be true when `required` is true. }
+        scale: { type: integer, minimum: 0, maximum: 8, description: "DECIMAL only; default 2." }
+        min_value: { $ref: "#/components/schemas/DecimalBound" }
+        max_value: { $ref: "#/components/schemas/DecimalBound" }
+    VariableUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        description: { type: string, minLength: 1, maxLength: 500 }
+        unit: { type: string, maxLength: 20 }
+        required: { type: boolean }
+        nullable: { type: boolean }
+        scale: { type: integer, minimum: 0, maximum: 8, description: DECIMAL only. Refused when an existing bound would need more fraction digits. }
+        min_value: { $ref: "#/components/schemas/DecimalBound" }
+        max_value: { $ref: "#/components/schemas/DecimalBound" }
+    VariableList:
+      type: object
+      required: [data, meta]
+      example:
+        data:
+          - id: 0b9f1d4e-6a2c-4c8e-8d3a-5e7f9a1b2c3d
+            code: monthly_income
+            origin: INPUT
+            type: DECIMAL
+            description: Verified (synthetic) monthly income. Must be positive.
+            unit: IDR
+            required: true
+            nullable: false
+            scale: 2
+            min_value: "0.01"
+            max_value: "1000000000000.00"
+            version: 1
+            schema_version: 2
+            created_at: "2026-11-20T08:00:00Z"
+            updated_at: "2026-11-20T08:00:00Z"
+        meta: { page: 1, per_page: 20, total: 1, schema_version: 8 }
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Variable" }
+        meta:
+          type: object
+          required: [page, per_page, total, schema_version]
+          properties:
+            page: { type: integer, minimum: 1, maximum: 10000 }
+            per_page: { type: integer, minimum: 1, maximum: 100 }
+            total: { type: integer, minimum: 0 }
+            schema_version: { type: integer, minimum: 0, description: The dictionary schema version this page was read at. }
+    PolicyId:
+      type: string
+      format: uuid
+      example: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+    PolicyVersionId:
+      type: string
+      format: uuid
+      example: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+    PolicyScope:
+      type: string
+      pattern: "^[A-Z][A-Z0-9_]{1,31}$"
+      example: DEFAULT
+    PolicyStatus:
+      type: string
+      enum: [DRAFT, PENDING_APPROVAL, REJECTED, APPROVED, ACTIVE, ARCHIVED]
+      description: |
+        Lifecycle of SYSTEM_DESIGN.md 9.2. Only DRAFT can change. Submit moves DRAFT to
+        PENDING_APPROVAL; the later transitions are implemented in M4.
+      example: DRAFT
+    PolicyVersionSummary:
+      type: object
+      required: [id, policy_id, product_code, scope, version_number, status, description, based_on_version_id, dictionary_schema_version, checksum, submitted_by, submitted_at, created_by, created_at, updated_at]
+      example:
+        id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+        policy_id: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+        product_code: KTA_DEMO
+        scope: DEFAULT
+        version_number: 1
+        status: DRAFT
+        description: Initial draft of the KTA_DEMO policy.
+        based_on_version_id: null
+        dictionary_schema_version: 8
+        checksum: null
+        submitted_by: null
+        submitted_at: null
+        created_by: 2e4ebb31-3fbc-480f-a602-302b6766efa1
+        created_at: "2026-11-21T08:00:00Z"
+        updated_at: "2026-11-21T08:00:00Z"
+      properties:
+        id: { $ref: "#/components/schemas/PolicyVersionId" }
+        policy_id: { $ref: "#/components/schemas/PolicyId" }
+        product_code: { $ref: "#/components/schemas/ProductCode" }
+        scope: { $ref: "#/components/schemas/PolicyScope" }
+        version_number: { type: integer, minimum: 1, description: "Numbered per policy, starting at 1." }
+        status: { $ref: "#/components/schemas/PolicyStatus" }
+        description: { type: string, maxLength: 500, description: Change note. }
+        based_on_version_id:
+          oneOf: [{ $ref: "#/components/schemas/PolicyVersionId" }, { type: "null" }]
+          description: The version this draft was cloned from; null for the first draft.
+        dictionary_schema_version: { type: integer, minimum: 0, description: The data dictionary schema version the version is written against. }
+        checksum:
+          type: [string, "null"]
+          pattern: "^[0-9a-f]{64}$"
+          description: SHA-256 of the canonical snapshot; null until submitted.
+        submitted_by:
+          oneOf: [{ type: string, format: uuid }, { type: "null" }]
+        submitted_at: { type: [string, "null"], format: date-time }
+        created_by:
+          oneOf: [{ type: string, format: uuid }, { type: "null" }]
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    PolicySnapshot:
+      type: object
+      description: |
+        Frozen content of a submitted version in canonical form (keys sorted, no whitespace
+        outside strings). `checksum` is the SHA-256 of exactly this form.
+        `rac_rules` lists the RAC rules in evaluation order (RF-007), `scorecard` is the scorecard
+        without the derived `score_range` or null (RF-008), `decision_matrix` lists the matrix rows in ascending order, or is empty (RF-009),
+        and `test_cases` lists the test cases in order (RF-010). `format` is 2 since RF-010
+        (snapshots taken by RF-006 to RF-009 are format 1, are returned as stored, and have no
+        `test_cases`; a stored snapshot is never rewritten because its checksum covers it).
+      required: [format, evaluator_version, package, version_number, dictionary, rac_rules, scorecard, decision_matrix]
+      example:
+        format: 2
+        evaluator_version: "1"
+        package: { product_code: KTA_DEMO, scope: DEFAULT }
+        version_number: 1
+        dictionary:
+          schema_version: 8
+          variables:
+            - code: age_years
+              origin: INPUT
+              type: INTEGER
+              description: Applicant age on the application date.
+              unit: years
+              required: true
+              nullable: false
+              scale: null
+              min_value: "0"
+              max_value: "120"
+              version: 1
+              schema_version: 1
+        rac_rules: []
+        scorecard: null
+        decision_matrix: []
+        test_cases: []
+      properties:
+        format: { type: integer }
+        evaluator_version: { type: string }
+        package:
+          type: object
+          properties:
+            product_code: { type: string }
+            scope: { type: string }
+        version_number: { type: integer }
+        dictionary:
+          type: object
+          properties:
+            schema_version: { type: integer }
+            variables: { type: array, items: { type: object } }
+        rac_rules: { type: array, items: { type: object } }
+        scorecard: { type: [object, "null"] }
+        decision_matrix: { type: array, items: { type: object } }
+        test_cases: { type: array, items: { type: object } }
+    PolicyVersion:
+      allOf:
+        - $ref: "#/components/schemas/PolicyVersionSummary"
+        - type: object
+          required: [snapshot]
+          properties:
+            snapshot:
+              oneOf: [{ $ref: "#/components/schemas/PolicySnapshot" }, { type: "null" }]
+              description: Null while the version is a DRAFT.
+      example:
+        id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+        policy_id: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+        product_code: KTA_DEMO
+        scope: DEFAULT
+        version_number: 1
+        status: PENDING_APPROVAL
+        description: Initial draft of the KTA_DEMO policy.
+        based_on_version_id: null
+        dictionary_schema_version: 8
+        checksum: 5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592
+        submitted_by: 2e4ebb31-3fbc-480f-a602-302b6766efa1
+        submitted_at: "2026-11-21T08:05:00Z"
+        created_by: 2e4ebb31-3fbc-480f-a602-302b6766efa1
+        created_at: "2026-11-21T08:00:00Z"
+        updated_at: "2026-11-21T08:05:00Z"
+        snapshot:
+          dictionary:
+            schema_version: 8
+            variables: []
+          decision_matrix: []
+          evaluator_version: "1"
+          format: 2
+          package: { product_code: KTA_DEMO, scope: DEFAULT }
+          rac_rules: []
+          scorecard: null
+          test_cases: []
+          version_number: 1
+    PolicyCreate:
+      type: object
+      additionalProperties: false
+      required: [product_code]
+      properties:
+        product_code: { type: string, minLength: 1, maxLength: 32, example: KTA_DEMO, description: An existing ACTIVE product. }
+        scope: { $ref: "#/components/schemas/PolicyScope", default: DEFAULT }
+        description: { type: string, maxLength: 500, description: Change note of the first draft. }
+    PolicyClone:
+      type: object
+      additionalProperties: false
+      properties:
+        source_version_id: { $ref: "#/components/schemas/PolicyVersionId" }
+        description: { type: string, maxLength: 500, description: Change note; inherited from the source when omitted. }
+    PolicyVersionUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        description: { type: string, maxLength: 500 }
+        dictionary_schema_version: { type: integer, minimum: 0, description: "0 up to the current dictionary schema version." }
+    PolicyDetail:
+      type: object
+      required: [id, product_code, scope, created_at, versions]
+      example:
+        id: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+        product_code: KTA_DEMO
+        scope: DEFAULT
+        created_at: "2026-11-21T08:00:00Z"
+        versions:
+          - id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+            policy_id: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+            product_code: KTA_DEMO
+            scope: DEFAULT
+            version_number: 1
+            status: DRAFT
+            description: Initial draft of the KTA_DEMO policy.
+            based_on_version_id: null
+            dictionary_schema_version: 8
+            checksum: null
+            submitted_by: null
+            submitted_at: null
+            created_by: 2e4ebb31-3fbc-480f-a602-302b6766efa1
+            created_at: "2026-11-21T08:00:00Z"
+            updated_at: "2026-11-21T08:00:00Z"
+      properties:
+        id: { $ref: "#/components/schemas/PolicyId" }
+        product_code: { $ref: "#/components/schemas/ProductCode" }
+        scope: { $ref: "#/components/schemas/PolicyScope" }
+        created_at: { type: string, format: date-time }
+        versions:
+          type: array
+          description: Newest first.
+          items: { $ref: "#/components/schemas/PolicyVersionSummary" }
+    PolicyListItem:
+      type: object
+      required: [id, product_code, scope, version_count, latest_version, created_at]
+      example:
+        id: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+        product_code: KTA_DEMO
+        scope: DEFAULT
+        version_count: 1
+        created_at: "2026-11-21T08:00:00Z"
+        latest_version:
+          id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+          policy_id: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+          product_code: KTA_DEMO
+          scope: DEFAULT
+          version_number: 1
+          status: DRAFT
+          description: Initial draft of the KTA_DEMO policy.
+          based_on_version_id: null
+          dictionary_schema_version: 8
+          checksum: null
+          submitted_by: null
+          submitted_at: null
+          created_by: 2e4ebb31-3fbc-480f-a602-302b6766efa1
+          created_at: "2026-11-21T08:00:00Z"
+          updated_at: "2026-11-21T08:00:00Z"
+      properties:
+        id: { $ref: "#/components/schemas/PolicyId" }
+        product_code: { $ref: "#/components/schemas/ProductCode" }
+        scope: { $ref: "#/components/schemas/PolicyScope" }
+        version_count: { type: integer, minimum: 0 }
+        latest_version:
+          oneOf: [{ $ref: "#/components/schemas/PolicyVersionSummary" }, { type: "null" }]
+        created_at: { type: string, format: date-time }
+    PolicyList:
+      type: object
+      required: [data, meta]
+      example:
+        data:
+          - id: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+            product_code: KTA_DEMO
+            scope: DEFAULT
+            version_count: 1
+            created_at: "2026-11-21T08:00:00Z"
+            latest_version:
+              id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+              policy_id: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+              product_code: KTA_DEMO
+              scope: DEFAULT
+              version_number: 1
+              status: DRAFT
+              description: Initial draft of the KTA_DEMO policy.
+              based_on_version_id: null
+              dictionary_schema_version: 8
+              checksum: null
+              submitted_by: null
+              submitted_at: null
+              created_by: 2e4ebb31-3fbc-480f-a602-302b6766efa1
+              created_at: "2026-11-21T08:00:00Z"
+              updated_at: "2026-11-21T08:00:00Z"
+        meta: { page: 1, per_page: 20, total: 1 }
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/PolicyListItem" }
+        meta: { $ref: "#/components/schemas/PageMeta" }
+    RacRuleCode:
+      type: string
+      pattern: "^[A-Z][A-Z0-9_]{2,63}$"
+      example: RAC_MIN_AGE
+    RacAction:
+      type: string
+      enum: [REJECT, REFER]
+      description: What a failed rule does. REJECT is a hard fail that ends the evaluation; REFER is a soft fail that flags manual review and lets scoring continue.
+      example: REJECT
+    RacRuleInput:
+      type: object
+      additionalProperties: false
+      required: [rule_code, reason_code, action, expression]
+      properties:
+        rule_code: { $ref: "#/components/schemas/RacRuleCode", description: Unique within the version. }
+        reason_code:
+          type: string
+          pattern: "^[A-Z][A-Z0-9_]{2,63}$"
+          example: AGE_BELOW_MINIMUM
+          description: Stable machine-readable explanation returned when the rule fails. Required for every rule. Rules may share one.
+        action: { $ref: "#/components/schemas/RacAction" }
+        expression:
+          type: string
+          minLength: 1
+          maxLength: 500
+          example: age_years >= 21
+          description: The condition that must hold to pass the rule. One line, boolean, over data dictionary variables.
+        description: { type: string, maxLength: 200, description: Optional note for reviewers. }
+    RacRulesReplace:
+      type: object
+      additionalProperties: false
+      required: [rules]
+      properties:
+        rules:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/RacRuleInput" }
+    RacRule:
+      type: object
+      required: [order, rule_code, reason_code, expression, action, description]
+      example: { order: 1, rule_code: RAC_MIN_AGE, reason_code: AGE_BELOW_MINIMUM, expression: "age_years >= 21", action: REJECT, description: Applicant must be at least 21 years old. }
+      properties:
+        order: { type: integer, minimum: 1, description: Evaluation order; unique within the version. }
+        rule_code: { $ref: "#/components/schemas/RacRuleCode" }
+        reason_code: { type: string, pattern: "^[A-Z][A-Z0-9_]{2,63}$" }
+        expression: { type: string, maxLength: 500 }
+        action: { $ref: "#/components/schemas/RacAction" }
+        description: { type: string, maxLength: 200 }
+    RacRuleSet:
+      type: object
+      required: [policy_version_id, status, dictionary_schema_version, rules, updated_at]
+      example:
+        policy_version_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+        status: DRAFT
+        dictionary_schema_version: 8
+        updated_at: "2026-11-22T08:00:00Z"
+        rules:
+          - { order: 1, rule_code: RAC_MIN_AGE, reason_code: AGE_BELOW_MINIMUM, expression: "age_years >= 21", action: REJECT, description: Applicant must be at least 21 years old. }
+          - { order: 2, rule_code: RAC_BLACKLIST, reason_code: BLACKLISTED, expression: "is_blacklisted == false", action: REJECT, description: Blacklisted applicants are rejected. }
+          - { order: 3, rule_code: RAC_SLIK, reason_code: SLIK_REVIEW_REQUIRED, expression: "slik_max_kol <= 2", action: REFER, description: Worse collectability goes to manual review. }
+      properties:
+        policy_version_id: { $ref: "#/components/schemas/PolicyVersionId" }
+        status: { $ref: "#/components/schemas/PolicyStatus" }
+        dictionary_schema_version: { type: integer, minimum: 0, description: The dictionary version the expressions are checked against. }
+        updated_at: { type: string, format: date-time }
+        rules:
+          type: array
+          items: { $ref: "#/components/schemas/RacRule" }
+    ScoreDecimal:
+      type: string
+      pattern: "^-?(0|[1-9][0-9]{0,9})(\\.[0-9]{1,2})?$"
+      description: Decimal string with at most two decimals (NUMERIC(12,2)); returned with exactly two. May be negative.
+      example: "85.00"
+    BinBound:
+      type: [string, "null"]
+      pattern: "^-?(0|[1-9][0-9]{0,17})(\\.[0-9]+)?$"
+      description: Decimal string; whole number for an INTEGER variable, at most the variable's scale for DECIMAL. Null or omitted means unbounded on that side.
+      example: "25"
+    ScorecardBinInput:
+      type: object
+      additionalProperties: false
+      required: [points]
+      properties:
+        min_value: { $ref: "#/components/schemas/BinBound", description: "Included. Omit or null for no lower limit (first bin only)." }
+        max_value: { $ref: "#/components/schemas/BinBound", description: "Excluded. Omit or null for no upper limit (last bin only)." }
+        points: { $ref: "#/components/schemas/ScoreDecimal" }
+        label: { type: string, maxLength: 100, description: Optional single-line label for reviewers. }
+    ScorecardCharacteristicInput:
+      type: object
+      additionalProperties: false
+      required: [characteristic_code, variable, bins]
+      properties:
+        characteristic_code: { type: string, pattern: "^[a-z][a-z0-9_]{2,63}$", example: age_group, description: Unique within the scorecard. }
+        variable: { type: string, example: age_years, description: An INTEGER or DECIMAL data dictionary variable. Several characteristics may use the same one. }
+        description: { type: string, maxLength: 200 }
+        missing_points:
+          oneOf: [{ $ref: "#/components/schemas/ScoreDecimal" }, { type: "null" }]
+          description: Points when the variable is absent or null. Only for an optional input variable.
+        bins:
+          type: array
+          minItems: 1
+          maxItems: 50
+          description: Ascending, edge to edge, covering every valid value of the variable exactly once.
+          items: { $ref: "#/components/schemas/ScorecardBinInput" }
+    ScorecardReplace:
+      type: object
+      additionalProperties: false
+      required: [base_score, characteristics]
+      properties:
+        base_score: { $ref: "#/components/schemas/ScoreDecimal" }
+        characteristics:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: { $ref: "#/components/schemas/ScorecardCharacteristicInput" }
+    ScorecardBin:
+      type: object
+      required: [order, min_value, max_value, points, label]
+      properties:
+        order: { type: integer, minimum: 1 }
+        min_value: { $ref: "#/components/schemas/BinBound" }
+        max_value: { $ref: "#/components/schemas/BinBound" }
+        points: { $ref: "#/components/schemas/ScoreDecimal" }
+        label: { type: string }
+    ScorecardCharacteristic:
+      type: object
+      required: [order, characteristic_code, variable, description, missing_points, bins]
+      properties:
+        order: { type: integer, minimum: 1 }
+        characteristic_code: { type: string }
+        variable: { type: string }
+        description: { type: string }
+        missing_points:
+          oneOf: [{ $ref: "#/components/schemas/ScoreDecimal" }, { type: "null" }]
+        bins:
+          type: array
+          items: { $ref: "#/components/schemas/ScorecardBin" }
+    Scorecard:
+      type: object
+      required: [base_score, score_range, characteristics]
+      properties:
+        base_score: { $ref: "#/components/schemas/ScoreDecimal" }
+        score_range:
+          type: object
+          required: [min, max]
+          description: Lowest and highest total score the scorecard can produce (base score plus the lowest or highest points of every characteristic, including missing_points). Derived, not stored; the decision matrix must cover it.
+          properties:
+            min: { $ref: "#/components/schemas/ScoreDecimal" }
+            max: { $ref: "#/components/schemas/ScoreDecimal" }
+        characteristics:
+          type: array
+          items: { $ref: "#/components/schemas/ScorecardCharacteristic" }
+    ScorecardResponse:
+      type: object
+      required: [policy_version_id, status, dictionary_schema_version, updated_at, scorecard]
+      example:
+        policy_version_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+        status: DRAFT
+        dictionary_schema_version: 8
+        updated_at: "2026-11-23T08:00:00Z"
+        scorecard:
+          base_score: "350.00"
+          score_range: { min: "420.00", max: "685.00" }
+          characteristics:
+            - order: 1
+              characteristic_code: age_group
+              variable: age_years
+              description: Applicant age band.
+              missing_points: null
+              bins:
+                - { order: 1, min_value: null, max_value: "25", points: "40.00", label: under 25 }
+                - { order: 2, min_value: "25", max_value: "46", points: "85.00", label: 25 to 45 }
+                - { order: 3, min_value: "46", max_value: null, points: "60.00", label: 46 and over }
+            - order: 2
+              characteristic_code: dsr_band
+              variable: dsr_ratio
+              description: Debt service ratio band (0 to 1 ratio).
+              missing_points: null
+              bins:
+                - { order: 1, min_value: "0", max_value: "0.3", points: "150.00", label: below 0.30 }
+                - { order: 2, min_value: "0.3", max_value: "0.5", points: "70.00", label: 0.30 to below 0.50 }
+                - { order: 3, min_value: "0.5", max_value: null, points: "0.00", label: 0.50 and over }
+            - order: 3
+              characteristic_code: employment_tenure
+              variable: employment_tenure_months
+              description: Months in current employment.
+              missing_points: null
+              bins:
+                - { order: 1, min_value: "0", max_value: "24", points: "30.00", label: under 24 months }
+                - { order: 2, min_value: "24", max_value: null, points: "100.00", label: 24 months or more }
+      properties:
+        policy_version_id: { $ref: "#/components/schemas/PolicyVersionId" }
+        status: { $ref: "#/components/schemas/PolicyStatus" }
+        dictionary_schema_version: { type: integer, minimum: 0, description: The dictionary version the scorecard is checked against. }
+        updated_at: { type: string, format: date-time }
+        scorecard:
+          oneOf: [{ $ref: "#/components/schemas/Scorecard" }, { type: "null" }]
+          description: Null when no scorecard is configured.
+    MatrixDecision:
+      type: string
+      enum: [APPROVE, REFER, REJECT]
+      example: APPROVE
+    ScoreBound:
+      oneOf: [{ $ref: "#/components/schemas/ScoreDecimal" }, { type: "null" }]
+      description: Total score bound with at most two decimals. Null or omitted means unbounded on that side.
+    DecisionMatrixRowInput:
+      type: object
+      additionalProperties: false
+      required: [grade, decision]
+      properties:
+        min_score: { $ref: "#/components/schemas/ScoreBound", description: "Included. Omit or null for no lower limit (first row only)." }
+        max_score: { $ref: "#/components/schemas/ScoreBound", description: "Excluded. Omit or null for no upper limit (last row only)." }
+        grade: { type: string, pattern: "^[A-Z][A-Z0-9_]{0,15}$", example: A, description: Risk grade code. Several rows may share a grade. }
+        decision: { $ref: "#/components/schemas/MatrixDecision" }
+        label: { type: string, maxLength: 100, description: Optional single-line label for reviewers. }
+    DecisionMatrixReplace:
+      type: object
+      additionalProperties: false
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          minItems: 1
+          maxItems: 50
+          description: Ascending score order, edge to edge.
+          items: { $ref: "#/components/schemas/DecisionMatrixRowInput" }
+    DecisionMatrixRow:
+      type: object
+      required: [order, min_score, max_score, grade, decision, label]
+      properties:
+        order: { type: integer, minimum: 1 }
+        min_score: { $ref: "#/components/schemas/ScoreBound" }
+        max_score: { $ref: "#/components/schemas/ScoreBound" }
+        grade: { type: string }
+        decision: { $ref: "#/components/schemas/MatrixDecision" }
+        label: { type: string }
+    DecisionMatrixResponse:
+      type: object
+      required: [policy_version_id, status, dictionary_schema_version, updated_at, score_range, covers_score_range, decision_matrix]
+      example:
+        policy_version_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+        status: DRAFT
+        dictionary_schema_version: 8
+        updated_at: "2026-11-24T08:00:00Z"
+        score_range: { min: "420.00", max: "685.00" }
+        covers_score_range: true
+        decision_matrix:
+          rows:
+            - { order: 1, min_score: "0.00", max_score: "500.00", grade: D, decision: REJECT, label: below 500 }
+            - { order: 2, min_score: "500.00", max_score: "650.00", grade: B, decision: REFER, label: 500 to below 650 }
+            - { order: 3, min_score: "650.00", max_score: "901.00", grade: A, decision: APPROVE, label: 650 to 900 }
+      properties:
+        policy_version_id: { $ref: "#/components/schemas/PolicyVersionId" }
+        status: { $ref: "#/components/schemas/PolicyStatus" }
+        dictionary_schema_version: { type: integer, minimum: 0 }
+        updated_at: { type: string, format: date-time }
+        score_range:
+          oneOf:
+            - type: object
+              required: [min, max]
+              properties:
+                min: { $ref: "#/components/schemas/ScoreDecimal" }
+                max: { $ref: "#/components/schemas/ScoreDecimal" }
+            - type: "null"
+          description: Lowest and highest total the version's scorecard can produce; null without a scorecard.
+        covers_score_range:
+          type: [boolean, "null"]
+          description: Whether the rows cover score_range; null when there is no scorecard or no matrix.
+        decision_matrix:
+          oneOf:
+            - type: object
+              required: [rows]
+              properties:
+                rows:
+                  type: array
+                  items: { $ref: "#/components/schemas/DecisionMatrixRow" }
+            - type: "null"
+          description: Null when no matrix is configured.
+    TestOutcome:
+      type: string
+      enum: [DECISION, INPUT_VALIDATION_ERROR]
+      description: DECISION means the input is valid and the policy gives a business decision; INPUT_VALIDATION_ERROR means the input is refused before any rule runs.
+      example: DECISION
+    TestCaseExpectedInput:
+      type: object
+      additionalProperties: false
+      required: [outcome]
+      properties:
+        outcome: { $ref: "#/components/schemas/TestOutcome" }
+        decision: { $ref: "#/components/schemas/MatrixDecision", description: "Required for DECISION; not allowed otherwise." }
+        grade: { type: string, pattern: "^[A-Z][A-Z0-9_]{0,15}$", description: "Optional for DECISION: a grade of the decision matrix." }
+        reason_codes:
+          type: array
+          maxItems: 20
+          items: { type: string, pattern: "^[A-Z][A-Z0-9_]{2,63}$" }
+          description: "Optional for DECISION: reason codes of the version's RAC rules, as a set."
+    TestCaseInput:
+      type: object
+      additionalProperties: false
+      required: [case_code, input, expected]
+      properties:
+        case_code: { type: string, pattern: "^[A-Z][A-Z0-9_]{2,63}$", example: GOLDEN_HAPPY_PATH, description: Unique within the version. }
+        description: { type: string, maxLength: 200 }
+        required: { type: boolean, default: true, description: Required cases must pass before submit; at least one is needed. }
+        input:
+          type: object
+          additionalProperties: true
+          description: Applicant facts keyed by input variable code; at most 8 KiB as canonical JSON.
+        expected: { $ref: "#/components/schemas/TestCaseExpectedInput" }
+    TestCasesReplace:
+      type: object
+      additionalProperties: false
+      required: [test_cases]
+      properties:
+        test_cases:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/TestCaseInput" }
+    TestCase:
+      type: object
+      required: [order, case_code, description, required, input, expected]
+      properties:
+        order: { type: integer, minimum: 1 }
+        case_code: { type: string }
+        description: { type: string }
+        required: { type: boolean }
+        input: { type: object, additionalProperties: true }
+        expected:
+          type: object
+          required: [outcome, decision, grade, reason_codes]
+          properties:
+            outcome: { $ref: "#/components/schemas/TestOutcome" }
+            decision:
+              oneOf: [{ $ref: "#/components/schemas/MatrixDecision" }, { type: "null" }]
+            grade: { type: [string, "null"] }
+            reason_codes: { type: array, items: { type: string } }
+    TestCaseSet:
+      type: object
+      required: [policy_version_id, status, dictionary_schema_version, updated_at, test_cases]
+      example:
+        policy_version_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+        status: DRAFT
+        dictionary_schema_version: 8
+        updated_at: "2026-11-25T08:00:00Z"
+        test_cases:
+          - order: 1
+            case_code: GOLDEN_HAPPY_PATH
+            description: "Example applicant of section 20.4: score 685, grade A."
+            required: true
+            input: { age_years: 29, employment_tenure_months: 36, existing_installment: "2500000.00", is_blacklisted: false, monthly_income: "12000000.00", slik_max_kol: 1 }
+            expected: { outcome: DECISION, decision: APPROVE, grade: A, reason_codes: [] }
+          - order: 2
+            case_code: GOLDEN_ZERO_INCOME
+            description: "monthly_income 0: validation error, never a division by zero."
+            required: true
+            input: { age_years: 29, employment_tenure_months: 36, existing_installment: "2500000.00", is_blacklisted: false, monthly_income: "0.00", slik_max_kol: 1 }
+            expected: { outcome: INPUT_VALIDATION_ERROR, decision: null, grade: null, reason_codes: [] }
+      properties:
+        policy_version_id: { $ref: "#/components/schemas/PolicyVersionId" }
+        status: { $ref: "#/components/schemas/PolicyStatus" }
+        dictionary_schema_version: { type: integer, minimum: 0 }
+        updated_at: { type: string, format: date-time }
+        test_cases:
+          type: array
+          items: { $ref: "#/components/schemas/TestCase" }
+    ValidationReport:
+      type: object
+      required: [policy_version_id, status, dictionary_schema_version, valid, summary, score_range, issues, pending_checks]
+      example:
+        policy_version_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+        status: DRAFT
+        dictionary_schema_version: 8
+        valid: false
+        summary: { rac_rules: 3, scorecard_characteristics: 3, decision_matrix_rows: 3, test_cases: 0, required_test_cases: 0 }
+        score_range: { min: "420.00", max: "685.00" }
+        issues:
+          - { field: test_cases, issue: no_required_test_cases, message: "a policy needs at least one required test case (SYSTEM_DESIGN.md 9.3)" }
+        pending_checks:
+          - check: golden_test_execution
+            reason: "evaluating the expected decision, grade, and reason codes of a test case needs the decision evaluator (RF-011 to RF-013); test cases are checked statically and their inputs are run against the data dictionary"
+      properties:
+        policy_version_id: { $ref: "#/components/schemas/PolicyVersionId" }
+        status: { $ref: "#/components/schemas/PolicyStatus" }
+        dictionary_schema_version: { type: integer, minimum: 0 }
+        valid: { type: boolean, description: True when every check that exists passed; submit would succeed. }
+        summary:
+          type: object
+          required: [rac_rules, scorecard_characteristics, decision_matrix_rows, test_cases, required_test_cases]
+          properties:
+            rac_rules: { type: integer, minimum: 0 }
+            scorecard_characteristics: { type: integer, minimum: 0 }
+            decision_matrix_rows: { type: integer, minimum: 0 }
+            test_cases: { type: integer, minimum: 0 }
+            required_test_cases: { type: integer, minimum: 0 }
+        score_range:
+          oneOf:
+            - type: object
+              required: [min, max]
+              properties:
+                min: { $ref: "#/components/schemas/ScoreDecimal" }
+                max: { $ref: "#/components/schemas/ScoreDecimal" }
+            - type: "null"
+        issues:
+          type: array
+          items:
+            type: object
+            required: [field, issue]
+            properties:
+              field: { type: string }
+              issue: { type: string }
+              message: { type: string }
+        pending_checks:
+          type: array
+          items:
+            type: object
+            required: [check, reason]
+            properties:
+              check: { type: string }
+              reason: { type: string }
     ErrorResponse:
       type: object
       required: [error]
@@ -432,6 +2123,13 @@ components:
                 - ROUTE_NOT_FOUND
                 - PRODUCT_NOT_FOUND
                 - PRODUCT_CODE_CONFLICT
+                - VARIABLE_NOT_FOUND
+                - VARIABLE_CODE_CONFLICT
+                - POLICY_NOT_FOUND
+                - POLICY_VERSION_NOT_FOUND
+                - POLICY_CONFLICT
+                - POLICY_VERSION_FROZEN
+                - POLICY_VALIDATION_FAILED
                 - SERVICE_BUSY
                 - INTERNAL_ERROR
             message: { type: string }
@@ -444,7 +2142,10 @@ components:
                   field: { type: string }
                   issue:
                     type: string
-                    description: Stable issue code, e.g. required, too_long, invalid_format, invalid_value, invalid_characters, must_be_string, not_allowed, no_changes.
+                    description: Stable issue code, e.g. required, too_long, invalid_format, invalid_value, invalid_characters, must_be_string, must_be_boolean, must_be_integer, not_allowed, no_changes, exceeds_scale, less_than_min_value, not_allowed_for_type, not_allowed_when_required, must_be_false_for_derived, exceeds_current_version, unknown_product, product_inactive, not_in_policy, must_be_a_non_negative_integer, must_be_array, must_be_object, too_many, duplicate, syntax_error, unsupported_syntax, unknown_variable, type_error, no_characteristics, no_bins, gap, overlap, min_not_less_than_max, does_not_cover_lower_bound, does_not_cover_upper_bound, must_be_integer, out_of_range, variable_not_numeric, variable_always_present, no_rows, does_not_cover_score_range, missing_section, no_required_test_cases, derived_not_allowed, unknown_grade, unknown_reason_code, validation_error_not_raised, not_allowed_for_outcome, invalid_json, too_large.
+                  message:
+                    type: string
+                    description: Explanation in words for issues that need one, for example the position of a syntax error. Absent for most details.
         request_id: { type: string }
 
   responses:
@@ -493,6 +2194,63 @@ components:
           example:
             error: { code: PRODUCT_NOT_FOUND, message: product not found }
             request_id: 9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a49
+    VariableNotFound:
+      description: No variable has this code.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error: { code: VARIABLE_NOT_FOUND, message: variable not found }
+            request_id: 7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d
+    PolicyNotFound:
+      description: No policy has this id.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error: { code: POLICY_NOT_FOUND, message: policy not found }
+            request_id: 8b7a6c5d4e3f2a1b0c9d8e7f6a5b4c3d
+    PolicyVersionNotFound:
+      description: No policy version has this id.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error: { code: POLICY_VERSION_NOT_FOUND, message: policy version not found }
+            request_id: 9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d
+    PolicyVersionFrozen:
+      description: The version is not a DRAFT, so it can no longer be edited or submitted.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error: { code: POLICY_VERSION_FROZEN, message: only a DRAFT version can be changed or submitted }
+            request_id: 0d9c8b7a6e5f4a3b2c1d0e9f8a7b6c5d
+    PolicyInvalid:
+      description: |
+        The draft cannot be submitted because its content does not validate, for example a RAC
+        expression that no longer compiles against the dictionary version the draft is pinned to.
+        The details use the paths of the editing endpoints. The draft stays a DRAFT.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error:
+              code: POLICY_VALIDATION_FAILED
+              message: the draft cannot be submitted until its content is valid
+              details:
+                - { field: "rules[1].expression", issue: unknown_variable, message: "unknown variable \"is_blacklisted\"" }
+            request_id: 3c2b1a0d9e8f7a6b5c4d3e2f1a0b9c8d
     InternalError:
       description: Unexpected failure. The cause is logged server-side and never returned.
       headers:

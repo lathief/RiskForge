@@ -11,9 +11,13 @@ import (
 	"goravel/app/http/middleware"
 	catalogapp "goravel/app/modules/catalog/application"
 	cataloginfra "goravel/app/modules/catalog/infrastructure"
+	dictionaryapp "goravel/app/modules/dictionary/application"
+	dictionaryinfra "goravel/app/modules/dictionary/infrastructure"
 	identityapp "goravel/app/modules/identity/application"
 	"goravel/app/modules/identity/domain"
 	identityinfra "goravel/app/modules/identity/infrastructure"
+	policyapp "goravel/app/modules/policy/application"
+	policyinfra "goravel/app/modules/policy/infrastructure"
 	"goravel/app/platform/database"
 	"goravel/app/platform/logging"
 	"goravel/app/support"
@@ -21,9 +25,11 @@ import (
 
 // Module labels used in every log type.
 const (
-	moduleIdentity = "identity"
-	moduleCatalog  = "catalog"
-	moduleDocs     = "docs"
+	moduleIdentity   = "identity"
+	moduleCatalog    = "catalog"
+	moduleDictionary = "dictionary"
+	modulePolicy     = "policy"
+	moduleDocs       = "docs"
 )
 
 func Api() {
@@ -64,14 +70,30 @@ func Api() {
 	authenticate := middleware.NewAuthenticate(authService)
 
 	catalogDB := dbManager.WithModule(moduleCatalog)
-	productController := controllers.NewProductController(
-		catalogapp.NewProductService(cataloginfra.NewProductRepository(catalogDB), catalogDB),
-	)
+	catalogService := catalogapp.NewProductService(cataloginfra.NewProductRepository(catalogDB), catalogDB)
+	productController := controllers.NewProductController(catalogService)
+	dictionaryDB := dbManager.WithModule(moduleDictionary)
+	dictionaryService := dictionaryapp.NewVariableService(dictionaryinfra.NewVariableRepository(dictionaryDB), dictionaryDB)
+	dictionaryController := controllers.NewDictionaryController(dictionaryService)
+	canReadDictionary := middleware.NewRequirePermission(domain.PermDictionaryRead)
+	canWriteDictionary := middleware.NewRequirePermission(domain.PermDictionaryWrite)
+	policyDB := dbManager.WithModule(modulePolicy)
+	policyController := controllers.NewPolicyController(policyapp.NewPolicyService(
+		policyinfra.NewPolicyRepository(policyDB),
+		policyinfra.NewCatalogProducts(catalogService),
+		policyinfra.NewDictionaryVersions(dictionaryService),
+		policyDB,
+	))
+	canReadPolicies := middleware.NewRequirePermission(domain.PermPolicyRead)
+	canWritePolicies := middleware.NewRequirePermission(domain.PermPolicyWrite)
+	canSubmitPolicies := middleware.NewRequirePermission(domain.PermPolicySubmit)
 	canReadProducts := middleware.NewRequirePermission(domain.PermProductRead)
 	canWriteProducts := middleware.NewRequirePermission(domain.PermProductWrite)
 
 	identity := middleware.NewModule(moduleIdentity)
 	catalog := middleware.NewModule(moduleCatalog)
+	dictionary := middleware.NewModule(moduleDictionary)
+	policy := middleware.NewModule(modulePolicy)
 
 	facades.Route().Prefix("/api/v1").Group(func(router route.Router) {
 		router.Middleware(identity).Post("/auth/login", authController.Login)
@@ -81,5 +103,27 @@ func Api() {
 		router.Middleware(catalog, authenticate, canReadProducts).Get("/products/{code}", productController.Show)
 		router.Middleware(catalog, authenticate, canWriteProducts).Post("/products", productController.Store)
 		router.Middleware(catalog, authenticate, canWriteProducts).Patch("/products/{code}", productController.Update)
+		router.Middleware(dictionary, authenticate, canReadDictionary).Get("/dictionary/variables", dictionaryController.Index)
+		router.Middleware(dictionary, authenticate, canReadDictionary).Get("/dictionary/variables/{variable_code}", dictionaryController.Show)
+		router.Middleware(dictionary, authenticate, canWriteDictionary).Post("/dictionary/variables", dictionaryController.Store)
+		router.Middleware(dictionary, authenticate, canWriteDictionary).Patch("/dictionary/variables/{variable_code}", dictionaryController.Update)
+		router.Middleware(policy, authenticate, canReadPolicies).Get("/policies", policyController.Index)
+		router.Middleware(policy, authenticate, canWritePolicies).Post("/policies", policyController.Store)
+		router.Middleware(policy, authenticate, canReadPolicies).Get("/policies/{policy_id}", policyController.Show)
+		router.Middleware(policy, authenticate, canWritePolicies).Post("/policies/{policy_id}/clone", policyController.Clone)
+		router.Middleware(policy, authenticate, canReadPolicies).Get("/policy-versions/{version_id}", policyController.ShowVersion)
+		router.Middleware(policy, authenticate, canWritePolicies).Patch("/policy-versions/{version_id}", policyController.UpdateVersion)
+		router.Middleware(policy, authenticate, canReadPolicies).Get("/policy-versions/{version_id}/rac-rules", policyController.ShowRules)
+		router.Middleware(policy, authenticate, canWritePolicies).Put("/policy-versions/{version_id}/rac-rules", policyController.ReplaceRules)
+		router.Middleware(policy, authenticate, canReadPolicies).Get("/policy-versions/{version_id}/scorecard", policyController.ShowScorecard)
+		router.Middleware(policy, authenticate, canWritePolicies).Put("/policy-versions/{version_id}/scorecard", policyController.ReplaceScorecard)
+		router.Middleware(policy, authenticate, canWritePolicies).Delete("/policy-versions/{version_id}/scorecard", policyController.DeleteScorecard)
+		router.Middleware(policy, authenticate, canReadPolicies).Get("/policy-versions/{version_id}/decision-matrix", policyController.ShowMatrix)
+		router.Middleware(policy, authenticate, canWritePolicies).Put("/policy-versions/{version_id}/decision-matrix", policyController.ReplaceMatrix)
+		router.Middleware(policy, authenticate, canWritePolicies).Delete("/policy-versions/{version_id}/decision-matrix", policyController.DeleteMatrix)
+		router.Middleware(policy, authenticate, canReadPolicies).Get("/policy-versions/{version_id}/test-cases", policyController.ShowTestCases)
+		router.Middleware(policy, authenticate, canWritePolicies).Put("/policy-versions/{version_id}/test-cases", policyController.ReplaceTestCases)
+		router.Middleware(policy, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/validate", policyController.ValidateVersion)
+		router.Middleware(policy, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/submit", policyController.SubmitVersion)
 	})
 }

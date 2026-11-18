@@ -14,6 +14,7 @@ const (
 	CodeForbidden           = "FORBIDDEN"
 	CodeInputValidation     = "INPUT_VALIDATION_ERROR"
 	CodeInternal            = "INTERNAL_ERROR"
+	CodePolicyInvalid       = "POLICY_VALIDATION_FAILED"
 	CodeRouteNotFound       = "ROUTE_NOT_FOUND"
 	CodeServiceBusy         = "SERVICE_BUSY"
 	genericInternalMessage  = "an unexpected error occurred"
@@ -24,6 +25,9 @@ const (
 type Detail struct {
 	Field string `json:"field"`
 	Issue string `json:"issue"`
+	// Message gives the reason in words where the issue code is not enough, such as the position
+	// of a syntax error in a rule expression. Most details leave it out.
+	Message string `json:"message,omitempty"`
 }
 
 type errorBody struct {

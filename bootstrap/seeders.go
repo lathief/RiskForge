@@ -10,5 +10,7 @@ func Seeders() []seeder.Seeder {
 	return []seeder.Seeder{
 		&seeders.DemoUsersSeeder{},
 		&seeders.DemoProductsSeeder{},
+		&seeders.DemoDictionarySeeder{},
+		&seeders.DemoPolicySeeder{},
 	}
 }

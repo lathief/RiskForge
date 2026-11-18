@@ -8,12 +8,14 @@
 |---|---|---|
 | [GETTING_STARTED.md](GETTING_STARTED.md) | Go from `git clone` to your first authenticated API call. | Current |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | See how a request travels through Goravel/Fiber, middleware, modules, and PostgreSQL. | Current, with planned modules marked |
-| [DOMAIN_GUIDE.md](DOMAIN_GUIDE.md) | Understand the credit vocabulary: product, RAC, scorecard, decision matrix, policy, approval. | Concepts; only Product is implemented |
-| [API_EXAMPLES.md](API_EXAMPLES.md) | Copy working `curl` calls with real responses and errors. | Current (8 operations) |
+| [DOMAIN_GUIDE.md](DOMAIN_GUIDE.md) | Understand the credit vocabulary: product, RAC, scorecard, decision matrix, policy, approval. | Concepts, each marked with its status (product, dictionary, and policy configuration implemented) |
+| [API_EXAMPLES.md](API_EXAMPLES.md) | Copy working `curl` calls with real responses and errors. | Current (30 operations) |
 | [TESTING.md](TESTING.md) | Run and write unit, integration, HTTP, concurrency, and contract tests. | Current |
-| [DECISION_ENGINE.md](DECISION_ENGINE.md) | Understand how RAC, scorecard, and matrix will be evaluated, including precedence and edge cases. | **Planned** (M3, RF-011..RF-016) |
+| [coverage.md](coverage.md) | See how much of each package the unit tests, and unit plus integration tests, cover. | Current (measured at RF-010) |
+| [DECISION_ENGINE.md](DECISION_ENGINE.md) | Understand how RAC, scorecard, and matrix will be evaluated, including precedence and edge cases. | **Planned** (M3, RF-011..RF-016); configuration checks implemented (RF-007..RF-010) |
 | [SCRIPTS.md](SCRIPTS.md) | Run `scripts/*` (secrets, Postman generator and smoke test, Swagger UI update) and Artisan database commands. | Current |
 | [VERIFICATION.md](VERIFICATION.md) | See what was run to accept each ticket and what was observed. | Current |
+| [M2_NOTES.md](M2_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 2 (RF-005 to RF-010). | Current (M2) |
 | [adr/](adr/) | Know *why* a technical decision was made and what it costs. | Current |
 
 Planned guides, written when the code they describe exists: `SECURITY.md` (threat model and controls), `DATABASE.md` (schemas, locking, migrations), `DEMO_SCENARIOS.md` (end-to-end synthetic applications, after M3), `OBSERVABILITY.md` (logs, request ID, metrics), `TRADEOFFS.md` (technology choices and limits), and `../CONTRIBUTING.md` (pull request standards).
@@ -32,7 +34,7 @@ What each folder contains. Folders marked *scaffold* come from the Goravel v1.18
 | `config/` | *Scaffold* plus RiskForge settings. Each file registers one config group read from environment variables (`http.go` driver = Fiber, `database.go`, `logging.go`, `hashing.go`, `jwt.go`, `docs.go`, `demo.go`, ...). |
 | `routes/` | `api.go` registers every HTTP route and wires controllers to use cases (the composition root). `grpc.go` is an unused scaffold hook. |
 | `app/http/` | Transport layer only. `controllers/` (thin HTTP adapters), `middleware/` (request ID, activity log, authentication, permissions, module label, panic recovery), `auth/` (JWT guard wrapper), `responses/` (standard error envelope), `ctxkeys/` (request-scoped keys). |
-| `app/modules/` | Business modules, each split into `domain/` (pure Go rules, no framework imports), `application/` (use cases and the ports they need), `infrastructure/` (PostgreSQL and Goravel adapters). Implemented: `identity`, `catalog`. `ruleengine/` is a placeholder for M3. |
+| `app/modules/` | Business modules, each split into `domain/` (pure Go rules, no framework imports), `application/` (use cases and the ports they need), `infrastructure/` (PostgreSQL and Goravel adapters). Implemented: `identity`, `catalog`, `dictionary`, `policy`. `ruleengine/` is a pure package that checks RAC expressions today (RF-007) and will evaluate policies in M3. |
 | `app/platform/` | Cross-cutting infrastructure with no business logic: `tx/` (transaction port), `database/` (transaction manager and query logging), `logging/` (structured JSON logs). |
 | `app/support/` | Small framework-agnostic helpers, currently startup configuration validation. |
 | `app/facades/` | *Scaffold.* Typed accessors for Goravel services. Used in transport and infrastructure code only, never in `domain/` or `application/`. |

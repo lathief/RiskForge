@@ -3,7 +3,7 @@
 # (SYSTEM_DESIGN.md 5.6.2 "import/smoke test"). It proves the collection imports, every
 # request reaches its route, and auth is wired: health 200, the saved login example 401
 # (placeholder password), reads 200, and writes 403. The run uses the read-only
-# demo_analyst token, so no data is changed.
+# demo_auditor token (read-only role; demo_analyst can write the dictionary), so no data is changed.
 #
 #   ./scripts/smoke-postman.sh            # against Compose project rf-dev
 #   ./scripts/smoke-postman.sh rf-test-x  # against another project (stack must be up and seeded)
@@ -49,11 +49,13 @@ docker run --rm --network "$NETWORK" --read-only --tmpfs /tmp \
   "$NODE_IMAGE" sh -euc '
     token=$(node -e "
       fetch(\"http://api:3000/api/v1/auth/login\", {method: \"POST\", headers: {\"Content-Type\": \"application/json\"},
-        body: JSON.stringify({username: \"demo_analyst\", password: process.env.DEMO_PASSWORD})})
+        body: JSON.stringify({username: \"demo_auditor\", password: process.env.DEMO_PASSWORD})})
         .then(r => r.json()).then(b => { if (!b.access_token) { console.error(\"login failed\"); process.exit(1) } process.stdout.write(b.access_token) })
         .catch(e => { console.error(e.message); process.exit(1) })")
+    ids=$(TOKEN="$token" node /src/resolve-ids.js)
     NODE_PATH=/tools/node_modules /tools/node_modules/.bin/newman run /postman/RiskForge.postman_collection.json \
-      --env-var baseUrl=http://api:3000 --env-var accessToken="$token" --env-var productCode=KTA_DEMO \
+      --env-var baseUrl=http://api:3000 --env-var accessToken="$token" --env-var productCode=KTA_DEMO --env-var variableCode=age_years \
+      --env-var policyId="${ids% *}" --env-var versionId="${ids#* }" \
       --reporters json --reporter-json-export /tmp/run.json --silent || true
     NODE_PATH=/tools/node_modules node /src/smoke-check.js /tmp/run.json
   '
