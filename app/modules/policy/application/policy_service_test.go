@@ -35,10 +35,13 @@ type fakeRepo struct {
 	replaced        int
 	scorecards      map[string]*domain.Scorecard
 	scorecardWrites int
+	matrices        map[string]domain.DecisionMatrix
+	matrixWrites    int
 }
 
 func newFakeRepo() *fakeRepo {
-	return &fakeRepo{packages: map[string]domain.Package{}, rules: map[string]domain.RuleSet{}, scorecards: map[string]*domain.Scorecard{}}
+	return &fakeRepo{packages: map[string]domain.Package{}, rules: map[string]domain.RuleSet{},
+		scorecards: map[string]*domain.Scorecard{}, matrices: map[string]domain.DecisionMatrix{}}
 }
 
 type repoState struct {
@@ -47,6 +50,7 @@ type repoState struct {
 	seq      int
 	rules    map[string]domain.RuleSet
 	sc       map[string]*domain.Scorecard
+	matrices map[string]domain.DecisionMatrix
 }
 
 func (f *fakeRepo) snapshot() repoState {
@@ -62,11 +66,15 @@ func (f *fakeRepo) snapshot() repoState {
 	for k, v := range f.scorecards {
 		sc[k] = v
 	}
-	return repoState{pk, append([]domain.Version(nil), f.versions...), f.seq, rs, sc}
+	mx := map[string]domain.DecisionMatrix{}
+	for k, v := range f.matrices {
+		mx[k] = append(domain.DecisionMatrix(nil), v...)
+	}
+	return repoState{pk, append([]domain.Version(nil), f.versions...), f.seq, rs, sc, mx}
 }
 
 func (f *fakeRepo) restore(s repoState) {
-	f.packages, f.versions, f.seq, f.rules, f.scorecards = s.packages, s.versions, s.seq, s.rules, s.sc
+	f.packages, f.versions, f.seq, f.rules, f.scorecards, f.matrices = s.packages, s.versions, s.seq, s.rules, s.sc, s.matrices
 }
 
 type fakeTx struct {

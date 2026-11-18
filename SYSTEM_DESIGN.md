@@ -592,7 +592,7 @@ Gunakan **satu database PostgreSQL** dengan schema logis melalui driver resmi `g
 | `identity` | `users`, `roles`, `user_roles`, `api_clients` | Credential/token metadata tidak diekspos ke consumer. |
 | `catalog` | `products` | Unique product code dan active state. |
 | `dictionary` | `schema_state`, `variables`, `variable_versions` (RF-005); `feature_definitions` (RF-011) | Type, nullability, scale, unit, valid range; append-only versions dengan schema version global (8.1). |
-| `policy` | `policy_packages`, `policy_versions` (RF-006), `rac_rules` (RF-007), `scorecards`, `scorecard_characteristics`, `scorecard_bins` (RF-008), `decision_matrix_rows`, `active_policy_bindings` | Relational constraints & version references. |
+| `policy` | `policy_packages`, `policy_versions` (RF-006), `rac_rules` (RF-007), `scorecards`, `scorecard_characteristics`, `scorecard_bins` (RF-008), `decision_matrix_rows` (RF-009), `active_policy_bindings` | Relational constraints & version references. |
 | `approval` | `workflow_definitions`, `workflow_versions`, `workflow_steps`, `requests`, `actions` | Role, quorum, frozen workflow snapshot. |
 | `decision` | `requests`, `runs`, `rule_traces` | Idempotency, policy ref, result, score breakdown, execution status. |
 | `audit` | `events` | Append-only event metadata and actor. |
@@ -758,7 +758,7 @@ Status: terimplementasi pada branch `feature/RF-006-policy-package-version-model
 
 **Kekekalan di database** (diulang dari service karena Bagian 6.3 mensyaratkannya): trigger `policy_versions_guard` menolak `DELETE`, perubahan identitas (id, package, nomor, sumber, pembuat), perpindahan status di luar tabel Bagian 9.2, dan setiap perubahan isi (catatan, versi dictionary, snapshot, checksum, penyubmit) pada versi yang bukan `DRAFT`. CHECK constraint mewajibkan draft tidak punya snapshot dan versi beku punya snapshot, checksum, dan waktu submit. `policy_packages` append-only.
 
-**Belum ada (disengaja).** Gate isi submit Bagian 9.3 (expression valid, bin dan matrix tidak ambigu, golden test lulus) datang dengan RF-010. Sejak RF-007 submit memeriksa expression RAC (Bagian 9.6) dan sejak RF-008 scorecard (Bagian 9.7); matrix dan golden test menyusul. Perpindahan dari `PENDING_APPROVAL` (reject, approve, publish) datang dengan M4, jadi di M2 sebuah versi yang disubmit tetap `PENDING_APPROVAL`; untuk merevisinya, clone. `active_policy_bindings` dan aturan satu versi aktif per produk dan scope datang dengan RF-020. Audit event datang dengan RF-022; sementara itu setiap versi menyimpan `created_by`, `submitted_by`, dan waktunya. Data demo: `DemoPolicySeeder` membuat package `KTA_DEMO`/`DEFAULT` dengan draft versi 1; seeder tidak menyubmit atau mengaktifkan apa pun.
+**Belum ada (disengaja).** Gate isi submit Bagian 9.3 (expression valid, bin dan matrix tidak ambigu, golden test lulus) datang dengan RF-010. Sejak RF-007 submit memeriksa expression RAC (Bagian 9.6) dan sejak RF-008 scorecard (Bagian 9.7), dan sejak RF-009 decision matrix (Bagian 9.8); golden test menyusul. Perpindahan dari `PENDING_APPROVAL` (reject, approve, publish) datang dengan M4, jadi di M2 sebuah versi yang disubmit tetap `PENDING_APPROVAL`; untuk merevisinya, clone. `active_policy_bindings` dan aturan satu versi aktif per produk dan scope datang dengan RF-020. Audit event datang dengan RF-022; sementara itu setiap versi menyimpan `created_by`, `submitted_by`, dan waktunya. Data demo: `DemoPolicySeeder` membuat package `KTA_DEMO`/`DEFAULT` dengan draft versi 1; seeder tidak menyubmit atau mengaktifkan apa pun.
 
 ### 9.6 Implementasi RAC management (RF-007)
 
@@ -774,7 +774,7 @@ Status: terimplementasi pada branch `feature/RF-007-rac-management`, di atas RF-
 
 **Siklus hidup.** Clone menyalin aturan apa adanya dalam transaksi yang sama dengan pembuatan draft (tanpa validasi ulang, karena draft baru dipin ke dictionary terbaru). Submit memeriksa ulang semua expression terhadap dictionary draft sebelum membangun snapshot; bila ada yang gagal, jawabannya `422 POLICY_VALIDATION_FAILED` dengan path yang sama dan draft tetap `DRAFT`. Snapshot memuat `rac_rules` berurutan (`order`, `rule_code`, `reason_code`, `action`, `expression`, `description`) sehingga urutan dan isi aturan ikut checksum. `SnapshotFormat` tetap 1: bagian itu sudah ada dan kosong sejak RF-006, dan snapshot lama tetap valid. Tabel `policy.rac_rules` hanya dapat ditulis ketika versi induknya `DRAFT`; trigger menolak insert, update, dan delete selain itu, sehingga pembekuan RF-006 mencakup aturan walau service dilewati.
 
-**Belum ada (disengaja).** Evaluasi aturan, trace, dan runtime error (`EVALUATION_ERROR`) datang dengan RF-012. Gate submit scorecard ditambahkan di RF-008 (Bagian 9.7); matrix dan golden test datang dengan RF-009 dan RF-010. Diff antar versi (Bagian 11.4) datang dengan RF-021. Data demo: `DemoPolicySeeder` memberi draft versi 1 `KTA_DEMO` tiga aturan contoh (`RAC_MIN_AGE`, `RAC_BLACKLIST`, `RAC_SLIK`) hanya selama draft itu belum memiliki aturan.
+**Belum ada (disengaja).** Evaluasi aturan, trace, dan runtime error (`EVALUATION_ERROR`) datang dengan RF-012. Gate submit scorecard ditambahkan di RF-008 (Bagian 9.7); matrix di RF-009 (Bagian 9.8); golden test datang dengan RF-010. Diff antar versi (Bagian 11.4) datang dengan RF-021. Data demo: `DemoPolicySeeder` memberi draft versi 1 `KTA_DEMO` tiga aturan contoh (`RAC_MIN_AGE`, `RAC_BLACKLIST`, `RAC_SLIK`) hanya selama draft itu belum memiliki aturan.
 
 ### 9.7 Implementasi scorecard management (RF-008)
 
@@ -792,7 +792,23 @@ Status: terimplementasi pada branch `feature/RF-008-scorecard-management`, di at
 
 **Siklus hidup.** Clone menyalin scorecard apa adanya dalam transaksi yang sama. Submit memeriksa ulang aturan RAC dan scorecard terhadap dictionary draft dan melaporkan semua masalah keduanya bersama (`422 POLICY_VALIDATION_FAILED`, path scorecard diawali `scorecard.`); draft tetap `DRAFT`. Snapshot memuat `scorecard` (tanpa `score_range`) atau `null`, ikut checksum. `SnapshotFormat` tetap 1. Ketiga tabel hanya dapat ditulis ketika versi induknya `DRAFT` (trigger).
 
-**Belum ada (disengaja).** Pemilihan bin dan penjumlahan saat keputusan, trace skor, dan penggunaan `missing_points` saat runtime datang dengan RF-013. Pemeriksaan bahwa decision matrix menutup `score_range` datang dengan RF-009. Data demo: `DemoPolicySeeder` memberi draft versi 1 `KTA_DEMO` scorecard ilustratif Bagian 20.2 (rentang 420.00..685.00; pemohon contoh 20.4 mendapat 685.00) hanya selama draft itu belum memiliki scorecard.
+**Belum ada (disengaja).** Pemilihan bin dan penjumlahan saat keputusan, trace skor, dan penggunaan `missing_points` saat runtime datang dengan RF-013. Pemeriksaan bahwa decision matrix menutup `score_range` ditambahkan di RF-009 (Bagian 9.8). Data demo: `DemoPolicySeeder` memberi draft versi 1 `KTA_DEMO` scorecard ilustratif Bagian 20.2 (rentang 420.00..685.00; pemohon contoh 20.4 mendapat 685.00) hanya selama draft itu belum memiliki scorecard.
+
+### 9.8 Implementasi decision matrix management (RF-009)
+
+Status: terimplementasi pada branch `feature/RF-009-decision-matrix`, di atas RF-008. Keputusan lengkap: `docs/adr/0010-decision-matrix-coverage.md`.
+
+**Model.** Decision matrix sebuah policy version adalah baris-barisnya (`policy.decision_matrix_rows`); tanpa baris berarti tanpa matrix. Setiap baris memetakan skor total ke `grade` (`^[A-Z][A-Z0-9_]{0,15}$`, boleh dipakai lebih dari satu baris), `decision` (`APPROVE`, `REFER`, atau `REJECT`; tidak ada nilai default, Bagian 10.4), dan `label` opsional. Maksimum 50 baris; minimal satu (menghapus matrix memakai `DELETE`).
+
+**Semantik interval.** Sama dengan bin scorecard (Bagian 9.7): setiap baris adalah `[min_score, max_score)`, `min_score` kosong hanya untuk baris pertama (tanpa batas bawah) dan `max_score` kosong hanya untuk baris terakhir (tanpa batas atas). Baris ditulis menaik dan masing-masing dimulai tepat di akhir baris sebelumnya (`gap`, `overlap`, `min_not_less_than_max`). Batas berupa string desimal maksimum dua angka di belakang koma, disimpan `NUMERIC(12,2)` dan dikembalikan dengan tepat dua angka.
+
+**Score domain.** Bagian 10.4 meminta matrix lengkap untuk *supported score domain*. Domain itu diambil dari scorecard versi yang sama: `score_range` (Bagian 9.7), yaitu skor total terendah dan tertinggi yang dapat dihasilkan scorecard. Bila versi memiliki scorecard, baris harus menutup seluruh rentang itu: baris pertama dimulai pada atau di bawah minimum (atau tanpa batas bawah), dan baris terakhir berakhir di atas maksimum (atau tanpa batas atas), karena `max_score` eksklusif (`does_not_cover_score_range`). Contoh Bagian 20.3 (`[0, 500)`, `[500, 650)`, `[650, 901)` untuk domain 0..900) menutup scorecard demo (420.00..685.00). Dengan demikian setiap skor yang dapat dihasilkan versi itu menemukan tepat satu baris, dan "no matching row" (Bagian 10.4) tidak terjadi pada versi tervalidasi. `DecisionMatrix.Lookup` (dipakai RF-013) tetap mengembalikan error bila itu terjadi, tidak pernah `APPROVE` bawaan.
+
+**Operasi.** `GET .../decision-matrix` mengembalikan baris (atau `null`), `score_range` scorecard (atau `null`), dan `covers_score_range` (atau `null` bila tidak ada scorecard atau matrix); nilai ini menjadi `false` bila scorecard diubah setelah matrix. `PUT .../decision-matrix` mengganti seluruh matrix dalam satu transaksi dengan kunci baris versi; tidak ada yang disimpan kecuali seluruhnya valid; semua masalah dilaporkan dengan path (`rows[1].min_score`); isi yang sama tidak menulis apa pun. `DELETE` menghapusnya (204). Versi selain `DRAFT`: `409 POLICY_VERSION_FROZEN`.
+
+**Siklus hidup.** Clone menyalin matrix. Mengubah scorecard tidak memeriksa ulang matrix (urutan pengeditan bebas), tetapi submit memeriksa ulang aturan RAC, scorecard, dan matrix bersama, termasuk cakupan matrix terhadap scorecard yang tersimpan (`422 POLICY_VALIDATION_FAILED`, path diawali `decision_matrix.`); draft tetap `DRAFT`. Snapshot memuat `decision_matrix` berurutan (daftar kosong bila tidak ada), ikut checksum. `SnapshotFormat` tetap 1. Tabel hanya dapat ditulis ketika versi induknya `DRAFT` (trigger); CHECK constraint mewajibkan salah satu dari tiga keputusan pada setiap baris.
+
+**Belum ada (disengaja).** Lookup saat keputusan dan presedensi Bagian 10.4 (hard RAC REJECT > matrix REJECT > soft RAC REFER > matrix APPROVE/REFER) datang dengan RF-013. Kewajiban bahwa versi yang disubmit memiliki scorecard dan matrix (kelengkapan policy) serta golden test datang dengan RF-010; saat ini matrix tanpa scorecard hanya diperiksa urutan dan kontinuitasnya. "Optional demonstrative output fields" Bagian 10.4 belum ada; satu-satunya keluaran tambahan adalah `label`, sampai bentuk respons keputusan ditetapkan di RF-014. Data demo: `DemoPolicySeeder` memberi draft versi 1 `KTA_DEMO` matrix Bagian 20.3 hanya selama draft itu belum memiliki matrix; draft demo yang sudah lengkap (RAC, scorecard, matrix) lolos submit.
 
 ---
 ## 10. Decision Engine Design
@@ -997,11 +1013,20 @@ Perbedaan dari tabel rencana: `{id}` pada `/policies/{id}/clone` adalah id **pac
 
 `DELETE` ditambahkan di luar rencana (`GET`/`PUT`) karena draft hasil clone mewarisi scorecard sumbernya dan harus bisa kembali ke "tanpa scorecard".
 
+**Telah terimplementasi (Milestone 2, RF-009, branch `feature/RF-009-decision-matrix`):** tiga operasi decision matrix. Total OpenAPI, Swagger UI, dan Postman Collection menjadi 27 operasi. Rancangan di Bagian 9.8.
+
+| Method | Absolute path | Auth / Permission |
+|---|---|---|
+| `GET` | `/api/v1/policy-versions/{version_id}/decision-matrix` | Bearer + `policy:read`; dengan `score_range` scorecard dan `covers_score_range` |
+| `PUT` | `/api/v1/policy-versions/{version_id}/decision-matrix` | Bearer + `policy:write`; mengganti seluruh matrix, hanya `DRAFT` |
+| `DELETE` | `/api/v1/policy-versions/{version_id}/decision-matrix` | Bearer + `policy:write`; menghapus matrix draft (204) |
+
+`DELETE` ditambahkan dengan alasan yang sama seperti scorecard.
+
 **Target berikutnya (planned, bukan otomatis sudah live):** tabel di bawah memakai path relatif `/api/v1` kecuali health. Operasi planned ditambahkan ke `openapi.yaml` **hanya pada tiket implementasi terkait**.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| `GET` / `PUT` | `/policy-versions/{id}/decision-matrix` | Analyst | Browse/replace matrix configuration. |
 | `POST` | `/policy-versions/{id}/validate` | Analyst | Validate entire package. |
 | `POST` | `/policy-versions/{id}/simulate` | Analyst | Simulate draft/selected version. |
 | `GET` | `/approval-requests/{id}` | Approver / Auditor | Review request and diff. |
@@ -1319,7 +1344,7 @@ Review independen kedua atas `fix/M1-hardening` (tanpa temuan severity high) men
 - [x] **RF-006 Policy package/version model.** Create draft, clone, immutable snapshot on submit; cannot edit frozen versions. **Selesai pada branch `feature/RF-006-policy-package-version-model`** (di atas RF-005, belum di-merge): tujuh operasi `/api/v1/policies` dan `/api/v1/policy-versions`, snapshot kanonik ber-checksum, trigger pembeku di PostgreSQL, seeder demo, OpenAPI + Postman diregenerasi, unit dan feature test, `docs/coverage.md`. Rancangan rinci di 9.5 dan `docs/adr/0007-policy-version-immutability.md`.
 - [x] **RF-007 RAC management & validation.** Expressions, deterministic order, action, reason code, type/syntax check. **Selesai pada branch `feature/RF-007-rac-management`** (di atas RF-006, belum di-merge): `GET`/`PUT /api/v1/policy-versions/{version_id}/rac-rules`, paket `ruleengine.Analyze` (dependensi `expr-lang/expr` v1.17.8), tabel `policy.rac_rules` dengan trigger pembeku, gate di submit, snapshot memuat aturan, seeder aturan contoh, OpenAPI + Postman diregenerasi. Rancangan rinci di 9.6 dan `docs/adr/0008-rac-rules-and-expression-language.md`.
 - [x] **RF-008 Scorecard management.** Characteristics/bins/points, single-match checks, decimal score rules. **Selesai pada branch `feature/RF-008-scorecard-management`** (di atas RF-007, belum di-merge): `GET`/`PUT`/`DELETE /api/v1/policy-versions/{version_id}/scorecard`, validasi bin `[min, max)` tanpa celah/tumpang tindih dan menutup seluruh rentang variabel, poin `NUMERIC(12,2)` dengan penjumlahan eksak, tabel `policy.scorecards`/`scorecard_characteristics`/`scorecard_bins` dengan trigger pembeku, gate di submit, snapshot memuat scorecard, seeder scorecard 20.2, OpenAPI + Postman diregenerasi. Rancangan rinci di 9.7 dan `docs/adr/0009-scorecard-bins-and-score-arithmetic.md`.
-- [ ] **RF-009 Decision matrix management.** Boundary validation, no gaps/overlap for supported score domain.
+- [x] **RF-009 Decision matrix management.** Boundary validation, no gaps/overlap for supported score domain. **Selesai pada branch `feature/RF-009-decision-matrix`** (di atas RF-008, belum di-merge): `GET`/`PUT`/`DELETE /api/v1/policy-versions/{version_id}/decision-matrix`, baris `[min_score, max_score)` menaik tanpa celah/tumpang tindih yang harus menutup `score_range` scorecard, tabel `policy.decision_matrix_rows` dengan trigger pembeku, gate di submit (termasuk matrix yang tidak lagi menutup scorecard), snapshot memuat matrix, seeder matrix 20.3, OpenAPI + Postman diregenerasi. Rancangan rinci di 9.8 dan `docs/adr/0010-decision-matrix-coverage.md`.
 - [ ] **RF-010 Full policy validation.** Compile all expressions, verify references, run required golden tests.
 
 ### M3 — Decision Engine
@@ -1597,4 +1622,4 @@ Setiap ADR mencatat **context, decision, alternatives, consequences, date**.
 - [ ] Agent dapat menjalankan stack dari Compose `api + db`, menguji dengan `rf-test-*` terisolasi, dan membersihkan test project tanpa menghapus volume development.
 - [ ] Tidak ada data pribadi sesungguhnya, keys, atau credentials di repo.
 
-**Status kini (diperbarui 23 November 2026): RF-005 sampai RF-008 selesai pada branch `feature/RF-005-data-dictionary`, `feature/RF-006-policy-package-version-model`, `feature/RF-007-rac-management`, dan `feature/RF-008-scorecard-management` (bertumpuk, belum di-merge); langkah berikutnya `RF-009 Decision matrix management`.** Riwayat status sebelumnya: M1/RF-001..RF-004 selesai di `main`. M1 hardening (17.1), LOG-001 structured logs (15.4), dan DX-001 Swagger UI + generated Postman Collection (5.6) selesai di branch `fix/M1-hardening`, bersama DOC-001 (guide di `docs/`) dan perbaikan review kedua serta ketiga (17.2); menunggu merge ke `main`. Langkah berikutnya: `RF-005 Data Dictionary`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.
+**Status kini (diperbarui 24 November 2026): RF-005 sampai RF-009 selesai pada branch `feature/RF-005-data-dictionary`, `feature/RF-006-policy-package-version-model`, `feature/RF-007-rac-management`, `feature/RF-008-scorecard-management`, dan `feature/RF-009-decision-matrix` (bertumpuk, belum di-merge); langkah berikutnya `RF-010 Full policy validation`.** Riwayat status sebelumnya: M1/RF-001..RF-004 selesai di `main`. M1 hardening (17.1), LOG-001 structured logs (15.4), dan DX-001 Swagger UI + generated Postman Collection (5.6) selesai di branch `fix/M1-hardening`, bersama DOC-001 (guide di `docs/`) dan perbaikan review kedua serta ketiga (17.2); menunggu merge ke `main`. Langkah berikutnya: `RF-005 Data Dictionary`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.

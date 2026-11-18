@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.8.0
+  version: 0.9.0
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
-    Contract for the endpoints implemented so far (RF-001 to RF-008, plus M1 hardening).
+    Contract for the endpoints implemented so far (RF-001 to RF-009, plus M1 hardening).
 
     - All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.
     - Authorization is permission-based. Each operation lists the required permission
@@ -659,10 +659,10 @@ paths:
         it was written against, stores its SHA-256 checksum, and moves the version to
         `PENDING_APPROVAL`. After this nothing about the version changes: edits and a second
         submit are 409 `POLICY_VERSION_FROZEN`. No request body.
-        Before freezing, the RAC rules and the scorecard are checked again against the dictionary version
-        the draft is pinned to; if anything no longer validates, the answer is a 422 `POLICY_VALIDATION_FAILED`
-        listing every problem (scorecard paths start with `scorecard.`) and the draft stays a DRAFT. The
-        remaining checks of SYSTEM_DESIGN.md 9.3 (decision matrix, golden tests) arrive with RF-009 and RF-010, and approving or rejecting a
+        Before freezing, the RAC rules, the scorecard, and the decision matrix are checked again (against
+        the dictionary version the draft is pinned to, and the matrix against the scorecard range); if anything no longer validates, the answer is a 422 `POLICY_VALIDATION_FAILED`
+        listing every problem (paths start with `scorecard.` or `decision_matrix.` for those sections) and the draft stays a DRAFT. The
+        remaining check of SYSTEM_DESIGN.md 9.3 (golden tests) arrives with RF-010, and approving or rejecting a
         pending version arrives with M4.
       operationId: submitPolicyVersion
       x-required-permission: policy:submit
@@ -897,6 +897,118 @@ paths:
         "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
         "500": { $ref: "#/components/responses/InternalError" }
 
+  /api/v1/policy-versions/{version_id}/decision-matrix:
+    parameters:
+      - name: version_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyVersionId" }
+    get:
+      tags: [Policies]
+      summary: Get the decision matrix of a version
+      description: |
+        The rows in ascending score order. `decision_matrix` is null when none is configured.
+        `score_range` is the range of total scores the version's scorecard can produce (null
+        without a scorecard), and `covers_score_range` says whether the stored rows still cover it
+        (null when there is no scorecard or no matrix); it turns false when the scorecard is
+        edited after the matrix. Works for any status.
+      operationId: getDecisionMatrix
+      x-required-permission: policy:read
+      responses:
+        "200":
+          description: The decision matrix, or null.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DecisionMatrixResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
+    put:
+      tags: [Policies]
+      summary: Replace the decision matrix of a draft
+      description: |
+        Replaces the whole matrix in one step. Each row maps a total score to a risk `grade` and a
+        `decision` (`APPROVE`, `REFER`, or `REJECT`; there is no default) (SYSTEM_DESIGN.md 10.4).
+
+        **Rows are half-open score intervals `[min_score, max_score)`**: `min_score` is included,
+        `max_score` is not, the same rule as scorecard bins. An omitted or null `min_score` means no
+        lower limit (first row only) and an omitted or null `max_score` no upper limit (last row
+        only). Rows are listed in ascending order and each starts where the previous one ends
+        (`gap` / `overlap` otherwise). When the draft has a scorecard, the rows must also cover
+        every total it can produce (`score_range`): the first row starts at or below its minimum
+        and the last ends above its maximum (`does_not_cover_score_range`). So no score of this
+        version can ever find no row. Bounds are decimal strings with at most two decimals and are
+        returned with exactly two. For the demo score domain 0 to 900 inclusive the last row ends
+        at `901`.
+
+        Nothing is stored unless the whole matrix is valid; every problem is reported with its path
+        (`rows[1].min_score`). Sending the matrix the draft already has changes nothing. At least
+        one row is required; remove a matrix with `DELETE`. Only a DRAFT can change (409
+        `POLICY_VERSION_FROZEN`). The matrix is checked, not run: lookup at decision time and the
+        precedence of RAC results over the matrix arrive with RF-013.
+      operationId: replaceDecisionMatrix
+      x-required-permission: policy:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DecisionMatrixReplace" }
+            example:
+              rows:
+                - { min_score: "0", max_score: "500", grade: D, decision: REJECT, label: below 500 }
+                - { min_score: "500", max_score: "650", grade: B, decision: REFER, label: 500 to below 650 }
+                - { min_score: "650", max_score: "901", grade: A, decision: APPROVE, label: 650 to 900 }
+      responses:
+        "200":
+          description: The matrix as stored.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DecisionMatrixResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422":
+          description: The matrix is invalid. Nothing was stored.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error:
+                  code: INPUT_VALIDATION_ERROR
+                  message: invalid policy
+                  details:
+                    - { field: "rows[1].min_score", issue: gap, message: "scores from 500.00 up to this row's min_score belong to no row" }
+                    - { field: "rows[2].max_score", issue: does_not_cover_score_range, message: "the scorecard can produce scores up to 685.00; max_score is excluded, so the last row must end above it, or have no max_score" }
+                request_id: 6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b
+        "500": { $ref: "#/components/responses/InternalError" }
+    delete:
+      tags: [Policies]
+      summary: Remove the decision matrix of a draft
+      description: Removes the matrix; `GET` then returns `decision_matrix` null. Answers 204 also when there was none. Only a DRAFT can change.
+      operationId: deleteDecisionMatrix
+      x-required-permission: policy:write
+      responses:
+        "204":
+          description: Removed (or there was nothing to remove).
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
+        "500": { $ref: "#/components/responses/InternalError" }
 security:
   - bearerAuth: []
 
@@ -1223,8 +1335,8 @@ components:
       description: |
         Frozen content of a submitted version in canonical form (keys sorted, no whitespace
         outside strings). `checksum` is the SHA-256 of exactly this form.
-        `decision_matrix` is empty until RF-009. `rac_rules` lists the RAC rules in evaluation order
-        (RF-007), and `scorecard` is the scorecard without the derived `score_range`, or null (RF-008).
+        `rac_rules` lists the RAC rules in evaluation order (RF-007), `scorecard` is the scorecard
+        without the derived `score_range` or null (RF-008), and `decision_matrix` lists the matrix rows in ascending order, or is empty (RF-009).
       required: [format, evaluator_version, package, version_number, dictionary, rac_rules, scorecard, decision_matrix]
       example:
         format: 1
@@ -1619,6 +1731,86 @@ components:
         scorecard:
           oneOf: [{ $ref: "#/components/schemas/Scorecard" }, { type: "null" }]
           description: Null when no scorecard is configured.
+    MatrixDecision:
+      type: string
+      enum: [APPROVE, REFER, REJECT]
+      example: APPROVE
+    ScoreBound:
+      oneOf: [{ $ref: "#/components/schemas/ScoreDecimal" }, { type: "null" }]
+      description: Total score bound with at most two decimals. Null or omitted means unbounded on that side.
+    DecisionMatrixRowInput:
+      type: object
+      additionalProperties: false
+      required: [grade, decision]
+      properties:
+        min_score: { $ref: "#/components/schemas/ScoreBound", description: "Included. Omit or null for no lower limit (first row only)." }
+        max_score: { $ref: "#/components/schemas/ScoreBound", description: "Excluded. Omit or null for no upper limit (last row only)." }
+        grade: { type: string, pattern: "^[A-Z][A-Z0-9_]{0,15}$", example: A, description: Risk grade code. Several rows may share a grade. }
+        decision: { $ref: "#/components/schemas/MatrixDecision" }
+        label: { type: string, maxLength: 100, description: Optional single-line label for reviewers. }
+    DecisionMatrixReplace:
+      type: object
+      additionalProperties: false
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          minItems: 1
+          maxItems: 50
+          description: Ascending score order, edge to edge.
+          items: { $ref: "#/components/schemas/DecisionMatrixRowInput" }
+    DecisionMatrixRow:
+      type: object
+      required: [order, min_score, max_score, grade, decision, label]
+      properties:
+        order: { type: integer, minimum: 1 }
+        min_score: { $ref: "#/components/schemas/ScoreBound" }
+        max_score: { $ref: "#/components/schemas/ScoreBound" }
+        grade: { type: string }
+        decision: { $ref: "#/components/schemas/MatrixDecision" }
+        label: { type: string }
+    DecisionMatrixResponse:
+      type: object
+      required: [policy_version_id, status, dictionary_schema_version, updated_at, score_range, covers_score_range, decision_matrix]
+      example:
+        policy_version_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+        status: DRAFT
+        dictionary_schema_version: 8
+        updated_at: "2026-11-24T08:00:00Z"
+        score_range: { min: "420.00", max: "685.00" }
+        covers_score_range: true
+        decision_matrix:
+          rows:
+            - { order: 1, min_score: "0.00", max_score: "500.00", grade: D, decision: REJECT, label: below 500 }
+            - { order: 2, min_score: "500.00", max_score: "650.00", grade: B, decision: REFER, label: 500 to below 650 }
+            - { order: 3, min_score: "650.00", max_score: "901.00", grade: A, decision: APPROVE, label: 650 to 900 }
+      properties:
+        policy_version_id: { $ref: "#/components/schemas/PolicyVersionId" }
+        status: { $ref: "#/components/schemas/PolicyStatus" }
+        dictionary_schema_version: { type: integer, minimum: 0 }
+        updated_at: { type: string, format: date-time }
+        score_range:
+          oneOf:
+            - type: object
+              required: [min, max]
+              properties:
+                min: { $ref: "#/components/schemas/ScoreDecimal" }
+                max: { $ref: "#/components/schemas/ScoreDecimal" }
+            - type: "null"
+          description: Lowest and highest total the version's scorecard can produce; null without a scorecard.
+        covers_score_range:
+          type: [boolean, "null"]
+          description: Whether the rows cover score_range; null when there is no scorecard or no matrix.
+        decision_matrix:
+          oneOf:
+            - type: object
+              required: [rows]
+              properties:
+                rows:
+                  type: array
+                  items: { $ref: "#/components/schemas/DecisionMatrixRow" }
+            - type: "null"
+          description: Null when no matrix is configured.
     ErrorResponse:
       type: object
       required: [error]
@@ -1656,7 +1848,7 @@ components:
                   field: { type: string }
                   issue:
                     type: string
-                    description: Stable issue code, e.g. required, too_long, invalid_format, invalid_value, invalid_characters, must_be_string, must_be_boolean, must_be_integer, not_allowed, no_changes, exceeds_scale, less_than_min_value, not_allowed_for_type, not_allowed_when_required, must_be_false_for_derived, exceeds_current_version, unknown_product, product_inactive, not_in_policy, must_be_a_non_negative_integer, must_be_array, must_be_object, too_many, duplicate, syntax_error, unsupported_syntax, unknown_variable, type_error, no_characteristics, no_bins, gap, overlap, min_not_less_than_max, does_not_cover_lower_bound, does_not_cover_upper_bound, must_be_integer, out_of_range, variable_not_numeric, variable_always_present.
+                    description: Stable issue code, e.g. required, too_long, invalid_format, invalid_value, invalid_characters, must_be_string, must_be_boolean, must_be_integer, not_allowed, no_changes, exceeds_scale, less_than_min_value, not_allowed_for_type, not_allowed_when_required, must_be_false_for_derived, exceeds_current_version, unknown_product, product_inactive, not_in_policy, must_be_a_non_negative_integer, must_be_array, must_be_object, too_many, duplicate, syntax_error, unsupported_syntax, unknown_variable, type_error, no_characteristics, no_bins, gap, overlap, min_not_less_than_max, does_not_cover_lower_bound, does_not_cover_upper_bound, must_be_integer, out_of_range, variable_not_numeric, variable_always_present, no_rows, does_not_cover_score_range.
                   message:
                     type: string
                     description: Explanation in words for issues that need one, for example the position of a syntax error. Absent for most details.

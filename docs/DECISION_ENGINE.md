@@ -104,6 +104,8 @@ Maps the total score to a grade and a decision. Supported domain `0` to `900` in
 
 `901` is an exclusive bound so a score of 900 is included. The grades follow the design's illustrative dataset (`SYSTEM_DESIGN.md` 20.3), which uses three bands and skips C; a real policy defines its own bands. Ranges must be complete and non-overlapping; no matching row is a configuration error, **never a default APPROVE**.
 
+**Managing the matrix (implemented, RF-009).** An analyst edits the matrix of a draft with `GET`, `PUT`, and `DELETE /api/v1/policy-versions/{version_id}/decision-matrix`. Rows follow the same `[min, max)` rule as scorecard bins and must be ascending and edge to edge. The supported score domain is the scorecard's own `score_range` (lowest to highest total it can produce), and when the draft has a scorecard the rows must cover it; submit checks this again, because the scorecard can change after the matrix. A version that saved and submitted therefore cannot produce a score without a row. Lookup and precedence at decision time arrive with RF-013.
+
 ### 6. Precedence
 
 ```

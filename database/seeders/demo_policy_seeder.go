@@ -75,9 +75,9 @@ var DemoRacRules = []domain.RuleInput{
 		Expression: "slik_max_kol <= 2", Description: "Worse collectability goes to manual review."},
 }
 
-// seedDemoRules gives the demo policy's first draft the example RAC rules and the example scorecard,
-// each only while the draft has none. Edits are never overwritten; removing all rules or the
-// scorecard makes the seeder add the example again.
+// seedDemoRules gives the demo policy's first draft the example RAC rules, scorecard, and decision
+// matrix, each only while the draft has none. Edits are never overwritten; removing a section
+// makes the seeder add its example again.
 func seedDemoRules(service *policyapp.PolicyService) error {
 	ctx := context.Background()
 	page, err := service.List(ctx, policyapp.ListFilter{ProductCode: DemoProductCode, PerPage: policyapp.MaxPerPage})
@@ -107,8 +107,30 @@ func seedDemoRules(service *policyapp.PolicyService) error {
 				return fmt.Errorf("seed demo scorecard: %w", err)
 			}
 		}
+		view, err := service.GetMatrix(ctx, latest.ID)
+		if err != nil {
+			return fmt.Errorf("seed demo decision matrix: %w", err)
+		}
+		if len(view.Matrix) == 0 {
+			if _, err := service.ReplaceMatrix(ctx, latest.ID, DemoMatrix()); err != nil {
+				return fmt.Errorf("seed demo decision matrix: %w", err)
+			}
+		}
 	}
 	return nil
+}
+
+// DemoMatrix is the illustrative decision matrix of SYSTEM_DESIGN.md 20.3 for the score domain
+// 0 to 900 inclusive (901 is the exclusive upper bound so that 900 is covered). It covers the
+// demo scorecard's range of 420.00 to 685.00, and the example applicant's 685.00 is grade A,
+// APPROVE (section 20.4). The numbers are not a calibrated credit risk model.
+func DemoMatrix() []domain.MatrixRowInput {
+	s := func(v string) *string { return &v }
+	return []domain.MatrixRowInput{
+		{MinScore: s("0"), MaxScore: s("500"), Grade: "D", Decision: "REJECT", Label: "below 500"},
+		{MinScore: s("500"), MaxScore: s("650"), Grade: "B", Decision: "REFER", Label: "500 to below 650"},
+		{MinScore: s("650"), MaxScore: s("901"), Grade: "A", Decision: "APPROVE", Label: "650 to 900"},
+	}
 }
 
 // DemoScorecard is the illustrative scorecard of SYSTEM_DESIGN.md 20.2 with every valid value

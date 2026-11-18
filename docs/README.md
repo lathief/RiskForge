@@ -9,7 +9,7 @@
 | [GETTING_STARTED.md](GETTING_STARTED.md) | Go from `git clone` to your first authenticated API call. | Current |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | See how a request travels through Goravel/Fiber, middleware, modules, and PostgreSQL. | Current, with planned modules marked |
 | [DOMAIN_GUIDE.md](DOMAIN_GUIDE.md) | Understand the credit vocabulary: product, RAC, scorecard, decision matrix, policy, approval. | Concepts; only Product is implemented |
-| [API_EXAMPLES.md](API_EXAMPLES.md) | Copy working `curl` calls with real responses and errors. | Current (24 operations) |
+| [API_EXAMPLES.md](API_EXAMPLES.md) | Copy working `curl` calls with real responses and errors. | Current (27 operations) |
 | [TESTING.md](TESTING.md) | Run and write unit, integration, HTTP, concurrency, and contract tests. | Current |
 | [coverage.md](coverage.md) | See how much of each package the unit tests, and unit plus integration tests, cover. | Current (measured at RF-006) |
 | [DECISION_ENGINE.md](DECISION_ENGINE.md) | Understand how RAC, scorecard, and matrix will be evaluated, including precedence and edge cases. | **Planned** (M3, RF-011..RF-016) |

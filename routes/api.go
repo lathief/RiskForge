@@ -118,6 +118,9 @@ func Api() {
 		router.Middleware(policy, authenticate, canReadPolicies).Get("/policy-versions/{version_id}/scorecard", policyController.ShowScorecard)
 		router.Middleware(policy, authenticate, canWritePolicies).Put("/policy-versions/{version_id}/scorecard", policyController.ReplaceScorecard)
 		router.Middleware(policy, authenticate, canWritePolicies).Delete("/policy-versions/{version_id}/scorecard", policyController.DeleteScorecard)
+		router.Middleware(policy, authenticate, canReadPolicies).Get("/policy-versions/{version_id}/decision-matrix", policyController.ShowMatrix)
+		router.Middleware(policy, authenticate, canWritePolicies).Put("/policy-versions/{version_id}/decision-matrix", policyController.ReplaceMatrix)
+		router.Middleware(policy, authenticate, canWritePolicies).Delete("/policy-versions/{version_id}/decision-matrix", policyController.DeleteMatrix)
 		router.Middleware(policy, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/submit", policyController.SubmitVersion)
 	})
 }

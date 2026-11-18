@@ -9188,7 +9188,7 @@
           "request": {
             "name": "Freeze a draft for approval",
             "description": {
-              "content": "Captures the canonical snapshot of the draft, including the data dictionary definitions\nit was written against, stores its SHA-256 checksum, and moves the version to\n`PENDING_APPROVAL`. After this nothing about the version changes: edits and a second\nsubmit are 409 `POLICY_VERSION_FROZEN`. No request body.\nBefore freezing, the RAC rules and the scorecard are checked again against the dictionary version\nthe draft is pinned to; if anything no longer validates, the answer is a 422 `POLICY_VALIDATION_FAILED`\nlisting every problem (scorecard paths start with `scorecard.`) and the draft stays a DRAFT. The\nremaining checks of SYSTEM_DESIGN.md 9.3 (decision matrix, golden tests) arrive with RF-009 and RF-010, and approving or rejecting a\npending version arrives with M4.\n",
+              "content": "Captures the canonical snapshot of the draft, including the data dictionary definitions\nit was written against, stores its SHA-256 checksum, and moves the version to\n`PENDING_APPROVAL`. After this nothing about the version changes: edits and a second\nsubmit are 409 `POLICY_VERSION_FROZEN`. No request body.\nBefore freezing, the RAC rules, the scorecard, and the decision matrix are checked again (against\nthe dictionary version the draft is pinned to, and the matrix against the scorecard range); if anything no longer validates, the answer is a 422 `POLICY_VALIDATION_FAILED`\nlisting every problem (paths start with `scorecard.` or `decision_matrix.` for those sections) and the draft stays a DRAFT. The\nremaining check of SYSTEM_DESIGN.md 9.3 (golden tests) arrives with RF-010, and approving or rejecting a\npending version arrives with M4.\n",
               "type": "text/plain"
             },
             "url": {
@@ -12736,6 +12736,1745 @@
           "protocolProfileBehavior": {
             "disableBodyPruning": true
           }
+        },
+        {
+          "name": "Get the decision matrix of a version",
+          "request": {
+            "name": "Get the decision matrix of a version",
+            "description": {
+              "content": "The rows in ascending score order. `decision_matrix` is null when none is configured.\n`score_range` is the range of total scores the version's scorecard can produce (null\nwithout a scorecard), and `covers_score_range` says whether the stored rows still cover it\n(null when there is no scorecard or no matrix); it turns false when the scorecard is\nedited after the matrix. Works for any status.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policy-versions",
+                ":version_id",
+                "decision-matrix"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{versionId}}",
+                  "key": "version_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The decision matrix, or null.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"policy_version_id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"status\": \"DRAFT\",\n  \"dictionary_schema_version\": 8,\n  \"updated_at\": \"2026-11-24T08:00:00Z\",\n  \"score_range\": {\n    \"min\": \"420.00\",\n    \"max\": \"685.00\"\n  },\n  \"covers_score_range\": true,\n  \"decision_matrix\": {\n    \"rows\": [\n      {\n        \"order\": 1,\n        \"min_score\": \"0.00\",\n        \"max_score\": \"500.00\",\n        \"grade\": \"D\",\n        \"decision\": \"REJECT\",\n        \"label\": \"below 500\"\n      },\n      {\n        \"order\": 2,\n        \"min_score\": \"500.00\",\n        \"max_score\": \"650.00\",\n        \"grade\": \"B\",\n        \"decision\": \"REFER\",\n        \"label\": \"500 to below 650\"\n      },\n      {\n        \"order\": 3,\n        \"min_score\": \"650.00\",\n        \"max_score\": \"901.00\",\n        \"grade\": \"A\",\n        \"decision\": \"APPROVE\",\n        \"label\": \"650 to 900\"\n      }\n    ]\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No policy version has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_NOT_FOUND\",\n    \"message\": \"policy version not found\"\n  },\n  \"request_id\": \"9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "name": "Replace the decision matrix of a draft",
+          "request": {
+            "name": "Replace the decision matrix of a draft",
+            "description": {
+              "content": "Replaces the whole matrix in one step. Each row maps a total score to a risk `grade` and a\n`decision` (`APPROVE`, `REFER`, or `REJECT`; there is no default) (SYSTEM_DESIGN.md 10.4).\n\n**Rows are half-open score intervals `[min_score, max_score)`**: `min_score` is included,\n`max_score` is not, the same rule as scorecard bins. An omitted or null `min_score` means no\nlower limit (first row only) and an omitted or null `max_score` no upper limit (last row\nonly). Rows are listed in ascending order and each starts where the previous one ends\n(`gap` / `overlap` otherwise). When the draft has a scorecard, the rows must also cover\nevery total it can produce (`score_range`): the first row starts at or below its minimum\nand the last ends above its maximum (`does_not_cover_score_range`). So no score of this\nversion can ever find no row. Bounds are decimal strings with at most two decimals and are\nreturned with exactly two. For the demo score domain 0 to 900 inclusive the last row ends\nat `901`.\n\nNothing is stored unless the whole matrix is valid; every problem is reported with its path\n(`rows[1].min_score`). Sending the matrix the draft already has changes nothing. At least\none row is required; remove a matrix with `DELETE`. Only a DRAFT can change (409\n`POLICY_VERSION_FROZEN`). The matrix is checked, not run: lookup at decision time and the\nprecedence of RAC results over the matrix arrive with RF-013.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policy-versions",
+                ":version_id",
+                "decision-matrix"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{versionId}}",
+                  "key": "version_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "PUT",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rows\": [\n    {\n      \"min_score\": \"0\",\n      \"max_score\": \"500\",\n      \"grade\": \"D\",\n      \"decision\": \"REJECT\",\n      \"label\": \"below 500\"\n    },\n    {\n      \"min_score\": \"500\",\n      \"max_score\": \"650\",\n      \"grade\": \"B\",\n      \"decision\": \"REFER\",\n      \"label\": \"500 to below 650\"\n    },\n    {\n      \"min_score\": \"650\",\n      \"max_score\": \"901\",\n      \"grade\": \"A\",\n      \"decision\": \"APPROVE\",\n      \"label\": \"650 to 900\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The matrix as stored.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rows\": [\n    {\n      \"min_score\": \"0\",\n      \"max_score\": \"500\",\n      \"grade\": \"D\",\n      \"decision\": \"REJECT\",\n      \"label\": \"below 500\"\n    },\n    {\n      \"min_score\": \"500\",\n      \"max_score\": \"650\",\n      \"grade\": \"B\",\n      \"decision\": \"REFER\",\n      \"label\": \"500 to below 650\"\n    },\n    {\n      \"min_score\": \"650\",\n      \"max_score\": \"901\",\n      \"grade\": \"A\",\n      \"decision\": \"APPROVE\",\n      \"label\": \"650 to 900\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"policy_version_id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"status\": \"DRAFT\",\n  \"dictionary_schema_version\": 8,\n  \"updated_at\": \"2026-11-24T08:00:00Z\",\n  \"score_range\": {\n    \"min\": \"420.00\",\n    \"max\": \"685.00\"\n  },\n  \"covers_score_range\": true,\n  \"decision_matrix\": {\n    \"rows\": [\n      {\n        \"order\": 1,\n        \"min_score\": \"0.00\",\n        \"max_score\": \"500.00\",\n        \"grade\": \"D\",\n        \"decision\": \"REJECT\",\n        \"label\": \"below 500\"\n      },\n      {\n        \"order\": 2,\n        \"min_score\": \"500.00\",\n        \"max_score\": \"650.00\",\n        \"grade\": \"B\",\n        \"decision\": \"REFER\",\n        \"label\": \"500 to below 650\"\n      },\n      {\n        \"order\": 3,\n        \"min_score\": \"650.00\",\n        \"max_score\": \"901.00\",\n        \"grade\": \"A\",\n        \"decision\": \"APPROVE\",\n        \"label\": \"650 to 900\"\n      }\n    ]\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rows\": [\n    {\n      \"min_score\": \"0\",\n      \"max_score\": \"500\",\n      \"grade\": \"D\",\n      \"decision\": \"REJECT\",\n      \"label\": \"below 500\"\n    },\n    {\n      \"min_score\": \"500\",\n      \"max_score\": \"650\",\n      \"grade\": \"B\",\n      \"decision\": \"REFER\",\n      \"label\": \"500 to below 650\"\n    },\n    {\n      \"min_score\": \"650\",\n      \"max_score\": \"901\",\n      \"grade\": \"A\",\n      \"decision\": \"APPROVE\",\n      \"label\": \"650 to 900\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rows\": [\n    {\n      \"min_score\": \"0\",\n      \"max_score\": \"500\",\n      \"grade\": \"D\",\n      \"decision\": \"REJECT\",\n      \"label\": \"below 500\"\n    },\n    {\n      \"min_score\": \"500\",\n      \"max_score\": \"650\",\n      \"grade\": \"B\",\n      \"decision\": \"REFER\",\n      \"label\": \"500 to below 650\"\n    },\n    {\n      \"min_score\": \"650\",\n      \"max_score\": \"901\",\n      \"grade\": \"A\",\n      \"decision\": \"APPROVE\",\n      \"label\": \"650 to 900\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No policy version has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rows\": [\n    {\n      \"min_score\": \"0\",\n      \"max_score\": \"500\",\n      \"grade\": \"D\",\n      \"decision\": \"REJECT\",\n      \"label\": \"below 500\"\n    },\n    {\n      \"min_score\": \"500\",\n      \"max_score\": \"650\",\n      \"grade\": \"B\",\n      \"decision\": \"REFER\",\n      \"label\": \"500 to below 650\"\n    },\n    {\n      \"min_score\": \"650\",\n      \"max_score\": \"901\",\n      \"grade\": \"A\",\n      \"decision\": \"APPROVE\",\n      \"label\": \"650 to 900\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_NOT_FOUND\",\n    \"message\": \"policy version not found\"\n  },\n  \"request_id\": \"9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rows\": [\n    {\n      \"min_score\": \"0\",\n      \"max_score\": \"500\",\n      \"grade\": \"D\",\n      \"decision\": \"REJECT\",\n      \"label\": \"below 500\"\n    },\n    {\n      \"min_score\": \"500\",\n      \"max_score\": \"650\",\n      \"grade\": \"B\",\n      \"decision\": \"REFER\",\n      \"label\": \"500 to below 650\"\n    },\n    {\n      \"min_score\": \"650\",\n      \"max_score\": \"901\",\n      \"grade\": \"A\",\n      \"decision\": \"APPROVE\",\n      \"label\": \"650 to 900\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The version is not a DRAFT, so it can no longer be edited or submitted.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rows\": [\n    {\n      \"min_score\": \"0\",\n      \"max_score\": \"500\",\n      \"grade\": \"D\",\n      \"decision\": \"REJECT\",\n      \"label\": \"below 500\"\n    },\n    {\n      \"min_score\": \"500\",\n      \"max_score\": \"650\",\n      \"grade\": \"B\",\n      \"decision\": \"REFER\",\n      \"label\": \"500 to below 650\"\n    },\n    {\n      \"min_score\": \"650\",\n      \"max_score\": \"901\",\n      \"grade\": \"A\",\n      \"decision\": \"APPROVE\",\n      \"label\": \"650 to 900\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_FROZEN\",\n    \"message\": \"only a DRAFT version can be changed or submitted\"\n  },\n  \"request_id\": \"0d9c8b7a6e5f4a3b2c1d0e9f8a7b6c5d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request body exceeds 64 KiB. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rows\": [\n    {\n      \"min_score\": \"0\",\n      \"max_score\": \"500\",\n      \"grade\": \"D\",\n      \"decision\": \"REJECT\",\n      \"label\": \"below 500\"\n    },\n    {\n      \"min_score\": \"500\",\n      \"max_score\": \"650\",\n      \"grade\": \"B\",\n      \"decision\": \"REFER\",\n      \"label\": \"500 to below 650\"\n    },\n    {\n      \"min_score\": \"650\",\n      \"max_score\": \"901\",\n      \"grade\": \"A\",\n      \"decision\": \"APPROVE\",\n      \"label\": \"650 to 900\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Entity Too Large",
+              "code": 413,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Entity Too Large",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The matrix is invalid. Nothing was stored.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rows\": [\n    {\n      \"min_score\": \"0\",\n      \"max_score\": \"500\",\n      \"grade\": \"D\",\n      \"decision\": \"REJECT\",\n      \"label\": \"below 500\"\n    },\n    {\n      \"min_score\": \"500\",\n      \"max_score\": \"650\",\n      \"grade\": \"B\",\n      \"decision\": \"REFER\",\n      \"label\": \"500 to below 650\"\n    },\n    {\n      \"min_score\": \"650\",\n      \"max_score\": \"901\",\n      \"grade\": \"A\",\n      \"decision\": \"APPROVE\",\n      \"label\": \"650 to 900\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INPUT_VALIDATION_ERROR\",\n    \"message\": \"invalid policy\",\n    \"details\": [\n      {\n        \"field\": \"rows[1].min_score\",\n        \"issue\": \"gap\",\n        \"message\": \"scores from 500.00 up to this row's min_score belong to no row\"\n      },\n      {\n        \"field\": \"rows[2].max_score\",\n        \"issue\": \"does_not_cover_score_range\",\n        \"message\": \"the scorecard can produce scores up to 685.00; max_score is excluded, so the last row must end above it, or have no max_score\"\n      }\n    ]\n  },\n  \"request_id\": \"6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "PUT",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rows\": [\n    {\n      \"min_score\": \"0\",\n      \"max_score\": \"500\",\n      \"grade\": \"D\",\n      \"decision\": \"REJECT\",\n      \"label\": \"below 500\"\n    },\n    {\n      \"min_score\": \"500\",\n      \"max_score\": \"650\",\n      \"grade\": \"B\",\n      \"decision\": \"REFER\",\n      \"label\": \"500 to below 650\"\n    },\n    {\n      \"min_score\": \"650\",\n      \"max_score\": \"901\",\n      \"grade\": \"A\",\n      \"decision\": \"APPROVE\",\n      \"label\": \"650 to 900\"\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "name": "Remove the decision matrix of a draft",
+          "request": {
+            "name": "Remove the decision matrix of a draft",
+            "description": {
+              "content": "Removes the matrix; `GET` then returns `decision_matrix` null. Answers 204 also when there was none. Only a DRAFT can change.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policy-versions",
+                ":version_id",
+                "decision-matrix"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{versionId}}",
+                  "key": "version_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "DELETE",
+            "body": {},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Removed (or there was nothing to remove).",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "DELETE",
+                "body": {}
+              },
+              "status": "No Content",
+              "code": 204,
+              "header": [
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "DELETE",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "DELETE",
+                "body": {}
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No policy version has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "DELETE",
+                "body": {}
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_NOT_FOUND\",\n    \"message\": \"policy version not found\"\n  },\n  \"request_id\": \"9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "DELETE",
+                "body": {}
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The version is not a DRAFT, so it can no longer be edited or submitted.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "DELETE",
+                "body": {}
+              },
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_FROZEN\",\n    \"message\": \"only a DRAFT version can be changed or submitted\"\n  },\n  \"request_id\": \"0d9c8b7a6e5f4a3b2c1d0e9f8a7b6c5d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "decision-matrix"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/decision-matrix"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "DELETE",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
         }
       ]
     }
@@ -12762,7 +14501,7 @@
     "name": "RiskForge API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": {
-      "content": "Contract for the endpoints implemented so far (RF-001 to RF-008, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; the role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
+      "content": "Contract for the endpoints implemented so far (RF-001 to RF-009, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; the role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
       "type": "text/plain"
     },
     "_postman_id": "4b6e2f0a-9c3d-4e51-8a7b-1f2e3d4c5b6a"

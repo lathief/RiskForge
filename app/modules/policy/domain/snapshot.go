@@ -45,28 +45,27 @@ type snapshotDictionary struct {
 	Variables     []DictionaryVariable `json:"variables"`
 }
 
-// Content is the editable policy content of a version that goes into its snapshot. RF-009 adds
-// the decision matrix here.
+// Content is the editable policy content of a version that goes into its snapshot.
 type Content struct {
 	Rules     RuleSet
-	Scorecard *Scorecard // nil when no scorecard has been configured
+	Scorecard *Scorecard     // nil when no scorecard has been configured
+	Matrix    DecisionMatrix // empty when no decision matrix has been configured
 }
 
-// snapshotDocument is the frozen content of a version. RF-007 fills rac_rules (in evaluation
-// order) and RF-008 fills scorecard (null when none is configured); the decision matrix stays
-// empty until RF-009. All sections are always present so the layout is stable and a reader
-// never has to guess whether one was omitted. Sections were empty or null in snapshots frozen
-// before they existed; those remain valid under format 1.
-// Rules were empty in snapshots frozen before RF-007; they remain valid under format 1.
+// snapshotDocument is the frozen content of a version: rac_rules in evaluation order (RF-007),
+// the scorecard or null (RF-008), and the decision matrix rows in ascending score order, or an
+// empty list (RF-009). All sections are always present so the layout is stable and a reader never
+// has to guess whether one was omitted. Sections were empty or null in snapshots frozen before
+// they existed; those remain valid under format 1.
 type snapshotDocument struct {
-	Format           int                `json:"format"`
-	EvaluatorVersion string             `json:"evaluator_version"`
-	Package          snapshotPackage    `json:"package"`
-	VersionNumber    int                `json:"version_number"`
-	Dictionary       snapshotDictionary `json:"dictionary"`
-	RACRules         []snapshotRule     `json:"rac_rules"`
-	Scorecard        *snapshotScorecard `json:"scorecard"`
-	DecisionMatrix   []any              `json:"decision_matrix"`
+	Format           int                 `json:"format"`
+	EvaluatorVersion string              `json:"evaluator_version"`
+	Package          snapshotPackage     `json:"package"`
+	VersionNumber    int                 `json:"version_number"`
+	Dictionary       snapshotDictionary  `json:"dictionary"`
+	RACRules         []snapshotRule      `json:"rac_rules"`
+	Scorecard        *snapshotScorecard  `json:"scorecard"`
+	DecisionMatrix   []snapshotMatrixRow `json:"decision_matrix"`
 }
 
 // BuildSnapshot freezes v, its content, and the dictionary it is written against into canonical JSON and
@@ -82,7 +81,7 @@ func BuildSnapshot(v Version, dictionary []DictionaryVariable, content Content) 
 		Dictionary:       snapshotDictionary{SchemaVersion: v.DictionarySchemaVersion, Variables: vars},
 		RACRules:         content.Rules.snapshot(),
 		Scorecard:        content.Scorecard.snapshot(),
-		DecisionMatrix:   []any{},
+		DecisionMatrix:   content.Matrix.snapshot(),
 	}
 	raw, err := json.Marshal(doc)
 	if err != nil {

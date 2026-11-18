@@ -103,6 +103,12 @@ type PolicyRepository interface {
 	ReplaceScorecard(ctx context.Context, versionID string, sc *domain.Scorecard) error
 	// CopyScorecard copies the scorecard of one version onto another (nothing if there is none).
 	CopyScorecard(ctx context.Context, fromVersionID, toVersionID string) error
+	// GetMatrix returns the decision matrix rows of a version in order (empty when none).
+	GetMatrix(ctx context.Context, versionID string) (domain.DecisionMatrix, error)
+	// ReplaceMatrix replaces the decision matrix of a DRAFT with m (empty only deletes).
+	ReplaceMatrix(ctx context.Context, versionID string, m domain.DecisionMatrix) error
+	// CopyMatrix copies the decision matrix of one version onto another.
+	CopyMatrix(ctx context.Context, fromVersionID, toVersionID string) error
 	// TouchDraft records that a DRAFT changed, by moving its updated_at.
 	TouchDraft(ctx context.Context, versionID string) error
 }
@@ -234,7 +240,10 @@ func (s *PolicyService) Clone(ctx context.Context, actorID, packageID string, in
 		if err := s.repo.CopyRules(ctx, source.ID, out.ID); err != nil {
 			return err
 		}
-		return s.repo.CopyScorecard(ctx, source.ID, out.ID)
+		if err := s.repo.CopyScorecard(ctx, source.ID, out.ID); err != nil {
+			return err
+		}
+		return s.repo.CopyMatrix(ctx, source.ID, out.ID)
 	})
 	return out, err
 }
@@ -336,12 +345,18 @@ func (s *PolicyService) Submit(ctx context.Context, actorID, id string) (domain.
 		if err != nil {
 			return err
 		}
-		// Content copied by clone, or a dictionary version chosen after it was written, can be
-		// invalid now. Every problem of every section is reported together.
-		if fields := contentIssues(rules, scorecard, dictionary); len(fields) > 0 {
+		matrix, err := s.repo.GetMatrix(ctx, current.ID)
+		if err != nil {
+			return err
+		}
+		content := domain.Content{Rules: rules, Scorecard: scorecard, Matrix: matrix}
+		// Content copied by clone, a dictionary version chosen after it was written, or a
+		// scorecard edited after the matrix, can be invalid now. Every problem of every section
+		// is reported together.
+		if fields := contentIssues(content, dictionary); len(fields) > 0 {
 			return &InvalidPolicyError{Fields: fields}
 		}
-		snapshot, checksum, err := domain.BuildSnapshot(current, dictionary, domain.Content{Rules: rules, Scorecard: scorecard})
+		snapshot, checksum, err := domain.BuildSnapshot(current, dictionary, content)
 		if err != nil {
 			return err
 		}
@@ -353,24 +368,30 @@ func (s *PolicyService) Submit(ctx context.Context, actorID, id string) (domain.
 
 // contentIssues re-validates the stored content of a draft and returns every problem, with
 // the field paths of the editing endpoints ("rules[1].expression",
-// "scorecard.characteristics[0].bins[2].min_value").
-func contentIssues(rules domain.RuleSet, scorecard *domain.Scorecard, dictionary []domain.DictionaryVariable) []domain.FieldError {
+// "scorecard.characteristics[0].bins[2].min_value", "decision_matrix.rows[0].min_score").
+func contentIssues(c domain.Content, dictionary []domain.DictionaryVariable) []domain.FieldError {
 	var out []domain.FieldError
-	if _, err := domain.ValidateRules(ruleInputs(rules), domain.DictionaryEnvironment(dictionary)); err != nil {
+	collect := func(prefix string, err error) {
 		var verr *domain.ValidationError
 		if errors.As(err, &verr) {
-			out = append(out, verr.Fields...)
+			for _, f := range verr.Fields {
+				f.Field = prefix + f.Field
+				out = append(out, f)
+			}
 		}
 	}
-	if scorecard != nil {
-		if _, err := domain.ValidateScorecard(scorecardInput(scorecard), dictionary); err != nil {
-			var verr *domain.ValidationError
-			if errors.As(err, &verr) {
-				for _, f := range verr.Fields {
-					f.Field = "scorecard." + f.Field
-					out = append(out, f)
-				}
-			}
+	if _, err := domain.ValidateRules(ruleInputs(c.Rules), domain.DictionaryEnvironment(dictionary)); err != nil {
+		collect("", err)
+	}
+	if c.Scorecard != nil {
+		if _, err := domain.ValidateScorecard(scorecardInput(c.Scorecard), dictionary); err != nil {
+			collect("scorecard.", err)
+		}
+	}
+	if len(c.Matrix) > 0 {
+		// The matrix must cover the scores the scorecard of this version can produce.
+		if _, err := domain.ValidateMatrix(matrixInput(c.Matrix), domain.RangeOf(c.Scorecard)); err != nil {
+			collect("decision_matrix.", err)
 		}
 	}
 	return out

@@ -35,7 +35,7 @@ LOANAPP=$(token demo_loan_application)
 | 403 | `FORBIDDEN` | Authenticated but missing the permission. |
 | 404 | `PRODUCT_NOT_FOUND`, `VARIABLE_NOT_FOUND`, `POLICY_NOT_FOUND`, `POLICY_VERSION_NOT_FOUND`, `ROUTE_NOT_FOUND` | Unknown product code / dictionary variable / policy / policy version / route. |
 | 409 | `PRODUCT_CODE_CONFLICT`, `VARIABLE_CODE_CONFLICT`, `POLICY_CONFLICT`, `POLICY_VERSION_FROZEN` | Product, variable, or policy already exists / an edit or submit of a version that is no longer a draft. |
-| 422 | `INPUT_VALIDATION_ERROR`, `POLICY_VALIDATION_FAILED` | Invalid JSON, field, query parameter, or a field that cannot be set / a draft whose content (RAC expressions, scorecard) does not validate at submit. |
+| 422 | `INPUT_VALIDATION_ERROR`, `POLICY_VALIDATION_FAILED` | Invalid JSON, field, query parameter, or a field that cannot be set / a draft whose content (RAC expressions, scorecard, decision matrix) does not validate at submit. |
 | 503 | `SERVICE_BUSY` | Login capacity saturated; honour `Retry-After`. |
 | 500 | `INTERNAL_ERROR` | Unexpected failure; the cause is only in `error.log`. |
 
@@ -279,7 +279,7 @@ curl -s -X POST $B/api/v1/policy-versions/$VERSION/submit -H "Authorization: Bea
 ```json
 {"id":"0827ba94-23b3-49a1-bfdb-9a3c8d6d9476","policy_id":"66f857ed-0569-41fe-9a20-8ee1910a9e1a","product_code":"KTA_DEMO","scope":"DEFAULT","version_number":2,"status":"PENDING_APPROVAL","description":"Raise the minimum income.","based_on_version_id":"1b1e533f-1ec5-4e33-94b1-4f390ff4fa70","dictionary_schema_version":10,"checksum":"773209c1dc1ee8b482e7f6c396b859da4f4142d331605b27b9d6131ba9ede1db","submitted_by":"ee3972dc-04e9-44a3-9a2e-3057df2f7e19","submitted_at":"2026-11-18T02:39:00Z","created_by":"ee3972dc-04e9-44a3-9a2e-3057df2f7e19","created_at":"2026-11-18T02:38:59Z","updated_at":"2026-11-18T02:39:00Z","snapshot":{"decision_matrix":[],"dictionary":{"schema_version":10,"variables":[{"code":"age_years","description":"Applicant age on the application date.","max_value":"120","min_value":"0","nullable":false,"origin":"INPUT","required":true,"scale":null,"schema_version":1,"type":"INTEGER","unit":"years","version":1}]},"evaluator_version":"1","format":1,"package":{"product_code":"KTA_DEMO","scope":"DEFAULT"},"rac_rules":[],"scorecard":null,"version_number":2}}
 ```
-The snapshot above is shortened to one dictionary variable; the real one lists all of them. It is in canonical form (keys sorted, no whitespace), and `checksum` is the SHA-256 of exactly that form. The snapshot contains the dictionary definitions themselves, so later dictionary edits do not change it. `rac_rules` holds the draft's RAC rules in order (see [RAC rules](#rac-rules)); `scorecard` holds its scorecard (see [Scorecard](#scorecard)); the decision matrix is empty until RF-009. After submit the version cannot change, and a second submit fails too:
+The snapshot above is shortened to one dictionary variable; the real one lists all of them. It is in canonical form (keys sorted, no whitespace), and `checksum` is the SHA-256 of exactly that form. The snapshot contains the dictionary definitions themselves, so later dictionary edits do not change it. `rac_rules` holds the draft's RAC rules in order (see [RAC rules](#rac-rules)); `scorecard` holds its scorecard (see [Scorecard](#scorecard)); `decision_matrix` holds its matrix rows (see [Decision matrix](#decision-matrix)). After submit the version cannot change, and a second submit fails too:
 ```http
 HTTP/1.1 409 Conflict
 {"error":{"code":"POLICY_VERSION_FROZEN","message":"only a DRAFT version can be changed or submitted"},"request_id":"ca3b6d46c7a0bf3572851fd7a3e85b82"}
@@ -375,6 +375,49 @@ Submit checks the scorecard again, together with the RAC rules, and refuses the 
 ```json
 "scorecard":{"base_score":"350.00","characteristics":[{"bins":[{"label":"under 25","max_value":"25","min_value":null,"order":1,"points":"40.00"},{"label":"25 to 45","max_value":"46","min_value":"25","order":2,"points":"85.00"}, ...
 ```
+## Decision matrix
+Read (`policy:read`): `RISK_ANALYST`, `RISK_APPROVER`, `AUDITOR`. Write (`policy:write`): `RISK_ANALYST` only. The `ADMIN` and the Loan Application have no access.
+The decision matrix turns the total score into a risk **grade** and a **decision** (`APPROVE`, `REFER`, or `REJECT`). Each row is a score interval. The matrix is checked when you save it, not run (lookup at decision time arrives with RF-013).
+### Read
+```sh
+curl -s $B/api/v1/policy-versions/$VERSION/decision-matrix -H "Authorization: Bearer $AUDITOR"
+```
+```json
+{"policy_version_id":"d6b6bbb7-aba1-465c-aef9-5adbd65845ea","status":"DRAFT","dictionary_schema_version":10,"updated_at":"2026-11-18T05:54:19Z","score_range":{"min":"420.00","max":"685.00"},"covers_score_range":null,"decision_matrix":null}
+```
+`score_range` is the lowest and highest total the version's scorecard can produce (`null` without a scorecard). `covers_score_range` says whether the stored rows cover it (`null` when there is no scorecard or no matrix).
+### Replace
+```sh
+curl -s -X PUT $B/api/v1/policy-versions/$VERSION/decision-matrix -H "Authorization: Bearer $ANALYST" -H 'Content-Type: application/json' -d '{
+  "rows": [
+    {"min_score":"0","max_score":"500","grade":"D","decision":"REJECT","label":"below 500"},
+    {"min_score":"500","max_score":"650","grade":"B","decision":"REFER","label":"500 to below 650"},
+    {"min_score":"650","max_score":"901","grade":"A","decision":"APPROVE","label":"650 to 900"}]}'
+```
+```json
+{"policy_version_id":"d6b6bbb7-aba1-465c-aef9-5adbd65845ea","status":"DRAFT","dictionary_schema_version":10,"updated_at":"2026-11-18T05:54:19Z","score_range":{"min":"420.00","max":"685.00"},"covers_score_range":true,"decision_matrix":{"rows":[{"order":1,"min_score":"0.00","max_score":"500.00","grade":"D","decision":"REJECT","label":"below 500"},{"order":2,"min_score":"500.00","max_score":"650.00","grade":"B","decision":"REFER","label":"500 to below 650"},{"order":3,"min_score":"650.00","max_score":"901.00","grade":"A","decision":"APPROVE","label":"650 to 900"}]}}
+```
+This is the matrix of `SYSTEM_DESIGN.md` 20.3 for the score domain 0 to 900 (the last row ends at `901` so that 900 is included). The example applicant's 685.00 is grade A, `APPROVE`. `DELETE /api/v1/policy-versions/{version_id}/decision-matrix` removes the matrix (`204`). A frozen version answers `409 POLICY_VERSION_FROZEN`.
+### Rules for rows
+- A row is the half-open interval **`[min_score, max_score)`**, like a scorecard bin: 500 belongs to `[500, 650)`, not to `[0, 500)`. Only the first row may omit `min_score` and only the last may omit `max_score`.
+- List rows in ascending order, edge to edge.
+- When the draft has a scorecard, the rows must cover its whole `score_range`: start at or below its minimum and end above its maximum. So every score the version can produce lands in exactly one row; there is never a default decision.
+- Scores have at most two decimals and are returned with exactly two. Grades are short upper-case codes and may repeat.
+```http
+HTTP/1.1 422 Unprocessable Entity
+{"error":{"code":"INPUT_VALIDATION_ERROR","message":"invalid policy","details":[{"field":"rows[1].grade","issue":"invalid_format"},{"field":"rows[1].decision","issue":"invalid_value"},{"field":"rows[1].min_score","issue":"gap","message":"scores from 500.00 up to this row's min_score belong to no row"},{"field":"rows[0].min_score","issue":"does_not_cover_score_range","message":"the scorecard can produce scores down to 420.00; the first row must start at or below it, or have no min_score"},{"field":"rows[2].max_score","issue":"does_not_cover_score_range","message":"the scorecard can produce scores up to 685.00; max_score is excluded, so the last row must end above it, or have no max_score"}]},"request_id":"8c11067bdc477c961d00993a08a29cf7"}
+```
+Other issues: `rows` (`required`, `must_be_array`, `no_rows`, `too_many` above 50), `overlap`, `min_not_less_than_max`, `exceeds_scale`, `out_of_range`, `invalid_format`, `grade` and `decision` `required`, `label` `too_long` or `invalid_characters`.
+### When the scorecard changes afterwards
+Editing the scorecard does not re-check the matrix, so you can edit them in any order. `GET` shows the mismatch, and submit refuses it. After raising the demo base score to 700 (range 770.00 to 1035.00):
+```http
+HTTP/1.1 422 Unprocessable Entity
+{"error":{"code":"POLICY_VALIDATION_FAILED","message":"the draft cannot be submitted until its content is valid","details":[{"field":"decision_matrix.rows[2].max_score","issue":"does_not_cover_score_range","message":"the scorecard can produce scores up to 1035.00; max_score is excluded, so the last row must end above it, or have no max_score"}]},"request_id":"f3b2b6702af7e92ebb3b427be772ed3f"}
+```
+Open-ended first and last rows cover any range. With them the draft submits, and the snapshot holds the rows:
+```json
+"decision_matrix":[{"decision":"REJECT","grade":"D","label":"","max_score":"500.00","min_score":null,"order":1},{"decision":"REFER","grade":"B","label":"","max_score":"650.00","min_score":"500.00","order":2},{"decision":"APPROVE","grade":"A","label":"","max_score":null,"min_score":"650.00","order":3}]
+```
 ## Unknown routes
 
 ```http
@@ -412,4 +455,4 @@ grep -h '"requestID":"doc-login-00001"' storage/logs/{activity,error,query}.log
 
 ## Planned endpoints
 
-Not live yet; see `SYSTEM_DESIGN.md` 13.1 for the target contract: decision matrix and full policy validation (RF-009, RF-010), simulation (RF-017), approval requests (RF-019..RF-021), `POST /api/v1/decisions/evaluate` with `Idempotency-Key` (RF-014, RF-015), and decision lookup. Each will be added to the OpenAPI contract, Swagger UI, and the Postman collection in the same change.
+Not live yet; see `SYSTEM_DESIGN.md` 13.1 for the target contract: full policy validation (RF-010), simulation (RF-017), approval requests (RF-019..RF-021), `POST /api/v1/decisions/evaluate` with `Idempotency-Key` (RF-014, RF-015), and decision lookup. Each will be added to the OpenAPI contract, Swagger UI, and the Postman collection in the same change.
