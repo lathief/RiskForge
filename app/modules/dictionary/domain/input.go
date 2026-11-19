@@ -68,7 +68,7 @@ func (v Variable) checkValue(raw any) string {
 		return v.checkRange(new(big.Rat).SetInt(n))
 	case TypeDecimal:
 		s, ok := raw.(string)
-		if !ok || !decimalPattern.MatchString(s) {
+		if !ok || !inputDecimalPattern.MatchString(s) {
 			return IssueInvalidType
 		}
 		r, ok := new(big.Rat).SetString(s)

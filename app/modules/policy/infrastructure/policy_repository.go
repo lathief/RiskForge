@@ -199,6 +199,41 @@ func (r *PolicyRepository) FindVersion(ctx context.Context, id string, forUpdate
 	return rows[0].toDomain(), nil
 }
 
+
+type activeRefRow struct {
+	VersionID     string `db:"version_id"`
+	VersionNumber int    `db:"version_number"`
+	Status        string `db:"status"`
+	Checksum      string `db:"checksum"`
+	ProductCode   string `db:"product_code"`
+	Scope         string `db:"scope"`
+}
+
+// FindActiveReference follows the active binding of the package of (productCode, scope). The
+// join returns at most one row because package_id is the primary key of the binding, and it
+// does not read the snapshot, so it stays small however large the policy is.
+func (r *PolicyRepository) FindActiveReference(ctx context.Context, productCode, scope string) (application.ActiveRef, error) {
+	var rows []activeRefRow
+	if err := r.db.Querier(ctx).Select(&rows,
+		`SELECT v.id::text AS version_id, v.version_number, v.status, COALESCE(v.checksum, '') AS checksum,
+		        pr.code AS product_code, p.scope
+		   FROM policy.active_policy_bindings b
+		   JOIN policy.policy_versions v ON v.id = b.policy_version_id
+		   JOIN policy.policy_packages p ON p.id = b.package_id
+		   JOIN catalog.products pr ON pr.id = p.product_id
+		  WHERE pr.code = $1 AND p.scope = $2`, productCode, scope); err != nil {
+		return application.ActiveRef{}, err
+	}
+	if len(rows) == 0 {
+		return application.ActiveRef{}, application.ErrNoActivePolicy
+	}
+	row := rows[0]
+	return application.ActiveRef{
+		VersionID: row.VersionID, Number: row.VersionNumber, Status: domain.Status(row.Status),
+		Checksum: row.Checksum, ProductCode: row.ProductCode, Scope: row.Scope,
+	}, nil
+}
+
 func (r *PolicyRepository) ListVersions(ctx context.Context, packageID string) ([]domain.Version, error) {
 	var rows []versionRow
 	if err := r.db.Querier(ctx).Select(&rows,

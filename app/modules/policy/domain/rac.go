@@ -64,6 +64,19 @@ type RACRule struct {
 // RuleSet is the ordered RAC configuration of one policy version.
 type RuleSet []RACRule
 
+// EngineRules converts the stored rules, already in evaluation order, to the rules the pure
+// evaluator compiles (RF-012). The compiled result is what RF-014 evaluates and RF-016 caches.
+func (rs RuleSet) EngineRules() []ruleengine.Rule {
+	out := make([]ruleengine.Rule, 0, len(rs))
+	for _, r := range rs {
+		out = append(out, ruleengine.Rule{
+			Code: r.RuleCode, ReasonCode: r.ReasonCode, Expression: r.Expression,
+			Action: ruleengine.Action(r.Action),
+		})
+	}
+	return out
+}
+
 // DictionaryEnvironment builds the variables a rule may use from a dictionary snapshot.
 func DictionaryEnvironment(dictionary []DictionaryVariable) ruleengine.Environment {
 	vars := make([]ruleengine.Variable, 0, len(dictionary))

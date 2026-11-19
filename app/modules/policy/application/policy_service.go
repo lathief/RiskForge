@@ -21,6 +21,8 @@ var (
 	ErrProductInactive = errors.New("product is not active")
 	// ErrSourceNotInPolicy means a clone source version belongs to another policy.
 	ErrSourceNotInPolicy = errors.New("source version does not belong to this policy")
+	// ErrNoActivePolicy means the product has no active policy version for the scope (SYSTEM_DESIGN.md 13.4: 409).
+	ErrNoActivePolicy = errors.New("no active policy version")
 )
 
 const (
@@ -50,6 +52,10 @@ type DictionaryReader interface {
 	// CheckInput validates applicant facts against the given dictionary variables with the
 	// dictionary module's input rules and returns every problem, ordered by variable code.
 	CheckInput(dictionary []domain.DictionaryVariable, facts map[string]any) []domain.FieldError
+	// PrepareInput validates applicant input against the dictionary and builds the facts the
+	// evaluator reads, including the derived features (RF-011). It returns the issues when the
+	// input is invalid, or an error when the dictionary cannot be computed.
+	PrepareInput(dictionary []domain.DictionaryVariable, input map[string]any) (domain.Prepared, []domain.FieldError, error)
 }
 
 // PackageSummary is a package with its newest version, for lists.
@@ -118,6 +124,10 @@ type PolicyRepository interface {
 	ReplaceTestCases(ctx context.Context, versionID string, cases domain.TestCases) error
 	// CopyTestCases copies the test cases of one version onto another.
 	CopyTestCases(ctx context.Context, fromVersionID, toVersionID string) error
+	// FindActiveReference follows the active binding of the product and scope and returns which
+	// version it points to, without the snapshot, or ErrNoActivePolicy. It is the one small query a
+	// decision makes before using the compiled policy cache (SYSTEM_DESIGN.md 10.6).
+	FindActiveReference(ctx context.Context, productCode, scope string) (ActiveRef, error)
 	// TouchDraft records that a DRAFT changed, by moving its updated_at.
 	TouchDraft(ctx context.Context, versionID string) error
 }
@@ -381,6 +391,8 @@ func (s *PolicyService) Validate(ctx context.Context, id string) (domain.Version
 func (s *PolicyService) validate(content domain.Content, dictionary []domain.DictionaryVariable) domain.Report {
 	return domain.ValidatePolicy(content, dictionary, func(facts map[string]any) []domain.FieldError {
 		return s.dict.CheckInput(dictionary, facts)
+	}, func(input map[string]any) (domain.Prepared, []domain.FieldError, error) {
+		return s.dict.PrepareInput(dictionary, input)
 	})
 }
 

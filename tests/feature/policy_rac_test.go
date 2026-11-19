@@ -359,7 +359,7 @@ func (s *PolicyTestSuite) TestConcurrentReplacesLeaveExactlyOneWholeList() {
 
 func (s *PolicyTestSuite) TestSubmitRacingWithAReplaceNeverLeavesTheSnapshotAndTheRulesApart() {
 	for round := 0; round < 6; round++ {
-		s.Require().NoError(facades.DB().Statement("TRUNCATE TABLE policy.test_cases, policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
+		s.Require().NoError(facades.DB().Statement("TRUNCATE TABLE decision.rule_traces, decision.runs, decision.requests, policy.active_policy_bindings, policy.test_cases, policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
 		_, v1 := s.createPolicy(`{"product_code":"KTA_DEMO"}`)
 		s.putRules("demo_analyst", v1, `{"rules":[{"rule_code":"RAC_OLD","reason_code":"OLD_REASON","action":"REJECT","expression":"age_years >= 18"}]}`).AssertOk()
 		s.complete(v1)
@@ -371,8 +371,10 @@ func (s *PolicyTestSuite) TestSubmitRacingWithAReplaceNeverLeavesTheSnapshotAndT
 		}()
 		go func() {
 			defer wg.Done()
+			// Same reason code and action as RAC_OLD: since RF-013 submit runs the filler golden case, and
+			// it must give the same result whichever of the two calls wins the race.
 			_, _, _ = s.service.ReplaceRules(context.Background(), v1, []policydomain.RuleInput{
-				{RuleCode: "RAC_NEW", ReasonCode: "NEW_REASON", Action: "REFER", Expression: "age_years >= 30"}})
+				{RuleCode: "RAC_NEW", ReasonCode: "OLD_REASON", Action: "REJECT", Expression: "age_years >= 30"}})
 		}()
 		wg.Wait()
 

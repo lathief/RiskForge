@@ -9188,7 +9188,7 @@
           "request": {
             "name": "Freeze a draft for approval",
             "description": {
-              "content": "Captures the canonical snapshot of the draft, including the data dictionary definitions\nit was written against, stores its SHA-256 checksum, and moves the version to\n`PENDING_APPROVAL`. After this nothing about the version changes: edits and a second\nsubmit are 409 `POLICY_VERSION_FROZEN`. No request body.\nBefore freezing, the full policy validation of `POST .../validate` runs (SYSTEM_DESIGN.md\n9.3): completeness (a scorecard, a decision matrix, and at least one required test case),\nthe RAC rules, the scorecard, the decision matrix against the scorecard range, and the test\ncases, all against the dictionary version the draft is pinned to. If any check fails, the\nanswer is a 422 `POLICY_VALIDATION_FAILED` listing every problem (paths start with\n`scorecard.` or `decision_matrix.` for those sections) and the draft stays a DRAFT.\nExecuting the test cases against the policy (comparing expected and actual decisions) is\na pending check until the decision evaluator exists (RF-011 to RF-013); approving or\nrejecting a pending version arrives with M4.\n",
+              "content": "Captures the canonical snapshot of the draft, including the data dictionary definitions\nit was written against, stores its SHA-256 checksum, and moves the version to\n`PENDING_APPROVAL`. After this nothing about the version changes: edits and a second\nsubmit are 409 `POLICY_VERSION_FROZEN`. No request body.\nBefore freezing, the full policy validation of `POST .../validate` runs (SYSTEM_DESIGN.md\n9.3): completeness (a scorecard, a decision matrix, and at least one required test case),\nthe RAC rules, the scorecard, the decision matrix against the scorecard range, and the test\ncases, all against the dictionary version the draft is pinned to. If any check fails, the\nanswer is a 422 `POLICY_VALIDATION_FAILED` listing every problem (paths start with\n`scorecard.` or `decision_matrix.` for those sections) and the draft stays a DRAFT.\nWhen those checks pass, every test case is also **executed** through the decision\npipeline (RF-013): a required case whose decision, grade (when it names one), or reason\ncodes differ from the actual result is a validation issue\n(`decision_mismatch`, `grade_mismatch`, `reason_codes_mismatch`, `input_rejected`,\n`validation_error_not_raised`, `evaluation_failed`) and the submit is refused. Optional\ncases that fail do not block. Approving or rejecting a pending version arrives with M4.\n",
               "type": "text/plain"
             },
             "url": {
@@ -14934,7 +14934,7 @@
           "request": {
             "name": "Replace the test cases of a draft",
             "description": {
-              "content": "Replaces the whole list. A test case is an applicant `input` (the same facts the decision\nAPI will take: integers as JSON numbers, decimals as strings, booleans) and the result the\npolicy is expected to give: either a business `DECISION` (with `decision`, optional\n`grade`, and optional `reason_codes`) or an `INPUT_VALIDATION_ERROR`. Cases are `required`\nunless set to false; a version can only be submitted with at least one required case.\n\nEach case is checked now, against the dictionary version the draft is pinned to and the\ndraft's current RAC rules and decision matrix:\ninput keys must be input variables of the dictionary (`unknown_variable`,\n`derived_not_allowed`); `grade` must be a grade of the matrix (`unknown_grade`) and every\nreason code a reason code of a RAC rule (`unknown_reason_code`); and the input is **run\nagainst the data dictionary**: a `DECISION` case needs an input that passes it (the issue\nof the dictionary is reported at `input.<variable>`), and an `INPUT_VALIDATION_ERROR` case\nneeds one that fails it (`validation_error_not_raised`). Whether the expected decision,\ngrade, and reason codes are what the policy gives is checked once the decision evaluator\nexists (RF-011 to RF-013); `POST .../validate` lists that as a pending check.\n\nReason codes are a set and are returned sorted. Nothing is stored unless every case is\nvalid; every problem is reported with its path. Sending the list the draft already has\nchanges nothing; an empty list removes all cases. Only a DRAFT can change (409\n`POLICY_VERSION_FROZEN`).\n",
+              "content": "Replaces the whole list. A test case is an applicant `input` (the same facts the decision\nAPI will take: integers as JSON numbers, decimals as strings, booleans) and the result the\npolicy is expected to give: either a business `DECISION` (with `decision`, optional\n`grade`, and optional `reason_codes`) or an `INPUT_VALIDATION_ERROR`. Cases are `required`\nunless set to false; a version can only be submitted with at least one required case.\n\nEach case is checked now, against the dictionary version the draft is pinned to and the\ndraft's current RAC rules and decision matrix:\ninput keys must be input variables of the dictionary (`unknown_variable`,\n`derived_not_allowed`); `grade` must be a grade of the matrix (`unknown_grade`) and every\nreason code a reason code of a RAC rule (`unknown_reason_code`); and the input is **run\nagainst the data dictionary**: a `DECISION` case needs an input that passes it (the issue\nof the dictionary is reported at `input.<variable>`), and an `INPUT_VALIDATION_ERROR` case\nneeds one that fails it (`validation_error_not_raised`). \"Fails\" includes the preconditions of\nthe derived features (RF-011), such as `monthly_income` greater than zero. Whether the\nexpected decision, grade, and reason codes are what the policy gives is checked when the\ncases are executed by `POST .../validate` and by submit (RF-013), not when they are saved.\n\nReason codes are a set and are returned sorted. Nothing is stored unless every case is\nvalid; every problem is reported with its path. Sending the list the draft already has\nchanges nothing; an empty list removes all cases. Only a DRAFT can change (409\n`POLICY_VERSION_FROZEN`).\n",
               "type": "text/plain"
             },
             "url": {
@@ -15709,7 +15709,7 @@
           "request": {
             "name": "Validate a whole policy version",
             "description": {
-              "content": "Runs the full policy validation of SYSTEM_DESIGN.md 9.3 and returns a report; nothing\nchanges. Submit runs the same checks and refuses the version (422\n`POLICY_VALIDATION_FAILED`, same `issues`) when any fails, so this is the dry run of\nsubmit and needs the same permission. Works for any status; a frozen version is checked\nagain against the dictionary version it is pinned to. No request body.\n\nChecks: **completeness** (a scorecard, a decision matrix, and at least one required test\ncase: `missing_section`, `no_required_test_cases`; RAC rules are optional); every **RAC\nexpression** compiles and type-checks; the **scorecard** variables exist and are numeric\nand its bins cover each variable exactly once; the **decision matrix** covers the\nscorecard's score range; every **test case** references existing variables, grades, and\nreason codes, and its input passes or fails the data dictionary as its expected outcome\nsays. Paths are those of the editing endpoints, prefixed `scorecard.` and\n`decision_matrix.` for those sections.\n\n`pending_checks` lists what cannot run yet: comparing each test case's expected decision,\ngrade, and reason codes with the policy's actual result needs the decision evaluator\n(RF-011 to RF-013). `valid: true` therefore means \"every check that exists passed\", and\nthe pending check is always listed so it is never mistaken for a pass.\n",
+              "content": "Runs the full policy validation of SYSTEM_DESIGN.md 9.3 and returns a report; nothing\nchanges. Submit runs the same checks and refuses the version (422\n`POLICY_VALIDATION_FAILED`, same `issues`) when any fails, so this is the dry run of\nsubmit and needs the same permission. Works for any status; a frozen version is checked\nagain against the dictionary version it is pinned to. No request body.\n\nChecks: **completeness** (a scorecard, a decision matrix, and at least one required test\ncase: `missing_section`, `no_required_test_cases`; RAC rules are optional); every **RAC\nexpression** compiles and type-checks; the **scorecard** variables exist and are numeric\nand its bins cover each variable exactly once; the **decision matrix** covers the\nscorecard's score range; every **test case** references existing variables, grades, and\nreason codes, and its input passes or fails the data dictionary as its expected outcome\nsays. Paths are those of the editing endpoints, prefixed `scorecard.` and\n`decision_matrix.` for those sections.\n\n**Golden tests (RF-013).** When no other check found a problem, every test case is\nexecuted with the same code a decision uses: input validation, derived features (DSR and\nnet disposable income), RAC rules, scorecard, decision matrix, and precedence. The\nresult of each case is in `golden_tests.results` with the `actual` outcome and what\ndiffers from the expectation (`mismatches`). The decision and the reason codes must\nmatch (reason codes as a set: a case that lists none expects none), the grade only when\nthe case names one, and a case that expects `INPUT_VALIDATION_ERROR` must be refused.\nA technical failure (`EVALUATION_ERROR`, `POLICY_CONFIGURATION_ERROR`) is never a pass.\nA mismatch of a **required** case is an issue and makes `valid` false; a mismatch of an\noptional case is reported but does not. If another check failed the cases are not run,\nand `pending_checks` says so: a skipped check is always listed so it is never mistaken\nfor a pass. `pending_checks` is empty when everything ran.\n",
               "type": "text/plain"
             },
             "url": {
@@ -15821,7 +15821,7 @@
                   "value": ""
                 }
               ],
-              "body": "{\n  \"policy_version_id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"status\": \"DRAFT\",\n  \"dictionary_schema_version\": 8,\n  \"valid\": false,\n  \"summary\": {\n    \"rac_rules\": 3,\n    \"scorecard_characteristics\": 3,\n    \"decision_matrix_rows\": 3,\n    \"test_cases\": 0,\n    \"required_test_cases\": 0\n  },\n  \"score_range\": {\n    \"min\": \"420.00\",\n    \"max\": \"685.00\"\n  },\n  \"issues\": [\n    {\n      \"field\": \"test_cases\",\n      \"issue\": \"no_required_test_cases\",\n      \"message\": \"a policy needs at least one required test case (SYSTEM_DESIGN.md 9.3)\"\n    }\n  ],\n  \"pending_checks\": [\n    {\n      \"check\": \"golden_test_execution\",\n      \"reason\": \"evaluating the expected decision, grade, and reason codes of a test case needs the decision evaluator (RF-011 to RF-013); test cases are checked statically and their inputs are run against the data dictionary\"\n    }\n  ]\n}",
+              "body": "{\n  \"policy_version_id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"status\": \"DRAFT\",\n  \"dictionary_schema_version\": 8,\n  \"valid\": false,\n  \"summary\": {\n    \"rac_rules\": 3,\n    \"scorecard_characteristics\": 3,\n    \"decision_matrix_rows\": 3,\n    \"test_cases\": 0,\n    \"required_test_cases\": 0\n  },\n  \"score_range\": {\n    \"min\": \"420.00\",\n    \"max\": \"685.00\"\n  },\n  \"issues\": [\n    {\n      \"field\": \"test_cases\",\n      \"issue\": \"no_required_test_cases\",\n      \"message\": \"a policy needs at least one required test case (SYSTEM_DESIGN.md 9.3)\"\n    }\n  ],\n  \"golden_tests\": {\n    \"executed\": 0,\n    \"passed\": 0,\n    \"failed\": 0,\n    \"results\": []\n  },\n  \"pending_checks\": [\n    {\n      \"check\": \"golden_test_execution\",\n      \"reason\": \"the policy has other validation issues; fix them first, then the test cases are executed\"\n    }\n  ]\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -16158,6 +16158,1212 @@
           }
         }
       ]
+    },
+    {
+      "name": "Decisions",
+      "description": "Credit decisions against the active policy (RF-014).",
+      "item": [
+        {
+          "name": "Evaluate a loan application",
+          "request": {
+            "name": "Evaluate a loan application",
+            "description": {
+              "content": "Runs a credit decision for one application against the **active policy** of its product\n(SYSTEM_DESIGN.md 10, 13.2 to 13.4). The active version is resolved once at the start of\nthe request, so a publish during the request cannot change the version it uses, and the\nresponse names that version (`policy_version`). The compiled policy comes from an\nin-memory cache keyed by the version id and the checksum of its frozen snapshot (RF-016,\nSYSTEM_DESIGN.md 10.6): every decision still reads which version is active, so a publish\ntakes effect on the next decision, and a retired product or a removed binding is seen at\nonce. The cache changes no request or response.\n\nPipeline: the applicant data is validated and normalized against the data dictionary the\npolicy was written for; the derived features are built (`dsr_ratio` and\n`net_disposable_income`, exact, with the formula version); the RAC rules run in order;\nunless a hard rule rejected the application, the scorecard selects one bin per\ncharacteristic and adds its points, the decision matrix maps the total to a grade and a\ndecision, and the precedence hard RAC `REJECT` > matrix `REJECT` > soft RAC `REFER` >\nmatrix `APPROVE`/`REFER` gives `final_decision`.\n\n**Applicant data.** Integers are JSON numbers, decimals (money, ratios) are **strings**\nsuch as `\"12000000.00\"`; a JSON number for money is refused (`invalid_type`) instead of\nbeing rounded. A decimal has at most 18 integer digits and 32 fraction digits and no\nexponent; anything else is `invalid_type`. A missing or `null` required value, a wrong\ntype, a value outside the\ndictionary range, too many decimals, a key that is not a dictionary variable\n(`unknown_variable`), and a derived value sent by the caller (`derived_not_allowed`) are\nall `422 INPUT_VALIDATION_ERROR`, listed together with paths such as\n`applicant.monthly_income`. Invalid data is an error, never a `REJECT`.\n\n**Errors are not decisions.** `409 POLICY_NOT_ACTIVE` when the product is retired or has\nno active policy (a draft or a pending version is never evaluated); `404\nPRODUCT_NOT_FOUND`; `500 POLICY_CONFIGURATION_ERROR` when the active policy cannot be\nevaluated; `500 EVALUATION_ERROR` for a technical failure while evaluating. None of them\ncarries a decision, and the cause is logged server-side only.\n\n**Stored once per `Idempotency-Key` (RF-015, SYSTEM_DESIGN.md 13.5).** The header is\nrequired. The claim of the key, the evaluation, and the storing of the run and its rule\ntraces happen in one transaction, and the response is sent only after the commit. The\nkey is scoped to the caller (the authenticated user) and tied to a hash of the request:\n- **Same key, same request** (key order and white space do not matter): the stored\n  decision is returned, with the same `decision_id` and `created_at`, and the response\n  header `Idempotent-Replayed: true`. Nothing is evaluated, and the active policy is not\n  consulted, so a replay still works after the policy changed.\n- **Same key, different request:** `409 IDEMPOTENCY_CONFLICT`.\n- **A duplicate that arrives while the first request is still running** waits for it\n  (bounded by the 3 second request limit) and returns its decision. There is never a\n  second run for one key.\n- **No decision, no stored key:** an invalid request, an unknown product, a product with\n  no active policy, or a technical failure rolls back and leaves the key unused, so a\n  corrected retry with the same key is evaluated.\n\nA stored decision keeps the policy version and checksum it was made with, the normalized\ninput, and the full trace, and cannot be changed or deleted. Read it with\n`GET /decisions/{decision_id}`. Any `API_CONSUMER` may evaluate any product;\nper-product authorization needs API clients, which do not exist yet.\nThe request and response bodies of the decision endpoints are never written to the\nactivity log (they hold the applicant's financial data); the log keeps the caller, the\nroute, the status, the duration, and the request id.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "decisions",
+                "evaluate"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [],
+              "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+            },
+            "header": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) A key the caller makes unique per application request, 1 to 128 letters, digits, dot,\nunderscore, colon, or hyphen, starting with a letter or digit. Reuse it only to\nretry the same request.\n",
+                  "type": "text/plain"
+                },
+                "key": "Idempotency-Key",
+                "value": "loan-application-demo-001-v1"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The policy gave a business decision (`APPROVE`, `REFER`, or `REJECT`), stored under the key; or the stored decision of an earlier identical request.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": {
+                      "content": "(Required) A key the caller makes unique per application request, 1 to 128 letters, digits, dot,\nunderscore, colon, or hyphen, starting with a letter or digit. Reuse it only to\nretry the same request.\n",
+                      "type": "text/plain"
+                    },
+                    "key": "Idempotency-Key",
+                    "value": "loan-application-demo-001-v1"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "Present with the value `true` when the stored decision of an earlier request with the same key is returned. (This can only be one of true)",
+                    "type": "text/plain"
+                  },
+                  "key": "Idempotent-Replayed",
+                  "value": "true"
+                }
+              ],
+              "body": "{\n  \"decision_id\": \"5d1f0a62-7b3c-4e84-9a15-0c2e6f8b3d47\",\n  \"created_at\": \"2026-11-27T09:15:30Z\",\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"policy_version\": {\n    \"id\": \"3f0c1d2e-4a5b-4c6d-8e7f-9a0b1c2d3e4f\",\n    \"number\": 1,\n    \"checksum\": \"9d2f1c0b8a7e6d5c4b3a29181716151413121110fedcba9876543210abcdef01\"\n  },\n  \"status\": \"COMPLETED\",\n  \"final_decision\": \"APPROVE\",\n  \"risk_grade\": \"A\",\n  \"total_score\": \"685.00\",\n  \"reason_codes\": [],\n  \"refer_flag\": false,\n  \"derived_features\": [\n    {\n      \"code\": \"dsr_ratio\",\n      \"value\": \"0.208333\",\n      \"exact\": \"5/24\",\n      \"unit\": \"ratio\",\n      \"formula_version\": 1,\n      \"expression\": \"existing_installment / monthly_income\"\n    },\n    {\n      \"code\": \"net_disposable_income\",\n      \"value\": \"9500000.00\",\n      \"exact\": \"9500000\",\n      \"unit\": \"IDR\",\n      \"formula_version\": 1,\n      \"expression\": \"monthly_income - existing_installment\"\n    }\n  ],\n  \"rac_results\": [\n    {\n      \"order\": 1,\n      \"rule_code\": \"RAC_MIN_AGE\",\n      \"reason_code\": \"AGE_BELOW_MINIMUM\",\n      \"action\": \"REJECT\",\n      \"passed\": true,\n      \"inputs\": [\n        {\n          \"variable\": \"age_years\",\n          \"value\": \"29\"\n        }\n      ]\n    },\n    {\n      \"order\": 2,\n      \"rule_code\": \"RAC_BLACKLIST\",\n      \"reason_code\": \"BLACKLISTED\",\n      \"action\": \"REJECT\",\n      \"passed\": true,\n      \"inputs\": [\n        {\n          \"variable\": \"is_blacklisted\",\n          \"value\": \"false\"\n        }\n      ]\n    },\n    {\n      \"order\": 3,\n      \"rule_code\": \"RAC_SLIK\",\n      \"reason_code\": \"SLIK_REVIEW_REQUIRED\",\n      \"action\": \"REFER\",\n      \"passed\": true,\n      \"inputs\": [\n        {\n          \"variable\": \"slik_max_kol\",\n          \"value\": \"1\"\n        }\n      ]\n    }\n  ],\n  \"rac_not_evaluated\": [],\n  \"base_score\": \"350.00\",\n  \"score_breakdown\": [\n    {\n      \"characteristic\": \"age_group\",\n      \"variable\": \"age_years\",\n      \"value\": \"29\",\n      \"missing\": false,\n      \"bin_order\": 2,\n      \"bin\": \"25 to 45\",\n      \"points\": \"85.00\"\n    },\n    {\n      \"characteristic\": \"dsr_band\",\n      \"variable\": \"dsr_ratio\",\n      \"value\": \"5/24\",\n      \"missing\": false,\n      \"bin_order\": 1,\n      \"bin\": \"below 0.30\",\n      \"points\": \"150.00\"\n    },\n    {\n      \"characteristic\": \"employment_tenure\",\n      \"variable\": \"employment_tenure_months\",\n      \"value\": \"36\",\n      \"missing\": false,\n      \"bin_order\": 2,\n      \"bin\": \"24 months or more\",\n      \"points\": \"100.00\"\n    }\n  ],\n  \"matrix\": {\n    \"row_order\": 3,\n    \"label\": \"650 to 900\",\n    \"decision\": \"APPROVE\"\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": {
+                      "content": "(Required) A key the caller makes unique per application request, 1 to 128 letters, digits, dot,\nunderscore, colon, or hyphen, starting with a letter or digit. Reuse it only to\nretry the same request.\n",
+                      "type": "text/plain"
+                    },
+                    "key": "Idempotency-Key",
+                    "value": "loan-application-demo-001-v1"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": {
+                      "content": "(Required) A key the caller makes unique per application request, 1 to 128 letters, digits, dot,\nunderscore, colon, or hyphen, starting with a letter or digit. Reuse it only to\nretry the same request.\n",
+                      "type": "text/plain"
+                    },
+                    "key": "Idempotency-Key",
+                    "value": "loan-application-demo-001-v1"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The product code is unknown.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": {
+                      "content": "(Required) A key the caller makes unique per application request, 1 to 128 letters, digits, dot,\nunderscore, colon, or hyphen, starting with a letter or digit. Reuse it only to\nretry the same request.\n",
+                      "type": "text/plain"
+                    },
+                    "key": "Idempotency-Key",
+                    "value": "loan-application-demo-001-v1"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"PRODUCT_NOT_FOUND\",\n    \"message\": \"product not found\"\n  },\n  \"request_id\": \"7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": {
+                      "content": "(Required) A key the caller makes unique per application request, 1 to 128 letters, digits, dot,\nunderscore, colon, or hyphen, starting with a letter or digit. Reuse it only to\nretry the same request.\n",
+                      "type": "text/plain"
+                    },
+                    "key": "Idempotency-Key",
+                    "value": "loan-application-demo-001-v1"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "`POLICY_NOT_ACTIVE`: the product is retired or has no active policy version.\n`IDEMPOTENCY_CONFLICT`: the `Idempotency-Key` was already used with a different request.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": {
+                      "content": "(Required) A key the caller makes unique per application request, 1 to 128 letters, digits, dot,\nunderscore, colon, or hyphen, starting with a letter or digit. Reuse it only to\nretry the same request.\n",
+                      "type": "text/plain"
+                    },
+                    "key": "Idempotency-Key",
+                    "value": "loan-application-demo-001-v1"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_NOT_ACTIVE\",\n    \"message\": \"the product has no active policy\"\n  },\n  \"request_id\": \"8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request body exceeds 64 KiB. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": {
+                      "content": "(Required) A key the caller makes unique per application request, 1 to 128 letters, digits, dot,\nunderscore, colon, or hyphen, starting with a letter or digit. Reuse it only to\nretry the same request.\n",
+                      "type": "text/plain"
+                    },
+                    "key": "Idempotency-Key",
+                    "value": "loan-application-demo-001-v1"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Entity Too Large",
+              "code": 413,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Entity Too Large",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The request or the applicant data is invalid. Never a rejection of the application.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": {
+                      "content": "(Required) A key the caller makes unique per application request, 1 to 128 letters, digits, dot,\nunderscore, colon, or hyphen, starting with a letter or digit. Reuse it only to\nretry the same request.\n",
+                      "type": "text/plain"
+                    },
+                    "key": "Idempotency-Key",
+                    "value": "loan-application-demo-001-v1"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INPUT_VALIDATION_ERROR\",\n    \"message\": \"the application data is invalid\",\n    \"details\": [\n      {\n        \"field\": \"applicant.monthly_income\",\n        \"issue\": \"below_min_value\"\n      }\n    ]\n  },\n  \"request_id\": \"9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "A technical failure. `INTERNAL_ERROR`, `POLICY_CONFIGURATION_ERROR` (the active policy\ncannot be evaluated), or `EVALUATION_ERROR` (a failure while evaluating). No decision\nwas made, and in particular the application was not rejected.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": {
+                      "content": "(Required) A key the caller makes unique per application request, 1 to 128 letters, digits, dot,\nunderscore, colon, or hyphen, starting with a letter or digit. Reuse it only to\nretry the same request.\n",
+                      "type": "text/plain"
+                    },
+                    "key": "Idempotency-Key",
+                    "value": "loan-application-demo-001-v1"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"EVALUATION_ERROR\",\n    \"message\": \"the application could not be evaluated; no decision was made\"\n  },\n  \"request_id\": \"0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "name": "Read a stored decision",
+          "request": {
+            "name": "Read a stored decision",
+            "description": {
+              "content": "Returns a decision exactly as `POST /decisions/evaluate` returned it, including its\n`decision_id`, `created_at`, the policy version and checksum it was made with, and the\nfull trace. The API consumer reads the decisions of its **own** requests; an auditor\n(`audit:read`) reads all of them. A decision of another client, an unknown id, and an id\nthat is not a UUID are all `404 DECISION_NOT_FOUND`, so the existence of another\nclient's decision is not disclosed.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "decisions",
+                ":decision_id"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{decisionId}}",
+                  "key": "decision_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/decisions/:decision_id"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The stored decision.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    ":decision_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{decisionId}}",
+                      "key": "decision_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/decisions/:decision_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"decision_id\": \"5d1f0a62-7b3c-4e84-9a15-0c2e6f8b3d47\",\n  \"created_at\": \"2026-11-27T09:15:30Z\",\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"policy_version\": {\n    \"id\": \"3f0c1d2e-4a5b-4c6d-8e7f-9a0b1c2d3e4f\",\n    \"number\": 1,\n    \"checksum\": \"9d2f1c0b8a7e6d5c4b3a29181716151413121110fedcba9876543210abcdef01\"\n  },\n  \"status\": \"COMPLETED\",\n  \"final_decision\": \"APPROVE\",\n  \"risk_grade\": \"A\",\n  \"total_score\": \"685.00\",\n  \"reason_codes\": [],\n  \"refer_flag\": false,\n  \"derived_features\": [\n    {\n      \"code\": \"dsr_ratio\",\n      \"value\": \"0.208333\",\n      \"exact\": \"5/24\",\n      \"unit\": \"ratio\",\n      \"formula_version\": 1,\n      \"expression\": \"existing_installment / monthly_income\"\n    },\n    {\n      \"code\": \"net_disposable_income\",\n      \"value\": \"9500000.00\",\n      \"exact\": \"9500000\",\n      \"unit\": \"IDR\",\n      \"formula_version\": 1,\n      \"expression\": \"monthly_income - existing_installment\"\n    }\n  ],\n  \"rac_results\": [\n    {\n      \"order\": 1,\n      \"rule_code\": \"RAC_MIN_AGE\",\n      \"reason_code\": \"AGE_BELOW_MINIMUM\",\n      \"action\": \"REJECT\",\n      \"passed\": true,\n      \"inputs\": [\n        {\n          \"variable\": \"age_years\",\n          \"value\": \"29\"\n        }\n      ]\n    },\n    {\n      \"order\": 2,\n      \"rule_code\": \"RAC_BLACKLIST\",\n      \"reason_code\": \"BLACKLISTED\",\n      \"action\": \"REJECT\",\n      \"passed\": true,\n      \"inputs\": [\n        {\n          \"variable\": \"is_blacklisted\",\n          \"value\": \"false\"\n        }\n      ]\n    },\n    {\n      \"order\": 3,\n      \"rule_code\": \"RAC_SLIK\",\n      \"reason_code\": \"SLIK_REVIEW_REQUIRED\",\n      \"action\": \"REFER\",\n      \"passed\": true,\n      \"inputs\": [\n        {\n          \"variable\": \"slik_max_kol\",\n          \"value\": \"1\"\n        }\n      ]\n    }\n  ],\n  \"rac_not_evaluated\": [],\n  \"base_score\": \"350.00\",\n  \"score_breakdown\": [\n    {\n      \"characteristic\": \"age_group\",\n      \"variable\": \"age_years\",\n      \"value\": \"29\",\n      \"missing\": false,\n      \"bin_order\": 2,\n      \"bin\": \"25 to 45\",\n      \"points\": \"85.00\"\n    },\n    {\n      \"characteristic\": \"dsr_band\",\n      \"variable\": \"dsr_ratio\",\n      \"value\": \"5/24\",\n      \"missing\": false,\n      \"bin_order\": 1,\n      \"bin\": \"below 0.30\",\n      \"points\": \"150.00\"\n    },\n    {\n      \"characteristic\": \"employment_tenure\",\n      \"variable\": \"employment_tenure_months\",\n      \"value\": \"36\",\n      \"missing\": false,\n      \"bin_order\": 2,\n      \"bin\": \"24 months or more\",\n      \"points\": \"100.00\"\n    }\n  ],\n  \"matrix\": {\n    \"row_order\": 3,\n    \"label\": \"650 to 900\",\n    \"decision\": \"APPROVE\"\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    ":decision_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{decisionId}}",
+                      "key": "decision_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/decisions/:decision_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    ":decision_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{decisionId}}",
+                      "key": "decision_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/decisions/:decision_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No such decision, or it belongs to another client.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    ":decision_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{decisionId}}",
+                      "key": "decision_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/decisions/:decision_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"DECISION_NOT_FOUND\",\n    \"message\": \"decision not found\"\n  },\n  \"request_id\": \"2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    ":decision_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{decisionId}}",
+                      "key": "decision_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/decisions/:decision_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    ":decision_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{decisionId}}",
+                      "key": "decision_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/decisions/:decision_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        }
+      ]
     }
   ],
   "auth": {
@@ -16182,7 +17388,7 @@
     "name": "RiskForge API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": {
-      "content": "Contract for the endpoints implemented so far (RF-001 to RF-010, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; the role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
+      "content": "Contract for the endpoints implemented so far (RF-001 to RF-016, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; the role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
       "type": "text/plain"
     },
     "_postman_id": "4b6e2f0a-9c3d-4e51-8a7b-1f2e3d4c5b6a"

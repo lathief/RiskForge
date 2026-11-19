@@ -6,7 +6,7 @@ Things a reader of the M2 code (RF-005 to RF-010) should know that are not obvio
 | Item | Detail | Options |
 |---|---|---|
 | Name in the `SYSTEM_DESIGN.md` disclaimer | The product name that might be read as copied was removed in RF-007. The disclaimer at the top of `SYSTEM_DESIGN.md` and section 24 still name a company ("IDX Partners") as the context the portfolio was written for. | Keep it (it says the project is independent and not affiliated) or remove the name. The project owner decides; nothing was changed. |
-| `x == nil` on a required variable (RF-007) | The RAC checker accepts `nil` comparisons on any variable. On a required variable such a comparison can never be true after input validation, so it is dead logic, but it is not refused. | Refuse `nil` on variables that are not `nullable` in RF-012, when the runtime meaning of `nil` is decided (ADR 0008). |
+| `x == nil` on a required variable (RF-007) | The RAC checker accepts `nil` comparisons on any variable. On a required variable such a comparison can never be true after input validation, so it is dead logic, but it is not refused. | Decided in RF-012: still accepted. At runtime it is always false for a required variable (ADR 0013, item 4). |
 
 ## Testing and environment
 | Item | Status | Detail |
@@ -21,7 +21,7 @@ Things a reader of the M2 code (RF-005 to RF-010) should know that are not obvio
 | Item | Status | Detail |
 |---|---|---|
 | No inactive or deprecated state for a variable | Deferred | Variables are append-only and never deleted, because frozen policies refer to them. Retiring a variable (so new drafts cannot use it) is not modelled yet; add a status with its own version row when a ticket needs it. |
-| Formulas of `DERIVED` variables | Deferred (RF-011) | `dsr_ratio` and `net_disposable_income` have a type, unit, and scale, but no formula. Test cases may not supply them (`derived_not_allowed`), and RAC expressions and scorecard characteristics may use them because their type is known. |
+| Formulas of `DERIVED` variables | Fixed (RF-011; see [M3_NOTES.md](M3_NOTES.md)) | At RF-005 `dsr_ratio` and `net_disposable_income` had a type, unit, and scale, but no formula; the feature builder now computes them. Test cases may not supply them (`derived_not_allowed`), and RAC expressions and scorecard characteristics may use them because their type is known. |
 
 ## Policy package and versions (RF-006)
 | Item | Status | Detail |
@@ -34,8 +34,8 @@ Things a reader of the M2 code (RF-005 to RF-010) should know that are not obvio
 ## RAC rules (RF-007)
 | Item | Status | Detail |
 |---|---|---|
-| Rules are checked, not run | Deferred (RF-012) | Saving and submitting check syntax, the allowed subset, variable names, and types. Nothing evaluates a rule yet. |
-| `DECIMAL` is modelled as `float64` by the type checker | By design | Only for checking types (`ruleengine/check.go` `sample`). It says nothing about how decimals are computed; exact decimal evaluation is decided in RF-012 (ADR 0008). |
+| Rules are checked, not run | Fixed (RF-012) | At RF-007 nothing evaluated a rule. `ruleengine.CompileRules` and `Evaluate` now run them (ADR 0013). |
+| `DECIMAL` is modelled as `float64` by the type checker | By design | Only for checking types (`ruleengine/check.go` `sample`). It says nothing about how decimals are computed; exact decimal evaluation was decided in RF-012: `big.Rat`, no float (ADR 0013). |
 | No endpoint per rule | By design | Every content section is replaced as a whole (`PUT`), which keeps order, uniqueness, and validation in one transaction (ADRs 0008 to 0011). |
 
 ## Scorecard (RF-008)
@@ -53,6 +53,6 @@ Things a reader of the M2 code (RF-005 to RF-010) should know that are not obvio
 ## Full policy validation (RF-010)
 | Item | Status | Detail |
 |---|---|---|
-| Golden tests are not executed | Deferred (RF-011 to RF-013) | Test cases are checked statically and their inputs are run against the data dictionary. Comparing expected and actual decisions needs the evaluator. Every validation report lists `pending_checks: golden_test_execution`, so `valid: true` never claims that the golden tests passed. |
+| Golden tests are not executed | Fixed (RF-013) | At RF-010 test cases were only checked statically and every report listed `pending_checks: golden_test_execution`. Validate and submit now run them through the whole pipeline; see [M3_NOTES.md](M3_NOTES.md). |
 | Snapshots of format 1 | By design | Versions submitted before RF-010 keep their format 1 snapshot (no `test_cases`). A stored snapshot is never rewritten, because its checksum covers it. |
 | `validate` needs `policy:submit` | By design | It is the dry run of submit (ADR 0011). Readers (`RISK_APPROVER`, `AUDITOR`) get 403; the permission can be widened later without breaking the contract. |

@@ -421,7 +421,7 @@ Open-ended first and last rows cover any range. With them the draft submits, and
 ## Test cases and validation
 Read test cases (`policy:read`): `RISK_ANALYST`, `RISK_APPROVER`, `AUDITOR`. Write test cases and validate (`policy:write`, `policy:submit`): `RISK_ANALYST` only. The `ADMIN` and the Loan Application have no access.
 
-A test case ("golden case") is an example application stored with the policy and the result the policy must give for it. Cases are checked when you save them and again at validate and submit. **They are not run through the policy yet**: comparing the expected decision with the actual one needs the decision engine (RF-011 to RF-013), and every validation report says so in `pending_checks`.
+A test case ("golden case") is an example application stored with the policy and the result the policy must give for it. Cases are checked when you save them, and **executed through the whole policy** (input validation, derived features, RAC, scorecard, matrix, precedence) at validate and submit (RF-013). A required case whose decision, reason codes, or named grade differ from the actual result stops the submit.
 ### Read
 ```sh
 curl -s $B/api/v1/policy-versions/$VERSION/test-cases -H "Authorization: Bearer $AUDITOR"
@@ -461,11 +461,11 @@ curl -s -X POST $B/api/v1/policy-versions/$VERSION/validate -H "Authorization: B
 ```
 The seeded demo draft:
 ```json
-{"policy_version_id":"b1a5c3b2-f9c3-46ef-9a89-a311f0c799da","status":"DRAFT","dictionary_schema_version":8,"valid":true,"summary":{"rac_rules":3,"scorecard_characteristics":3,"decision_matrix_rows":3,"test_cases":6,"required_test_cases":6},"score_range":{"min":"420.00","max":"685.00"},"issues":[],"pending_checks":[{"check":"golden_test_execution","reason":"evaluating the expected decision, grade, and reason codes of a test case needs the decision evaluator (RF-011 to RF-013); test cases are checked statically and their inputs are run against the data dictionary"}]}
+{"policy_version_id":"b1a5c3b2-f9c3-46ef-9a89-a311f0c799da","status":"DRAFT","dictionary_schema_version":8,"valid":true,"summary":{"rac_rules":3,"scorecard_characteristics":3,"decision_matrix_rows":3,"test_cases":6,"required_test_cases":6},"score_range":{"min":"420.00","max":"685.00"},"issues":[],"golden_tests":{"executed":6,"passed":6,"failed":0,"results":[{"case_code":"GOLDEN_HAPPY_PATH","required":true,"passed":true,"actual":{"outcome":"DECISION","decision":"APPROVE","grade":"A","total_score":"685.00","reason_codes":[],"message":null},"mismatches":[]},{"case_code":"GOLDEN_AGE_BELOW_MINIMUM","required":true,"passed":true,"actual":{"outcome":"DECISION","decision":"REJECT","grade":null,"total_score":null,"reason_codes":["AGE_BELOW_MINIMUM"],"message":null},"mismatches":[]}]},"pending_checks":[]}
 ```
-Validate is the dry run of submit: it runs the same checks and changes nothing, for a version in any status. It needs `policy:submit`, so the auditor gets `403`. `valid: true` means every check that exists passed; `pending_checks` lists the one that cannot run yet. The checks are: a scorecard, a decision matrix, and at least one required test case (`missing_section`, `no_required_test_cases`); every RAC expression; the scorecard bins; matrix coverage of the scorecard's `score_range`; and the test cases as above. After `DELETE .../decision-matrix` on a copy of that draft:
+Validate is the dry run of submit: it runs the same checks and changes nothing, for a version in any status. It needs `policy:submit`, so the auditor gets `403`. `valid: true` means every check passed, golden tests included; `golden_tests` shows what each case produced (a RAC reject has no grade and no score; the example above lists two of the six results, the real response lists all of them), and `pending_checks` lists a check that did not run, for example the golden tests when another check already failed. The checks are: a scorecard, a decision matrix, and at least one required test case (`missing_section`, `no_required_test_cases`); every RAC expression; the scorecard bins; matrix coverage of the scorecard's `score_range`; and the test cases as above. After `DELETE .../decision-matrix` on a copy of that draft:
 ```json
-{"policy_version_id":"5251f2d5-33a1-4dba-88d7-118e0a910989","status":"DRAFT","dictionary_schema_version":8,"valid":false,"summary":{"rac_rules":3,"scorecard_characteristics":3,"decision_matrix_rows":0,"test_cases":2,"required_test_cases":1},"score_range":{"min":"420.00","max":"685.00"},"issues":[{"field":"decision_matrix","issue":"missing_section","message":"a policy needs a decision matrix to turn the score into a decision"}],"pending_checks":[{"check":"golden_test_execution","reason":"..."}]}
+{"policy_version_id":"5251f2d5-33a1-4dba-88d7-118e0a910989","status":"DRAFT","dictionary_schema_version":8,"valid":false,"summary":{"rac_rules":3,"scorecard_characteristics":3,"decision_matrix_rows":0,"test_cases":2,"required_test_cases":1},"score_range":{"min":"420.00","max":"685.00"},"issues":[{"field":"decision_matrix","issue":"missing_section","message":"a policy needs a decision matrix to turn the score into a decision"}],"golden_tests":{"executed":0,"passed":0,"failed":0,"results":[]},"pending_checks":[{"check":"golden_test_execution","reason":"the policy has other validation issues; fix them first, then the test cases are executed"}]}
 ```
 and submit refuses it with the same issues:
 ```http
@@ -473,6 +473,47 @@ HTTP/1.1 422 Unprocessable Entity
 {"error":{"code":"POLICY_VALIDATION_FAILED","message":"the draft cannot be submitted until its content is valid","details":[{"field":"decision_matrix","issue":"missing_section","message":"a policy needs a decision matrix to turn the score into a decision"}]},"request_id":"1fca60b8b01408612c436031ba3c856c"}
 ```
 The snapshot of a version submitted since RF-010 has `"format":2` and holds the test cases under `test_cases`.
+## Decisions
+
+`POST /api/v1/decisions/evaluate` evaluates one application against the **active** policy of its product (RF-014). It needs `decision:evaluate`, which only the API consumer (`demo_loan_application`) has. Run `./artisan db:seed` first: in local and testing it activates the demo policy of `KTA_DEMO` (a development shortcut; real publishing arrives with M4). The `Idempotency-Key` header is **required** (RF-015): the decision is stored once per key, and a retry with the same key and request returns the stored decision instead of evaluating again.
+
+Money and ratios are **decimal strings**; integers are JSON numbers.
+```sh
+curl -s -X POST $B/api/v1/decisions/evaluate -H "Authorization: Bearer $LOANAPP" -H 'Content-Type: application/json' -H 'Idempotency-Key: loan-application-demo-001-v1' -d '{
+  "application_id": "LOAN-APP-DEMO-0001", "product_code": "KTA_DEMO",
+  "applicant": {"age_years": 29, "monthly_income": "12000000.00", "existing_installment": "2500000.00",
+                "employment_tenure_months": 36, "slik_max_kol": 1, "is_blacklisted": false}}'
+```
+```json
+{"application_id":"LOAN-APP-DEMO-0001","base_score":"350.00","created_at":"2026-11-19T07:32:53Z","decision_id":"f50f5450-5aae-4e18-b1fa-635e26d420b9","derived_features":[{"code":"dsr_ratio","exact":"5/24","expression":"existing_installment / monthly_income","formula_version":1,"unit":"ratio","value":"0.208333"},{"code":"net_disposable_income","exact":"9500000","expression":"monthly_income - existing_installment","formula_version":1,"unit":"IDR","value":"9500000.00"}],"final_decision":"APPROVE","matrix":{"decision":"APPROVE","label":"650 to 900","row_order":3},"policy_version":{"checksum":"8f018e48ea8938bcecc06eaa640eb29cd53db41326635a6c5545f28dfc927031","id":"fa0432c5-dfab-435b-be5c-d96f69b5e5d4","number":1},"product_code":"KTA_DEMO","rac_not_evaluated":[],"rac_results":[{"action":"REJECT","inputs":[{"value":"29","variable":"age_years"}],"order":1,"passed":true,"reason_code":"AGE_BELOW_MINIMUM","rule_code":"RAC_MIN_AGE"},{"action":"REJECT","inputs":[{"value":"false","variable":"is_blacklisted"}],"order":2,"passed":true,"reason_code":"BLACKLISTED","rule_code":"RAC_BLACKLIST"},{"action":"REFER","inputs":[{"value":"1","variable":"slik_max_kol"}],"order":3,"passed":true,"reason_code":"SLIK_REVIEW_REQUIRED","rule_code":"RAC_SLIK"}],"reason_codes":[],"refer_flag":false,"risk_grade":"A","score_breakdown":[{"bin":"25 to 45","bin_order":2,"characteristic":"age_group","missing":false,"points":"85.00","value":"29","variable":"age_years"},{"bin":"below 0.30","bin_order":1,"characteristic":"dsr_band","missing":false,"points":"150.00","value":"5/24","variable":"dsr_ratio"},{"bin":"24 months or more","bin_order":2,"characteristic":"employment_tenure","missing":false,"points":"100.00","value":"36","variable":"employment_tenure_months"}],"status":"COMPLETED","total_score":"685.00"}
+```
+(The keys come back in alphabetical order here because the test client re-encoded the body; the content is what the API returns.) `policy_version` names the exact version and snapshot checksum that decided, `derived_features` keep the lossless value and the formula version, and `score_breakdown` adds up to `350.00 + 85.00 + 150.00 + 100.00 = 685.00`.
+
+**Retries.** Send the same request with the same `Idempotency-Key` and you get the stored decision back, with the same `decision_id` and `created_at` and the response header `Idempotent-Replayed: true`; nothing is evaluated and nothing new is stored. Keys belong to the caller and are tied to the request: reusing a key with a different request is a conflict,
+```json
+{"error":{"code":"IDEMPOTENCY_CONFLICT","message":"the Idempotency-Key was already used with a different request"},"request_id":"59320cce3ed770721d80c9970a14369a"}
+```
+and a request without the header is refused (`422`, field `Idempotency-Key`, issue `required`). A request that gives no decision (invalid data, no active policy, a technical failure) does not use up its key, so you can fix it and retry with the same key.
+
+**Reading it back.** `GET /api/v1/decisions/{decision_id}` returns the stored decision as it was returned. The consumer reads the decisions of its own requests, the auditor reads all of them (`curl -s $B/api/v1/decisions/$ID -H "Authorization: Bearer $AUDITOR"`), and everyone else gets `403`. An unknown id, an id that is not a UUID, and another client's decision are all the same answer:
+```json
+{"error":{"code":"DECISION_NOT_FOUND","message":"decision not found"},"request_id":"ec814baf8d003dc98bdc3ebeaa682f96"}
+```
+
+A hard RAC reject (`age_years` 19) stops before scoring: `final_decision` `REJECT`, `reason_codes` `["AGE_BELOW_MINIMUM"]`, `risk_grade` and `total_score` `null`, `score_breakdown` `[]`, `matrix` `null`, and `rac_not_evaluated` `["RAC_BLACKLIST","RAC_SLIK"]`. A soft fail (`slik_max_kol` 3) keeps the score and turns the matrix `APPROVE` into `REFER` with `refer_flag` `true` and `reason_codes` `["SLIK_REVIEW_REQUIRED"]`; `matrix.decision` still shows what the matrix said.
+
+Invalid applicant data is an error, never a rejection (`monthly_income` `"0.00"`):
+```json
+{"error":{"code":"INPUT_VALIDATION_ERROR","details":[{"field":"applicant.monthly_income","issue":"below_min_value"}],"message":"the application data is invalid"},"request_id":"0dfcabfd33d8527ee060235119c0949f"}
+```
+The same envelope reports every problem at once: a missing or `null` required value (`required`), a wrong type (`invalid_type`, which includes money sent as a JSON number), a value outside the dictionary range (`above_max_value`, `below_min_value`), too many decimals (`exceeds_scale`), a key that is not a dictionary variable (`unknown_variable`), and a derived value such as `dsr_ratio` (`derived_not_allowed`). A decimal string has at most 18 integer digits and 32 fraction digits and no exponent; anything else is `invalid_type`. The request and response bodies of the decision endpoints are never written to `storage/logs/activity.log`, because they hold the applicant's financial data; the entry keeps only the caller, route, status, duration, and request id.
+
+Without an active policy the answer is a conflict, and an unknown product a 404:
+```json
+{"error":{"code":"POLICY_NOT_ACTIVE","message":"the product has no active policy"},"request_id":"a86d238800c1b654438426bdf1959adf"}
+```
+Other roles get `403` (the analyst, approver, admin, and auditor cannot evaluate decisions), and a technical failure is `500` with `POLICY_CONFIGURATION_ERROR` or `EVALUATION_ERROR` and no decision.
+
 ## Unknown routes
 
 ```http
@@ -510,4 +551,4 @@ grep -h '"requestID":"doc-login-00001"' storage/logs/{activity,error,query}.log
 
 ## Planned endpoints
 
-Not live yet; see `SYSTEM_DESIGN.md` 13.1 for the target contract: simulation (RF-017), approval requests (RF-019..RF-021), `POST /api/v1/decisions/evaluate` with `Idempotency-Key` (RF-014, RF-015), and decision lookup. Each will be added to the OpenAPI contract, Swagger UI, and the Postman collection in the same change.
+Not live yet; see `SYSTEM_DESIGN.md` 13.1 for the target contract: simulation (RF-017), approval requests (RF-019..RF-021), and audit search (RF-022). Each will be added to the OpenAPI contract, Swagger UI, and the Postman collection in the same change.

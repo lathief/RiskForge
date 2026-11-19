@@ -9,12 +9,15 @@
 | [GETTING_STARTED.md](GETTING_STARTED.md) | Go from `git clone` to your first authenticated API call. | Current |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | See how a request travels through Goravel/Fiber, middleware, modules, and PostgreSQL. | Current, with planned modules marked |
 | [DOMAIN_GUIDE.md](DOMAIN_GUIDE.md) | Understand the credit vocabulary: product, RAC, scorecard, decision matrix, policy, approval. | Concepts, each marked with its status (product, dictionary, and policy configuration implemented) |
-| [API_EXAMPLES.md](API_EXAMPLES.md) | Copy working `curl` calls with real responses and errors. | Current (30 operations) |
+| [API_EXAMPLES.md](API_EXAMPLES.md) | Copy working `curl` calls with real responses and errors. | Current (32 operations) |
 | [TESTING.md](TESTING.md) | Run and write unit, integration, HTTP, concurrency, and contract tests. | Current |
 | [coverage.md](coverage.md) | See how much of each package the unit tests, and unit plus integration tests, cover. | Current (measured at RF-010) |
-| [DECISION_ENGINE.md](DECISION_ENGINE.md) | Understand how RAC, scorecard, and matrix will be evaluated, including precedence and edge cases. | **Planned** (M3, RF-011..RF-016); configuration checks implemented (RF-007..RF-010) |
+| [DECISION_ENGINE.md](DECISION_ENGINE.md) | Understand how RAC, scorecard, and matrix will be evaluated, including precedence and edge cases. | **Implemented** (M3, RF-011..RF-016): features, RAC, scorecard, matrix, Decision API, persistence, idempotency, and the policy cache |
 | [SCRIPTS.md](SCRIPTS.md) | Run `scripts/*` (secrets, Postman generator and smoke test, Swagger UI update) and Artisan database commands. | Current |
 | [VERIFICATION.md](VERIFICATION.md) | See what was run to accept each ticket and what was observed. | Current |
+| [M3_NOTES.md](M3_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 3 (RF-011 to RF-016), plus its milestone audit and review fixes. | Current (M3 complete) |
+| [POST_M5_BACKLOG.md](POST_M5_BACKLOG.md) | Track the security, reliability, design, and tooling findings that are not fixed yet and are planned after milestone 5. | Current, open items |
+| [M1_NOTES.md](M1_NOTES.md) | See what milestone 1 built, as read from the code: architecture, endpoints, access control, logs, tooling, and its known limits. | Current (M1) |
 | [M2_NOTES.md](M2_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 2 (RF-005 to RF-010). | Current (M2) |
 | [adr/](adr/) | Know *why* a technical decision was made and what it costs. | Current |
 

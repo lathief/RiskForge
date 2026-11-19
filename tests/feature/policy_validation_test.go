@@ -205,7 +205,106 @@ func (s *PolicyTestSuite) TestValidateReportsAnIncompleteDraft() {
 	pending := report["pending_checks"].([]any)
 	s.Require().Len(pending, 1)
 	s.Equal("golden_test_execution", pending[0].(map[string]any)["check"], "not run is never reported as passed")
+	s.Contains(pending[0].(map[string]any)["reason"], "other validation issues")
+	s.Equal(map[string]any{"executed": float64(0), "passed": float64(0), "failed": float64(0), "results": []any{}}, report["golden_tests"])
 	s.Equal("DRAFT", s.getVersion(v1)["status"], "validate changes nothing")
+}
+
+// --- golden test execution (RF-013) -------------------------------------------------------
+
+func (s *PolicyTestSuite) TestValidateExecutesTheGoldenTests() {
+	v1 := s.demoDraft()
+	s.putTestCases(v1, demoTestCasesBody()).AssertOk()
+	report := s.json(s.validate("demo_analyst", v1).AssertOk())
+	s.Equal(true, report["valid"], detailPairs(report))
+	s.Equal([]any{}, report["pending_checks"], "everything ran")
+	golden := report["golden_tests"].(map[string]any)
+	s.Equal(float64(3), golden["executed"])
+	s.Equal(float64(3), golden["passed"])
+	s.Equal(float64(0), golden["failed"])
+	results := golden["results"].([]any)
+	s.Require().Len(results, 3)
+	happy := results[0].(map[string]any)
+	s.Equal("GOLDEN_HAPPY_PATH", happy["case_code"])
+	s.Equal(true, happy["passed"])
+	s.Equal(map[string]any{"outcome": "DECISION", "decision": "APPROVE", "grade": "A", "total_score": "685.00",
+		"reason_codes": []any{}, "message": nil}, happy["actual"])
+	s.Equal([]any{}, happy["mismatches"])
+	reject := results[1].(map[string]any)["actual"].(map[string]any)
+	s.Equal("REJECT", reject["decision"])
+	s.Nil(reject["grade"], "a RAC reject is never scored")
+	s.Nil(reject["total_score"])
+	s.Equal([]any{"AGE_BELOW_MINIMUM"}, reject["reason_codes"])
+	missing := results[2].(map[string]any)["actual"].(map[string]any)
+	s.Equal("INPUT_VALIDATION_ERROR", missing["outcome"], "bad input is an error, never a REJECT")
+	s.Nil(missing["decision"])
+	s.Contains(missing["message"], "monthly_income: required")
+}
+
+func (s *PolicyTestSuite) TestSubmitRefusesARequiredGoldenTestThatFails() {
+	v1 := s.demoDraft()
+	// The applicant is approved, so expecting a REJECT is wrong.
+	s.putTestCases(v1, demoTestCasesBody(`"decision":"APPROVE","grade":"A"`, `"decision":"REJECT","grade":"A"`)).AssertOk()
+
+	report := s.json(s.validate("demo_analyst", v1).AssertOk())
+	s.Equal(false, report["valid"])
+	want := []string{"test_cases[0].expected.decision:decision_mismatch"}
+	s.Equal(want, detailPairs(report))
+	golden := report["golden_tests"].(map[string]any)
+	s.Equal(float64(1), golden["failed"])
+	first := golden["results"].([]any)[0].(map[string]any)
+	s.Equal(false, first["passed"])
+	s.Equal("expected REJECT, got APPROVE", first["mismatches"].([]any)[0].(map[string]any)["message"])
+
+	resp := s.submitRaw(v1)
+	resp.AssertStatus(http.StatusUnprocessableEntity)
+	code, _ := s.errorOf(resp)
+	s.Equal("POLICY_VALIDATION_FAILED", code)
+	s.Equal(want, s.issuePairs(resp))
+	s.Equal("DRAFT", s.getVersion(v1)["status"], "a failing golden test stops the submit")
+}
+
+func (s *PolicyTestSuite) TestAnOptionalGoldenTestThatFailsDoesNotBlockSubmit() {
+	v1 := s.demoDraft()
+	s.putTestCases(v1, demoTestCasesBody(
+		`"case_code":"GOLDEN_HAPPY_PATH"`, `"case_code":"GOLDEN_HAPPY_PATH","required":false`,
+		`"decision":"APPROVE","grade":"A"`, `"decision":"REJECT","grade":"A"`)).AssertOk()
+	report := s.json(s.validate("demo_analyst", v1).AssertOk())
+	s.Equal(true, report["valid"], detailPairs(report))
+	golden := report["golden_tests"].(map[string]any)
+	s.Equal(float64(1), golden["failed"], "it is reported")
+	s.Equal(false, golden["results"].([]any)[0].(map[string]any)["passed"])
+	s.submitRaw(v1).AssertOk()
+}
+
+func (s *PolicyTestSuite) TestGoldenTestsDetectARuleChange() {
+	v1 := s.demoDraft()
+	s.putTestCases(v1, demoTestCasesBody()).AssertOk()
+	s.Equal(true, s.json(s.validate("demo_analyst", v1).AssertOk())["valid"])
+	// The happy-path applicant is 29, so raising the minimum age to 30 changes its decision.
+	s.putRules("demo_analyst", v1, strings.Replace(demoRulesBody, "age_years >= 21", "age_years >= 30", 1)).AssertOk()
+	report := s.json(s.validate("demo_analyst", v1).AssertOk())
+	s.Equal(false, report["valid"])
+	s.Contains(detailPairs(report), "test_cases[0].expected.decision:decision_mismatch")
+}
+
+func (s *PolicyTestSuite) TestAFrozenVersionIsExecutedAgainstItsOwnSnapshot() {
+	v1 := s.demoDraft()
+	s.putTestCases(v1, demoTestCasesBody()).AssertOk()
+	s.submitRaw(v1).AssertOk()
+	report := s.json(s.validate("demo_analyst", v1).AssertOk())
+	s.Equal("PENDING_APPROVAL", report["status"])
+	s.Equal(true, report["valid"], detailPairs(report))
+	s.Equal(float64(3), report["golden_tests"].(map[string]any)["passed"])
+}
+
+func (s *PolicyTestSuite) TestACaseWithZeroIncomeIsRefusedWhereItIsSaved() {
+	v1 := s.demoDraft()
+	// monthly_income 0.00 is below the dictionary minimum, so it is refused where the case is saved.
+	zero := strings.Replace(seeders.DemoApplicant, `"monthly_income":"12000000.00"`, `"monthly_income":"0.00"`, 1)
+	resp := s.putTestCases(v1, `{"test_cases":[{"case_code":"CASE_ZERO","input":`+zero+`,"expected":{"outcome":"DECISION","decision":"REJECT"}}]}`)
+	resp.AssertStatus(http.StatusUnprocessableEntity)
+	s.Contains(s.issuePairs(resp), "test_cases[0].input.monthly_income:below_min_value")
 }
 
 func (s *PolicyTestSuite) TestValidateAndSubmitAgreeOnACompletePolicy() {

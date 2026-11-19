@@ -77,7 +77,7 @@ func (s *PolicyTestSuite) SetupSuite() {
 // fire the append-only triggers, so it is the supported way to reset a disposable database.
 func (s *PolicyTestSuite) SetupTest() {
 	db := facades.DB()
-	s.Require().NoError(db.Statement("TRUNCATE TABLE policy.test_cases, policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
+	s.Require().NoError(db.Statement("TRUNCATE TABLE decision.rule_traces, decision.runs, decision.requests, policy.active_policy_bindings, policy.test_cases, policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
 	s.Require().NoError(db.Statement("TRUNCATE TABLE dictionary.variable_versions, dictionary.variables"))
 	s.Require().NoError(db.Statement("UPDATE dictionary.schema_state SET current_version = 0"))
 	s.Require().NoError(seeders.SeedDemoProducts())
@@ -176,7 +176,11 @@ func (s *PolicyTestSuite) complete(versionID string) {
 	if s.getMatrix(versionID)["decision_matrix"] == nil {
 		s.putMatrix(versionID, `{"rows":[{"grade":"A","decision":"REFER"}]}`).AssertOk()
 	}
-	if len(s.getTestCases(versionID)["test_cases"].([]any)) == 0 {
+	existing := s.getTestCases(versionID)["test_cases"].([]any)
+	// Fill the list when it is empty, and refresh it when it holds only the filler written by an
+	// earlier call, whose expectation may be stale after the sections changed.
+	onlyFiller := len(existing) == 1 && existing[0].(map[string]any)["case_code"] == "FILLER_CASE"
+	if len(existing) == 0 || onlyFiller {
 		facts := map[string]any{}
 		for _, item := range vars {
 			m := item.(map[string]any)
@@ -202,7 +206,27 @@ func (s *PolicyTestSuite) complete(versionID string) {
 		}
 		input, err := json.Marshal(facts)
 		s.Require().NoError(err)
-		s.putTestCases(versionID, `{"test_cases":[{"case_code":"FILLER_CASE","input":`+string(input)+`,"expected":{"outcome":"DECISION","decision":"REFER"}}]}`).AssertOk()
+		put := func(expected string) {
+			s.putTestCases(versionID, `{"test_cases":[{"case_code":"FILLER_CASE","input":`+string(input)+`,"expected":`+expected+`}]}`).AssertOk()
+		}
+		put(`{"outcome":"DECISION","decision":"REFER"}`)
+		// Since RF-013 validate and submit execute the case, so the filler must expect what the
+		// draft's own content gives for it. Ask validate and store that. When the draft cannot
+		// be executed (a test about a stale section), the first guess stays and the test sees
+		// its own problem.
+		report := s.json(s.validate("demo_analyst", versionID).AssertOk())
+		results, _ := report["golden_tests"].(map[string]any)["results"].([]any)
+		if len(results) == 1 {
+			if actual := results[0].(map[string]any)["actual"].(map[string]any); actual["outcome"] == "DECISION" {
+				expected := map[string]any{"outcome": "DECISION", "decision": actual["decision"], "reason_codes": actual["reason_codes"]}
+				if actual["grade"] != nil {
+					expected["grade"] = actual["grade"]
+				}
+				raw, err := json.Marshal(expected)
+				s.Require().NoError(err)
+				put(string(raw))
+			}
+		}
 	}
 }
 
@@ -671,7 +695,7 @@ func (s *PolicyTestSuite) TestConcurrentSubmitsFreezeOnce() {
 
 func (s *PolicyTestSuite) TestSubmitAndEditRaceNeverLosesTheFrozenContent() {
 	for round := 0; round < 5; round++ {
-		s.Require().NoError(facades.DB().Statement("TRUNCATE TABLE policy.test_cases, policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
+		s.Require().NoError(facades.DB().Statement("TRUNCATE TABLE decision.rule_traces, decision.runs, decision.requests, policy.active_policy_bindings, policy.test_cases, policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
 		_, v1 := s.createPolicy(`{"product_code":"KTA_DEMO","description":"base"}`)
 		s.complete(v1)
 		var wg sync.WaitGroup

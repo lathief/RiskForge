@@ -50,7 +50,30 @@ func isSensitiveKey(key string) bool {
 // BodySummary is logged instead of a body that cannot be redacted safely.
 type BodySummary struct {
 	Omitted string `json:"_omitted"`
-	Bytes   int    `json:"_bytes"`
+	Bytes   int    `json:"_bytes,omitempty"`
+}
+
+// withheldBodyPrefixes are the route prefixes whose request and response bodies are never
+// written to activity.log. The Decision API carries the applicant's financial data (income,
+// installments, credit history) and the decision made from it. Key-based redaction cannot
+// recognise such values (`monthly_income` is not a secret by name), and the data dictionary is
+// configurable, so the whole body is left out and only the metadata (user, status, duration,
+// request id) is logged. The stored decision in the database is the record of the input.
+var withheldBodyPrefixes = []string{"/api/v1/decisions"}
+
+// BodyWithheld reports whether bodies of requests to path must not be logged.
+func BodyWithheld(path string) bool {
+	for _, p := range withheldBodyPrefixes {
+		if path == p || strings.HasPrefix(path, p+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+// WithheldBody is the value logged in place of a withheld body.
+func WithheldBody() json.RawMessage {
+	return mustMarshal(BodySummary{Omitted: "sensitive_route"})
 }
 
 // RedactBody returns a JSON value safe to log for body:
