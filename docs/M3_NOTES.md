@@ -49,7 +49,7 @@ Things a reader of the M3 code should know that are not obvious from the design.
 | Nothing is stored; no `decision_id`, no `GET /decisions/{id}`, `Idempotency-Key` is not read | Fixed (RF-015, see the next section) | OpenAPI says so. Evaluation is deterministic, so the same request gives the same response while the same version is active; that is not an idempotency guarantee. |
 | Active versions exist only through `DemoActivePolicySeeder` | Deviation, documented | `SYSTEM_DESIGN.md` section 17 allows a development shortcut before the approval workflow. It runs only in local and testing, goes through `PolicyService.Submit`, and binds in one transaction. There is no endpoint or use case that activates a policy. Real publishing is RF-018 to RF-020. |
 | A long-lived `rf-dev` has no active policy | Documented | Its `KTA_DEMO` version 1 is an empty draft, so the seeder logs a warning and skips it, and `evaluate` answers `409 POLICY_NOT_ACTIVE`. Reset the database (`migrate:reset`, `migrate`, `db:seed`) or use a fresh stack to get one. The Postman smoke does not depend on it. |
-| The policy is parsed and compiled on every request | Accepted (RF-016) | The version-keyed cache is RF-016. No performance claim is made; nothing was measured. |
+| The policy is parsed and compiled on every request | Fixed (RF-016) | The version-keyed cache of RF-016 removes it; see the last section. |
 | Any API consumer can evaluate any product | Needs a decision | `SYSTEM_DESIGN.md` section 4 says "for authorized products". That needs `api_clients` with a product list, which do not exist. The permission `decision:evaluate` is the only check. |
 | Matrix rows have no reason code | Still open | A matrix `REJECT` or `REFER` has empty `reason_codes`; the `matrix` object and grade explain it. The stored result of RF-015 keeps it as it is; a decision on it changes the contract. |
 | Unknown `applicant` keys are refused | By design | A typo in an optional variable would otherwise become `null` silently and change the score. This differs from `ValidateInput`, which ignores unknown keys. |
@@ -72,3 +72,38 @@ Things a reader of the M3 code should know that are not obvious from the design.
 | `runs.outcome` duplicates the result | Accepted | The columns used for queries (`final_decision`, `risk_grade`, `total_score`, `reason_codes`) and the JSON trace are written together in one insert, so they cannot disagree unless the code is wrong; replay returns the JSON. |
 | A run may name an `ARCHIVED` version | By design | The insert trigger allows `ACTIVE` and `ARCHIVED` so that RF-020 can archive the old version in the same transaction as a publish without breaking history. |
 | Concurrency | Tested | 12 goroutines: same key and request gives one run and 11 replays; same key with two payloads gives one winner and conflicts; distinct keys all evaluate; repeated 8 times with `-race` without a failure. |
+
+## Compiled policy cache (RF-016)
+| Item | Status | Detail |
+|---|---|---|
+| No change to the HTTP contract | By design | OpenAPI 0.13.1 only explains the cache in the description of `evaluate`. Postman was regenerated (`--check` passes) and the smoke run is 32/32. |
+| The binding is read on every decision | By design | `SYSTEM_DESIGN.md` 10.6. A cache of the pointer would make a publish, a retired product, or a removed binding visible late. The cost is one small join per decision plus the product lookup. |
+| Entries are never invalidated | By design | A frozen version does not change and the key contains its checksum. A publish uses another key. Old entries stay useful for replays and runs already in flight, and are dropped only by the 64 entry LRU bound. |
+| Deterministic load errors are remembered | By design | A version whose snapshot cannot be read or compiled is loaded once and answered from memory afterwards (500 `POLICY_CONFIGURATION_ERROR`), which stops a broken version from costing a parse per request. Because the error stays until the process restarts or the entry is evicted, a code fix that makes the snapshot readable needs a restart. A new policy version is a new key. |
+| A leader loads inside its own transaction | By design | Loading reads through the transaction of the request that found the miss. If that request is cancelled, a waiting request takes over. A long load therefore holds one connection of one request; the others wait on a channel, not on the database. |
+| `ActiveVersion` was replaced | Changed | `ActiveReference` plus `LoadActiveSnapshot` replace it, and the repository method `FindActiveReference` replaces `FindActiveVersion`. Nothing outside the decision resolver used them. |
+| Cache statistics have no endpoint | Deferred (RF-023) | `PolicyResolver.CacheStats()` exists and is used by tests; exposing it needs the metrics work of RF-023. |
+| One cache per process | Accepted | The MVP runs one instance (`SYSTEM_DESIGN.md` 10.6). With several instances each has its own cache; the immutable key means they cannot disagree. |
+| The cache is only on the decision path | By design | `validate`, submit, and golden tests compile a draft once per call. The simulator (RF-017) works on drafts, which have no immutable key, so it must not use this cache. |
+| Informal benchmark | Not a baseline | About 133 µs against 571 µs per decision (warm cache against compiling each time) on one laptop CPU with an in-memory fake instead of a database. The documented baseline with real latency is RF-024. |
+
+### Fixes from the semantic review of RF-014 to RF-016
+| Finding | Fix |
+|---|---|
+| Reliability: a replay whose request row had no stored decision answered `404 DECISION_NOT_FOUND` to a `POST`, which is a broken invariant, not a missing resource | The use case now returns a plain error (500) naming the request, and evaluates nothing on top of the broken row (`TestARequestRowWithoutADecisionIsAServerFaultNotANotFound`) |
+| Performance: `Save` issued one `INSERT` per evaluated rule (up to 100 round trips inside the transaction that holds the idempotency lock) | One `INSERT ... SELECT FROM jsonb_to_recordset(...)` for all rule traces; the live query log shows a single statement for three rules |
+| Performance: every decision read, verified, parsed, and compiled the snapshot | The cache of this ticket |
+| Reliability: one cancelled request that was loading a policy would fail every request waiting for the same load | A waiter takes over when the leader's context ended and its own did not (`TestAWaiterTakesOverWhenTheLeaderIsCancelled`) |
+| Reliability: a panic in a loader would leave waiters blocked for ever | The cleanup is deferred and releases them with an error (`TestALoaderThatPanicsReleasesItsWaiters`) |
+| Security and reliability: a version that cannot be compiled would cost a full parse for every request from any client | Deterministic errors are cached |
+| Maintainability: the resolver tests lived next to a fake that returned a whole version | The fake now models the two-step policy API (reference and snapshot) and counts calls, so the tests prove how often each is used |
+
+### Deferred from the review
+| Item | Why deferred |
+|---|---|
+| A duplicate request that waits for the first one holds a database connection (and a goroutine) until the first commits or the 3 second limit | A `lock_timeout` with a retriable `409` would free it sooner, but it adds a response code and a contract decision. Not tested at the timeout boundary. |
+| `catalog` lookup and the binding read are two queries per decision | Could be one join; the gain is small next to the transaction and the insert, and the catalog check keeps the product rules in one module. |
+| The resolver and cache tests sit in `database/seeders` because they reuse the demo policy fixture | A shared test-fixtures package would be cleaner; moving it touches many files for no behaviour change. |
+| `BuildFacts` sorts and copies the dictionary on every evaluation | Could be precomputed per policy; the benchmark shows evaluation at roughly 130 µs, which does not justify the change before RF-024 measures real load. |
+| No endpoint lists decisions by application | The index exists (`application_id, created_at`); the endpoint is part of the audit work (RF-022). |
+| Another consumer's `404` for `GET /decisions/{id}` is unit tested but not tested over HTTP | The demo data has a single consumer user. |

@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"regexp"
 	"sort"
 
@@ -79,6 +81,11 @@ func (s *EvaluationService) Evaluate(ctx context.Context, clientID, key string, 
 				return ErrIdempotencyConflict
 			}
 			stored, err := s.repo.FindByRequest(ctx, claim.RequestID)
+			if errors.Is(err, ErrDecisionNotFound) {
+				// A request row is only ever committed together with its run, so this is a broken
+				// invariant (a server fault), not "decision not found" for the caller (a 404).
+				return fmt.Errorf("idempotency request %s exists without a stored decision", claim.RequestID)
+			}
 			if err != nil {
 				return err
 			}

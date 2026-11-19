@@ -84,7 +84,7 @@ Contract: [api/openapi/openapi.yaml](api/openapi/openapi.yaml). Real requests an
 | M1 Foundation | Bootstrap, PostgreSQL, identity and RBAC, product catalog | Done |
 | Hardening, LOG-001, DX-001, DOC-001 | Three review rounds, structured logs, Swagger and Postman, guides | Done (branch `fix/M1-hardening`, pending merge) |
 | M2 Policy configuration | Data dictionary, versioned policy drafts, RAC, scorecard, matrix validation | Done (RF-005 to RF-010); golden tests are executed since RF-013 |
-| M3 Decision engine | Features, RAC, scorecard and matrix evaluation, idempotent decision API | In progress: RF-011 to RF-015 done (feature builder, RAC evaluator, scorecard and matrix evaluator with golden tests, Decision API, durable decisions with idempotency; one branch per ticket, `feature/RF-011-feature-builder` to `feature/RF-015-decision-persistence`); RF-016 planned |
+| M3 Decision engine | Features, RAC, scorecard and matrix evaluation, idempotent decision API | Done (RF-011 to RF-016: feature builder, RAC evaluator, scorecard and matrix evaluator with golden tests, Decision API, durable decisions with idempotency, compiled policy cache; one branch per ticket, `feature/RF-011-feature-builder` to `feature/RF-016-policy-cache`, not merged to `main` yet) |
 | M4 Governance | Simulator, multi-level approval, atomic publishing | Planned |
 | M5 Hardening | Audit search, metrics, CI/CD, benchmarks, demo | Planned |
 

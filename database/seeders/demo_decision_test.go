@@ -16,17 +16,53 @@ import (
 	policydomain "goravel/app/modules/policy/domain"
 )
 
+// fakeActive stands in for the policy module: it names one version as active and serves its
+// snapshot, and counts how often the resolver asked for each.
 type fakeActive struct {
-	version policydomain.Version
-	err     error
+	mu        sync.Mutex
+	version   policydomain.Version
+	refErr    error
+	loadErr   error
+	refCalls  int
+	loadCalls int
 }
 
-func (f fakeActive) ActiveVersion(context.Context, string, string) (policydomain.Version, error) {
-	return f.version, f.err
+func (f *fakeActive) ActiveReference(context.Context, string, string) (policyapp.ActiveRef, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.refCalls++
+	if f.refErr != nil {
+		return policyapp.ActiveRef{}, f.refErr
+	}
+	v := f.version
+	return policyapp.ActiveRef{VersionID: v.ID, Number: v.Number, Status: v.Status, Checksum: v.Checksum, ProductCode: v.ProductCode, Scope: v.Scope}, nil
+}
+
+func (f *fakeActive) LoadActiveSnapshot(_ context.Context, ref policyapp.ActiveRef) (policydomain.Version, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.loadCalls++
+	if f.loadErr != nil {
+		return policydomain.Version{}, f.loadErr
+	}
+	return f.version, nil
+}
+
+func (f *fakeActive) calls() (refs, loads int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.refCalls, f.loadCalls
+}
+
+// setVersion makes another version the active one, the way a publish moves the binding.
+func (f *fakeActive) setVersion(v policydomain.Version) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.version = v
 }
 
 // activeDemo freezes the demo policy into a snapshot and serves it as the active version.
-func activeDemo(t *testing.T) fakeActive {
+func activeDemo(t *testing.T) *fakeActive {
 	t.Helper()
 	content, snapshot, _ := demoPolicy(t)
 	v := policydomain.Version{
@@ -36,7 +72,7 @@ func activeDemo(t *testing.T) fakeActive {
 	raw, checksum, err := policydomain.BuildSnapshot(v, snapshot, content)
 	require.NoError(t, err)
 	v.Snapshot, v.Checksum = raw, checksum
-	return fakeActive{version: v}
+	return &fakeActive{version: v}
 }
 
 func applicantOf(t *testing.T, changes ...string) map[string]any {
@@ -210,10 +246,10 @@ func TestResolverErrorsMapToTheUseCaseErrors(t *testing.T) {
 		"inactive":        {policyapp.ErrProductInactive, application.ErrPolicyNotActive},
 		"none active":     {policyapp.ErrNoActivePolicy, application.ErrPolicyNotActive},
 	} {
-		_, err := infrastructure.NewPolicyResolver(fakeActive{err: tc.in}).ResolveActive(context.Background(), "KTA_DEMO", "DEFAULT")
+		_, err := infrastructure.NewPolicyResolver(&fakeActive{refErr: tc.in}).ResolveActive(context.Background(), "KTA_DEMO", "DEFAULT")
 		assert.ErrorIs(t, err, tc.want, name)
 	}
-	_, err := infrastructure.NewPolicyResolver(fakeActive{err: assert.AnError}).ResolveActive(context.Background(), "KTA_DEMO", "DEFAULT")
+	_, err := infrastructure.NewPolicyResolver(&fakeActive{refErr: assert.AnError}).ResolveActive(context.Background(), "KTA_DEMO", "DEFAULT")
 	assert.ErrorIs(t, err, assert.AnError)
 	assert.NotErrorIs(t, err, application.ErrPolicyNotActive, "a server fault is not a missing policy")
 }

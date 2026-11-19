@@ -14,7 +14,7 @@ import (
 
 // demoPolicy builds the content the demo policy seeder stores, validated exactly as the
 // editing endpoints validate it, together with the dictionary it is pinned to.
-func demoPolicy(t *testing.T) (policydomain.Content, []policydomain.DictionaryVariable, []domain.Variable) {
+func demoPolicy(t testing.TB) (policydomain.Content, []policydomain.DictionaryVariable, []domain.Variable) {
 	t.Helper()
 	var dict []domain.Variable
 	var snapshot []policydomain.DictionaryVariable
