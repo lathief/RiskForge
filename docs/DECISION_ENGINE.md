@@ -58,6 +58,18 @@ Computed by a feature builder, not by free-form expressions:
 
 Derived values and their formula version are written to the trace so a run can be replayed. These formulas are synthetic examples, not a banking standard.
 
+**Implemented (RF-011).** `domain.BuildFeatures(dictionary, input)` in `app/modules/dictionary/domain/feature.go` validates the input and computes every `DERIVED` variable of the dictionary. It is pure Go and uses exact fractions (`math/big.Rat`), so `2500000 / 12000000` is `5/24` and displays as `0.208333`; only `Display()` rounds, and rules compare the exact value. Each `FeatureValue` carries its formula version, expression, unit, exact value, and display value.
+
+| Situation | Result |
+|---|---|
+| `monthly_income <= 0` | `InputError` `must_be_positive`; no division happens |
+| `existing_installment < 0` | `InputError` `must_not_be_negative` |
+| Missing, `null`, wrong type, out of range, too many decimals | `InputError` with the `ValidateInput` issue |
+| The applicant sends `dsr_ratio` or `net_disposable_income` | `InputError` `derived_not_allowed` |
+| A derived variable has no formula, or a formula input is missing, optional, derived, or not numeric | `ErrFeatureConfiguration` (a policy configuration fault, not the caller's) |
+
+The formulas are code with a version, not database rows (ADR 0012). Nothing calls the builder yet: RAC evaluation (RF-012), scorecard and matrix (RF-013), and the Decision API (RF-014) do. Limits are listed in [M3_NOTES.md](M3_NOTES.md).
+
 ### 3. RAC (Risk Acceptance Criteria)
 
 Each rule has a `rule_code`, a boolean expression that must hold to pass, an action on failure (`REJECT` or `REFER`), a stable `reason_code`, and an order.

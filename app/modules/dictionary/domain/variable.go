@@ -26,7 +26,7 @@ const (
 )
 
 // Origin says whether the Loan Application supplies the variable or the feature builder
-// computes it (formulas arrive with RF-011).
+// computes it (BuildFeatures, RF-011).
 type Origin string
 
 const (
