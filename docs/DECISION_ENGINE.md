@@ -68,7 +68,7 @@ Derived values and their formula version are written to the trace so a run can b
 | The applicant sends `dsr_ratio` or `net_disposable_income` | `InputError` `derived_not_allowed` |
 | A derived variable has no formula, or a formula input is missing, optional, derived, or not numeric | `ErrFeatureConfiguration` (a policy configuration fault, not the caller's) |
 
-The formulas are code with a version, not database rows (ADR 0012). Nothing calls the builder yet: RAC evaluation (RF-012), scorecard and matrix (RF-013), and the Decision API (RF-014) do. Limits are listed in [M3_NOTES.md](M3_NOTES.md).
+The formulas are code with a version, not database rows (ADR 0012). `domain.BuildFacts` wraps the builder and turns the result into the facts the RAC evaluator reads (RF-012). The scorecard and matrix (RF-013) and the Decision API (RF-014) are the other callers still to come. Limits are listed in [M3_NOTES.md](M3_NOTES.md).
 
 ### 3. RAC (Risk Acceptance Criteria)
 
@@ -85,7 +85,20 @@ Each rule has a `rule_code`, a boolean expression that must hold to pass, an act
 - A **soft fail** (`REFER`) sets `refer_flag = true`, records the reason, and continues to scoring.
 - An expression that errors at runtime is an `EVALUATION_ERROR`, not a failed rule.
 
-**Managing rules (implemented, RF-007).** An analyst edits the rules of a draft with `GET` and `PUT /api/v1/policy-versions/{version_id}/rac-rules`. The array order is the order above, and every list is checked before it is stored. The expression language is a small allowlist of the `expr` language: comparisons, `and` / `or` / `not`, arithmetic, `in` with a list of numbers or booleans, number and boolean literals, `nil`, parentheses, and dictionary variable names. Function calls, strings, member access, conditionals, and everything else are refused, so an expression cannot do anything except compute a yes or no from the applicant's values. Each expression must be a boolean over variables that exist in the dictionary version the draft is pinned to. Rules are checked, not run: nothing evaluates them until RF-012. Submitting a draft checks the rules again and freezes them in the snapshot.
+**Managing rules (implemented, RF-007).** An analyst edits the rules of a draft with `GET` and `PUT /api/v1/policy-versions/{version_id}/rac-rules`. The array order is the order above, and every list is checked before it is stored. The expression language is a small allowlist of the `expr` language: comparisons, `and` / `or` / `not`, arithmetic, `in` with a list of numbers or booleans, number and boolean literals, `nil`, parentheses, and dictionary variable names. Function calls, strings, member access, conditionals, and everything else are refused, so an expression cannot do anything except compute a yes or no from the applicant's values. Each expression must be a boolean over variables that exist in the dictionary version the draft is pinned to. Submitting a draft checks the rules again and freezes them in the snapshot.
+
+**Evaluation (implemented, RF-012).** `ruleengine.CompileRules` compiles an ordered rule list once and `CompiledRules.Evaluate(facts)` runs it. It is pure Go with exact fractions (`math/big.Rat`), so `0.1 + 0.2 == 0.3` is true and `dsr_ratio <= 0.3` has no rounding error; a decimal literal such as `0.3` is read from the text, not from a float. The result (`RACResult`) holds the outcome, the refer flag, the reason codes, and one trace entry per evaluated rule with the values it used.
+
+| Situation | Result |
+|---|---|
+| All rules pass | `PASS`, no reason codes |
+| A `REFER` rule fails | `REFER`, `ReferFlag` set, evaluation continues |
+| A `REJECT` rule fails | `REJECT`, evaluation stops; later rules are listed as not evaluated; an earlier soft fail keeps the flag and its reason code |
+| `nil` | Equal only to `nil`; any other use (`<`, `+`, `and`) is an evaluation error. `x == nil or x > 3` is safe because `and`/`or` short-circuit |
+| Missing or mistyped fact, division by zero, non-boolean result | `EvaluationError` (`EVALUATION_ERROR`), no outcome, the finished rules kept in `Partial`. Never a `REJECT` |
+| A rule that does not compile | `CompileError` (`POLICY_CONFIGURATION_ERROR`) |
+
+`dictionary/domain.BuildFacts` produces the facts (validated input, features, optional variables as `nil`). The decision pipeline that calls all this is RF-014; scoring and precedence are RF-013. Details: ADR 0013 and [M3_NOTES.md](M3_NOTES.md).
 
 ### 4. Scorecard
 
