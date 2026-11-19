@@ -39,7 +39,7 @@ Solid lines exist today. Dashed lines are planned and described in `SYSTEM_DESIG
 | `identity` | Users, roles, permission matrix, login | Implemented (RF-003) | `app/modules/identity` |
 | `catalog` | Credit products (`KTA_DEMO`, ...) | Implemented (RF-004) | `app/modules/catalog` |
 | `dictionary` | Input variables and derived features: typed definitions, append-only versions, one schema version | Implemented (RF-005), with the feature builder `BuildFeatures` for derived values (RF-011) | `app/modules/dictionary` |
-| `policy` | Policy packages and versioned drafts with frozen, checksummed snapshots | Implemented (RF-006), with RAC rules (RF-007), scorecard (RF-008), decision matrix (RF-009), and test cases with full validation (RF-010); running the test cases is planned (RF-013) | `app/modules/policy` |
+| `policy` | Policy packages and versioned drafts with frozen, checksummed snapshots | Implemented (RF-006), with RAC rules (RF-007), scorecard (RF-008), decision matrix (RF-009), and test cases with full validation (RF-010); the test cases are executed through the decision pipeline, with the evaluator `CompilePolicy` (RF-013) | `app/modules/policy` |
 | `ruleengine` | Pure compile/validate/evaluate. Today: `Analyze` checks RAC expressions (syntax, allowed subset of the `expr` language, known variables, boolean result) | Checking (RF-007) and RAC evaluation (RF-012) implemented; scorecard and matrix evaluation planned (RF-013) | `app/modules/ruleengine` |
 | `decision` | Decision API, idempotency, persisted runs and traces | Planned (RF-014..RF-016) | |
 | `simulation`, `approval` | Draft simulation, multi-level approval, atomic publish | Planned (RF-017..RF-021) | |

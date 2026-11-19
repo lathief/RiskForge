@@ -50,6 +50,9 @@ func scorecardDictionary(f *fixture) {
 		{Code: "dsr_ratio", Type: "DECIMAL", Origin: "DERIVED", Scale: ptr(6), MinValue: ptr("0")},
 		{Code: "is_blacklisted", Type: "BOOLEAN", Origin: "INPUT", Required: true},
 		{Code: "slik_max_kol", Type: "INTEGER", Origin: "INPUT", Required: true},
+		// The inputs of the dsr_ratio formula (RF-011); without them golden tests cannot run.
+		{Code: "monthly_income", Type: "DECIMAL", Origin: "INPUT", Required: true, Scale: ptr(2), MinValue: ptr("0.01")},
+		{Code: "existing_installment", Type: "DECIMAL", Origin: "INPUT", Required: true, Scale: ptr(2), MinValue: ptr("0")},
 	}
 }
 

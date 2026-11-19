@@ -176,7 +176,11 @@ func (s *PolicyTestSuite) complete(versionID string) {
 	if s.getMatrix(versionID)["decision_matrix"] == nil {
 		s.putMatrix(versionID, `{"rows":[{"grade":"A","decision":"REFER"}]}`).AssertOk()
 	}
-	if len(s.getTestCases(versionID)["test_cases"].([]any)) == 0 {
+	existing := s.getTestCases(versionID)["test_cases"].([]any)
+	// Fill the list when it is empty, and refresh it when it holds only the filler written by an
+	// earlier call, whose expectation may be stale after the sections changed.
+	onlyFiller := len(existing) == 1 && existing[0].(map[string]any)["case_code"] == "FILLER_CASE"
+	if len(existing) == 0 || onlyFiller {
 		facts := map[string]any{}
 		for _, item := range vars {
 			m := item.(map[string]any)
@@ -202,7 +206,27 @@ func (s *PolicyTestSuite) complete(versionID string) {
 		}
 		input, err := json.Marshal(facts)
 		s.Require().NoError(err)
-		s.putTestCases(versionID, `{"test_cases":[{"case_code":"FILLER_CASE","input":`+string(input)+`,"expected":{"outcome":"DECISION","decision":"REFER"}}]}`).AssertOk()
+		put := func(expected string) {
+			s.putTestCases(versionID, `{"test_cases":[{"case_code":"FILLER_CASE","input":`+string(input)+`,"expected":`+expected+`}]}`).AssertOk()
+		}
+		put(`{"outcome":"DECISION","decision":"REFER"}`)
+		// Since RF-013 validate and submit execute the case, so the filler must expect what the
+		// draft's own content gives for it. Ask validate and store that. When the draft cannot
+		// be executed (a test about a stale section), the first guess stays and the test sees
+		// its own problem.
+		report := s.json(s.validate("demo_analyst", versionID).AssertOk())
+		results, _ := report["golden_tests"].(map[string]any)["results"].([]any)
+		if len(results) == 1 {
+			if actual := results[0].(map[string]any)["actual"].(map[string]any); actual["outcome"] == "DECISION" {
+				expected := map[string]any{"outcome": "DECISION", "decision": actual["decision"], "reason_codes": actual["reason_codes"]}
+				if actual["grade"] != nil {
+					expected["grade"] = actual["grade"]
+				}
+				raw, err := json.Marshal(expected)
+				s.Require().NoError(err)
+				put(string(raw))
+			}
+		}
 	}
 }
 

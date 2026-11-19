@@ -371,8 +371,10 @@ func (s *PolicyTestSuite) TestSubmitRacingWithAReplaceNeverLeavesTheSnapshotAndT
 		}()
 		go func() {
 			defer wg.Done()
+			// Same reason code and action as RAC_OLD: since RF-013 submit runs the filler golden case, and
+			// it must give the same result whichever of the two calls wins the race.
 			_, _, _ = s.service.ReplaceRules(context.Background(), v1, []policydomain.RuleInput{
-				{RuleCode: "RAC_NEW", ReasonCode: "NEW_REASON", Action: "REFER", Expression: "age_years >= 30"}})
+				{RuleCode: "RAC_NEW", ReasonCode: "OLD_REASON", Action: "REJECT", Expression: "age_years >= 30"}})
 		}()
 		wg.Wait()
 

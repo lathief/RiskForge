@@ -12,7 +12,7 @@
 | [API_EXAMPLES.md](API_EXAMPLES.md) | Copy working `curl` calls with real responses and errors. | Current (30 operations) |
 | [TESTING.md](TESTING.md) | Run and write unit, integration, HTTP, concurrency, and contract tests. | Current |
 | [coverage.md](coverage.md) | See how much of each package the unit tests, and unit plus integration tests, cover. | Current (measured at RF-010) |
-| [DECISION_ENGINE.md](DECISION_ENGINE.md) | Understand how RAC, scorecard, and matrix will be evaluated, including precedence and edge cases. | **Planned** (M3, RF-011..RF-016); configuration checks implemented (RF-007..RF-010) |
+| [DECISION_ENGINE.md](DECISION_ENGINE.md) | Understand how RAC, scorecard, and matrix will be evaluated, including precedence and edge cases. | **Partly implemented**: evaluation core (RF-011..RF-013) done; Decision API, persistence, idempotency, and cache planned (RF-014..RF-016) |
 | [SCRIPTS.md](SCRIPTS.md) | Run `scripts/*` (secrets, Postman generator and smoke test, Swagger UI update) and Artisan database commands. | Current |
 | [VERIFICATION.md](VERIFICATION.md) | See what was run to accept each ticket and what was observed. | Current |
 | [M3_NOTES.md](M3_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 3, starting with the feature builder (RF-011). | Current (M3, growing) |

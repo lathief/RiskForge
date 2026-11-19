@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.10.0
+  version: 0.11.0
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
-    Contract for the endpoints implemented so far (RF-001 to RF-010, plus M1 hardening).
+    Contract for the endpoints implemented so far (RF-001 to RF-013, plus M1 hardening).
 
     - All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.
     - Authorization is permission-based. Each operation lists the required permission
@@ -665,9 +665,12 @@ paths:
         cases, all against the dictionary version the draft is pinned to. If any check fails, the
         answer is a 422 `POLICY_VALIDATION_FAILED` listing every problem (paths start with
         `scorecard.` or `decision_matrix.` for those sections) and the draft stays a DRAFT.
-        Executing the test cases against the policy (comparing expected and actual decisions) is
-        a pending check until the decision evaluator exists (RF-011 to RF-013); approving or
-        rejecting a pending version arrives with M4.
+        When those checks pass, every test case is also **executed** through the decision
+        pipeline (RF-013): a required case whose decision, grade (when it names one), or reason
+        codes differ from the actual result is a validation issue
+        (`decision_mismatch`, `grade_mismatch`, `reason_codes_mismatch`, `input_rejected`,
+        `validation_error_not_raised`, `evaluation_failed`) and the submit is refused. Optional
+        cases that fail do not block. Approving or rejecting a pending version arrives with M4.
       operationId: submitPolicyVersion
       x-required-permission: policy:submit
       responses:
@@ -1055,9 +1058,10 @@ paths:
         reason code a reason code of a RAC rule (`unknown_reason_code`); and the input is **run
         against the data dictionary**: a `DECISION` case needs an input that passes it (the issue
         of the dictionary is reported at `input.<variable>`), and an `INPUT_VALIDATION_ERROR` case
-        needs one that fails it (`validation_error_not_raised`). Whether the expected decision,
-        grade, and reason codes are what the policy gives is checked once the decision evaluator
-        exists (RF-011 to RF-013); `POST .../validate` lists that as a pending check.
+        needs one that fails it (`validation_error_not_raised`). "Fails" includes the preconditions of
+        the derived features (RF-011), such as `monthly_income` greater than zero. Whether the
+        expected decision, grade, and reason codes are what the policy gives is checked when the
+        cases are executed by `POST .../validate` and by submit (RF-013), not when they are saved.
 
         Reason codes are a set and are returned sorted. Nothing is stored unless every case is
         valid; every problem is reported with its path. Sending the list the draft already has
@@ -1137,10 +1141,18 @@ paths:
         says. Paths are those of the editing endpoints, prefixed `scorecard.` and
         `decision_matrix.` for those sections.
 
-        `pending_checks` lists what cannot run yet: comparing each test case's expected decision,
-        grade, and reason codes with the policy's actual result needs the decision evaluator
-        (RF-011 to RF-013). `valid: true` therefore means "every check that exists passed", and
-        the pending check is always listed so it is never mistaken for a pass.
+        **Golden tests (RF-013).** When no other check found a problem, every test case is
+        executed with the same code a decision uses: input validation, derived features (DSR and
+        net disposable income), RAC rules, scorecard, decision matrix, and precedence. The
+        result of each case is in `golden_tests.results` with the `actual` outcome and what
+        differs from the expectation (`mismatches`). The decision and the reason codes must
+        match (reason codes as a set: a case that lists none expects none), the grade only when
+        the case names one, and a case that expects `INPUT_VALIDATION_ERROR` must be refused.
+        A technical failure (`EVALUATION_ERROR`, `POLICY_CONFIGURATION_ERROR`) is never a pass.
+        A mismatch of a **required** case is an issue and makes `valid` false; a mismatch of an
+        optional case is reported but does not. If another check failed the cases are not run,
+        and `pending_checks` says so: a skipped check is always listed so it is never mistaken
+        for a pass. `pending_checks` is empty when everything ran.
       operationId: validatePolicyVersion
       x-required-permission: policy:submit
       responses:
@@ -2053,7 +2065,7 @@ components:
           items: { $ref: "#/components/schemas/TestCase" }
     ValidationReport:
       type: object
-      required: [policy_version_id, status, dictionary_schema_version, valid, summary, score_range, issues, pending_checks]
+      required: [policy_version_id, status, dictionary_schema_version, valid, summary, score_range, issues, golden_tests, pending_checks]
       example:
         policy_version_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
         status: DRAFT
@@ -2063,9 +2075,10 @@ components:
         score_range: { min: "420.00", max: "685.00" }
         issues:
           - { field: test_cases, issue: no_required_test_cases, message: "a policy needs at least one required test case (SYSTEM_DESIGN.md 9.3)" }
+        golden_tests: { executed: 0, passed: 0, failed: 0, results: [] }
         pending_checks:
           - check: golden_test_execution
-            reason: "evaluating the expected decision, grade, and reason codes of a test case needs the decision evaluator (RF-011 to RF-013); test cases are checked statically and their inputs are run against the data dictionary"
+            reason: "the policy has other validation issues; fix them first, then the test cases are executed"
       properties:
         policy_version_id: { $ref: "#/components/schemas/PolicyVersionId" }
         status: { $ref: "#/components/schemas/PolicyStatus" }
@@ -2097,14 +2110,81 @@ components:
               field: { type: string }
               issue: { type: string }
               message: { type: string }
+        golden_tests:
+          type: object
+          description: The execution of the test cases (RF-013). Empty when they did not run (see `pending_checks`).
+          required: [executed, passed, failed, results]
+          properties:
+            executed: { type: integer, minimum: 0 }
+            passed: { type: integer, minimum: 0 }
+            failed: { type: integer, minimum: 0, description: Required and optional cases that did not give the expected result. }
+            results:
+              type: array
+              items: { $ref: "#/components/schemas/GoldenTestResult" }
         pending_checks:
           type: array
+          description: Checks that did not run, with the reason. Empty when everything ran.
           items:
             type: object
             required: [check, reason]
             properties:
-              check: { type: string }
+              check: { type: string, examples: [golden_test_execution] }
               reason: { type: string }
+    GoldenTestResult:
+      type: object
+      required: [case_code, required, passed, actual, mismatches]
+      example:
+        case_code: GOLDEN_SLIK_REFER
+        required: true
+        passed: true
+        actual:
+          outcome: DECISION
+          decision: REFER
+          grade: A
+          total_score: "685.00"
+          reason_codes: [SLIK_REVIEW_REQUIRED]
+          message: null
+        mismatches: []
+      properties:
+        case_code: { type: string }
+        required: { type: boolean }
+        passed: { type: boolean }
+        actual:
+          type: object
+          description: What the case really produced.
+          required: [outcome, decision, grade, total_score, reason_codes, message]
+          properties:
+            outcome:
+              type: string
+              enum: [DECISION, INPUT_VALIDATION_ERROR, EVALUATION_ERROR, POLICY_CONFIGURATION_ERROR]
+            decision:
+              oneOf: [{ $ref: "#/components/schemas/MatrixDecision" }, { type: "null" }]
+              description: Set when the outcome is DECISION.
+            grade:
+              type: [string, "null"]
+              description: Grade of the matrix row; null when RAC rejected before scoring.
+            total_score:
+              oneOf: [{ $ref: "#/components/schemas/ScoreDecimal" }, { type: "null" }]
+              description: Null when RAC rejected before scoring.
+            reason_codes:
+              type: array
+              items: { type: string }
+              description: Reason codes of the RAC rules that failed, in rule order.
+            message:
+              type: [string, "null"]
+              description: The invalid fields or the error, for an outcome other than DECISION.
+        mismatches:
+          type: array
+          description: What differs from the expectation; empty when the case passed.
+          items:
+            type: object
+            required: [field, issue]
+            properties:
+              field: { type: string, examples: ["test_cases[0].expected.decision"] }
+              issue:
+                type: string
+                enum: [decision_mismatch, grade_mismatch, reason_codes_mismatch, input_rejected, validation_error_not_raised, evaluation_failed]
+              message: { type: string }
     ErrorResponse:
       type: object
       required: [error]

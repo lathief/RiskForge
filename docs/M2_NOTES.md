@@ -53,6 +53,6 @@ Things a reader of the M2 code (RF-005 to RF-010) should know that are not obvio
 ## Full policy validation (RF-010)
 | Item | Status | Detail |
 |---|---|---|
-| Golden tests are not executed | Deferred (RF-011 to RF-013) | Test cases are checked statically and their inputs are run against the data dictionary. Comparing expected and actual decisions needs the evaluator. Every validation report lists `pending_checks: golden_test_execution`, so `valid: true` never claims that the golden tests passed. |
+| Golden tests are not executed | Fixed (RF-013) | At RF-010 test cases were only checked statically and every report listed `pending_checks: golden_test_execution`. Validate and submit now run them through the whole pipeline; see [M3_NOTES.md](M3_NOTES.md). |
 | Snapshots of format 1 | By design | Versions submitted before RF-010 keep their format 1 snapshot (no `test_cases`). A stored snapshot is never rewritten, because its checksum covers it. |
 | `validate` needs `policy:submit` | By design | It is the dry run of submit (ADR 0011). Readers (`RISK_APPROVER`, `AUDITOR`) get 403; the permission can be widened later without breaking the contract. |

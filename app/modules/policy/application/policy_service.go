@@ -50,6 +50,10 @@ type DictionaryReader interface {
 	// CheckInput validates applicant facts against the given dictionary variables with the
 	// dictionary module's input rules and returns every problem, ordered by variable code.
 	CheckInput(dictionary []domain.DictionaryVariable, facts map[string]any) []domain.FieldError
+	// PrepareInput validates applicant input against the dictionary and builds the facts the
+	// evaluator reads, including the derived features (RF-011). It returns the issues when the
+	// input is invalid, or an error when the dictionary cannot be computed.
+	PrepareInput(dictionary []domain.DictionaryVariable, input map[string]any) (domain.Prepared, []domain.FieldError, error)
 }
 
 // PackageSummary is a package with its newest version, for lists.
@@ -381,6 +385,8 @@ func (s *PolicyService) Validate(ctx context.Context, id string) (domain.Version
 func (s *PolicyService) validate(content domain.Content, dictionary []domain.DictionaryVariable) domain.Report {
 	return domain.ValidatePolicy(content, dictionary, func(facts map[string]any) []domain.FieldError {
 		return s.dict.CheckInput(dictionary, facts)
+	}, func(input map[string]any) (domain.Prepared, []domain.FieldError, error) {
+		return s.dict.PrepareInput(dictionary, input)
 	})
 }
 

@@ -13,9 +13,10 @@ import (
 // A test case is a stored regression ("golden") case of a policy version (SYSTEM_DESIGN.md 9.1
 // and 12): an applicant input and the result the policy is expected to give. RF-010 checks every
 // case statically: its references (variables, grades, reason codes) and, for real, its input
-// against the data dictionary, which decides whether the expected outcome is a decision or an
-// input validation error. Evaluating the expected decision needs the decision evaluator
-// (RF-011 to RF-013); until then that part is reported as a pending check, not as passed.
+// against the data dictionary and the feature builder, which decides whether the expected
+// outcome is a decision or an input validation error. Since RF-013 each case is also executed
+
+// through the whole pipeline (RunTestCases in golden.go) and compared with the expectation.
 
 // TestOutcome is the kind of result a test case expects.
 type TestOutcome string
