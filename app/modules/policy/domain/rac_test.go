@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"goravel/app/modules/ruleengine"
 )
 
 func testEnv() []DictionaryVariable {
@@ -219,4 +221,22 @@ func TestSnapshotCarriesRulesInOrder(t *testing.T) {
 	_, sumReordered, err := BuildSnapshot(sampleVersion(), sampleDictionary(), Content{Rules: reordered})
 	require.NoError(t, err)
 	assert.NotEqual(t, sumWith, sumReordered, "the evaluation order is part of the frozen content")
+}
+
+func TestEngineRulesKeepOrderAndMeaning(t *testing.T) {
+	set, err := ValidateRules(goodRules(), DictionaryEnvironment(testEnv()))
+	require.NoError(t, err)
+
+	rules := set.EngineRules()
+	require.Len(t, rules, 2)
+	assert.Equal(t, "RAC_MIN_AGE", rules[0].Code)
+	assert.Equal(t, "AGE_BELOW_MINIMUM", rules[0].ReasonCode)
+	assert.Equal(t, "age_years >= 21", rules[0].Expression)
+	assert.EqualValues(t, "REJECT", rules[0].Action)
+	assert.EqualValues(t, "REFER", rules[1].Action)
+	assert.Empty(t, RuleSet(nil).EngineRules())
+
+	// What was saved must compile: the same checks run again at evaluation time.
+	_, err = ruleengine.CompileRules(rules, DictionaryEnvironment(testEnv()))
+	assert.NoError(t, err)
 }

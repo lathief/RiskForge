@@ -316,6 +316,48 @@ func TestFormulaRegistry(t *testing.T) {
 	assert.Equal(t, "existing_installment", Formulas()[0].Inputs[0])
 }
 
+func TestBuildFactsGivesExactValuesAndExplicitNulls(t *testing.T) {
+	dict := featureDictionary(t,
+		NewInput{Code: "is_blacklisted", Type: "BOOLEAN"},
+		NewInput{Code: "referral_age", Type: "INTEGER", Required: ptr(false), Nullable: ptr(true)},
+		NewInput{Code: "side_income", Type: "DECIMAL", Required: ptr(false)})
+	in := applicant("12000000.00", "2500000.00")
+	in["is_blacklisted"] = false
+	in["referral_age"] = nil
+	// side_income is absent.
+	snapshot := applicant("12000000.00", "2500000.00")
+	snapshot["is_blacklisted"] = false
+	snapshot["referral_age"] = nil
+
+	facts, features, err := BuildFacts(dict, in)
+	require.NoError(t, err)
+	assert.Equal(t, snapshot, in, "the input is not changed")
+	assert.Len(t, features, 2)
+
+	assert.Equal(t, "12000000", facts["monthly_income"].(*big.Rat).RatString())
+	assert.Equal(t, "29", facts["age_years"].(*big.Rat).RatString())
+	assert.Equal(t, false, facts["is_blacklisted"])
+	assert.Contains(t, facts, "referral_age")
+	assert.Nil(t, facts["referral_age"])
+	assert.Contains(t, facts, "side_income", "an absent optional variable is an explicit null")
+	assert.Nil(t, facts["side_income"])
+	assert.Equal(t, "5/24", facts["dsr_ratio"].(*big.Rat).RatString())
+	assert.Equal(t, "9500000", facts["net_disposable_income"].(*big.Rat).RatString())
+
+	// Changing a fact must not change the feature value it was copied from.
+	facts["dsr_ratio"].(*big.Rat).SetInt64(7)
+	assert.Equal(t, "5/24", features[0].Exact())
+}
+
+func TestBuildFactsPassesOnBuilderErrors(t *testing.T) {
+	_, _, err := BuildFacts(featureDictionary(t), applicant("0.00", "1.00"))
+	var ie *InputError
+	require.ErrorAs(t, err, &ie)
+
+	_, _, err = BuildFacts([]Variable{mustVar(t, NewInput{Code: "loan_to_value", Origin: "DERIVED", Type: "DECIMAL"})}, nil)
+	assert.ErrorIs(t, err, ErrFeatureConfiguration)
+}
+
 func TestSeededDictionaryIsComputable(t *testing.T) {
 	// The demo dictionary (database/seeders) must satisfy every formula's requirements.
 	dict := demoDictionary(t)

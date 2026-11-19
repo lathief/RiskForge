@@ -166,6 +166,13 @@ Di Git Bash Windows, jalankan dengan `MSYS_NO_PATHCONV=1` dan ganti `$PWD` denga
 - Dua tipe error dengan makna berbeda: `*InputError` (kesalahan pemanggil, `INPUT_VALIDATION_ERROR`) dan `ErrFeatureConfiguration` (`POLICY_CONFIGURATION_ERROR`). Keduanya bukan `REJECT`; cek dengan `errors.As` dan `errors.Is`.
 - RF-011 tidak menambah endpoint, jadi OpenAPI dan Postman tidak berubah. Tiket M3 berikutnya yang menambah endpoint (RF-014) wajib memperbaruinya di tiket yang sama.
 - Batasan dan keputusan terbuka: `docs/M3_NOTES.md`; keputusan: `docs/adr/0012-feature-builder.md`.
+## RAC evaluator (RF-012)
+- Evaluasi aturan RAC ada di `app/modules/ruleengine/evaluate.go`: `CompileRules(rules, env)` sekali, lalu `CompiledRules.Evaluate(facts)`. Jangan menjalankan expression lewat VM `expr` (`expr.Run`): VM itu memakai `float64`. Jangan menulis evaluator kedua di modul lain.
+- Fakta dibuat oleh `dictionary/domain.BuildFacts(dictionary, input)`; aturan tersimpan diubah dengan `policy/domain.RuleSet.EngineRules()`. Fakta adalah `*big.Rat`, `bool`, atau `nil` (null eksplisit); kunci yang tidak ada adalah error, bukan null.
+- Bandingkan dengan `errors.As`/`errors.Is`: `*ruleengine.EvaluationError` (`EVALUATION_ERROR`), `*ruleengine.CompileError` / `ruleengine.ErrConfiguration` (`POLICY_CONFIGURATION_ERROR`), `*domain.InputError` (`INPUT_VALIDATION_ERROR`). Tidak satu pun boleh menjadi `REJECT`.
+- Menambah fitur bahasa: ubah allowlist di `check.go`, tambahkan penanganannya di `convert`/`binary` pada `evaluate.go`, dan tambahkan test di `check_test.go` dan `evaluate_test.go`. Node yang tidak ditangani harus menjadi `CompileError`, bukan dilewati.
+- `CompiledRules` imutabel dan aman untuk goroutine; jangan menambah state yang berubah di dalamnya (cache RF-016 membagikannya).
+- RF-012 tidak menambah endpoint, jadi OpenAPI dan Postman tidak berubah. Keputusan: `docs/adr/0013-rac-evaluator.md`; batasan: `docs/M3_NOTES.md`.
 ## Coverage
 `./scripts/coverage.sh [rf-test-<nama>]` mengukur coverage statement (unit saja, lalu unit + integrasi) di project Compose sekali pakai dan mencetak tabel Markdown. Hasilnya dicatat di `docs/coverage.md`; perbarui file itu setelah setiap tiket.
 
