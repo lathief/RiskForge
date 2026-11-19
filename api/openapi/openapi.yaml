@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.11.0
+  version: 0.12.0
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
-    Contract for the endpoints implemented so far (RF-001 to RF-013, plus M1 hardening).
+    Contract for the endpoints implemented so far (RF-001 to RF-014, plus M1 hardening).
 
     - All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.
     - Authorization is permission-based. Each operation lists the required permission
@@ -43,6 +43,8 @@ tags:
     description: Data dictionary of typed input and derived variables, with schema versions (RF-005).
   - name: Policies
     description: Policy packages and their versions, with immutable snapshots on submit (RF-006).
+  - name: Decisions
+    description: Credit decisions against the active policy (RF-014).
 
 paths:
   /health/live:
@@ -1168,6 +1170,119 @@ paths:
         "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
         "408": { $ref: "#/components/responses/RequestTimeout" }
         "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/decisions/evaluate:
+    post:
+      tags: [Decisions]
+      summary: Evaluate a loan application
+      description: |
+        Runs a credit decision for one application against the **active policy** of its product
+        (SYSTEM_DESIGN.md 10, 13.2 to 13.4). The active version is resolved once at the start of
+        the request, so a publish during the request cannot change the version it uses, and the
+        response names that version (`policy_version`).
+
+        Pipeline: the applicant data is validated and normalized against the data dictionary the
+        policy was written for; the derived features are built (`dsr_ratio` and
+        `net_disposable_income`, exact, with the formula version); the RAC rules run in order;
+        unless a hard rule rejected the application, the scorecard selects one bin per
+        characteristic and adds its points, the decision matrix maps the total to a grade and a
+        decision, and the precedence hard RAC `REJECT` > matrix `REJECT` > soft RAC `REFER` >
+        matrix `APPROVE`/`REFER` gives `final_decision`.
+
+        **Applicant data.** Integers are JSON numbers, decimals (money, ratios) are **strings**
+        such as `"12000000.00"`; a JSON number for money is refused (`invalid_type`) instead of
+        being rounded. A missing or `null` required value, a wrong type, a value outside the
+        dictionary range, too many decimals, a key that is not a dictionary variable
+        (`unknown_variable`), and a derived value sent by the caller (`derived_not_allowed`) are
+        all `422 INPUT_VALIDATION_ERROR`, listed together with paths such as
+        `applicant.monthly_income`. Invalid data is an error, never a `REJECT`.
+
+        **Errors are not decisions.** `409 POLICY_NOT_ACTIVE` when the product is retired or has
+        no active policy (a draft or a pending version is never evaluated); `404
+        PRODUCT_NOT_FOUND`; `500 POLICY_CONFIGURATION_ERROR` when the active policy cannot be
+        evaluated; `500 EVALUATION_ERROR` for a technical failure while evaluating. None of them
+        carries a decision, and the cause is logged server-side only.
+
+        **Not stored yet.** The decision is not persisted and has no `decision_id`, and the
+        `Idempotency-Key` header is not read: persistence and idempotency arrive with RF-015
+        (`GET /decisions/{decision_id}` too). Meanwhile the same request gives the same response
+        as long as the same version is active. Any `API_CONSUMER` may evaluate any product;
+        per-product authorization needs API clients, which do not exist yet.
+      operationId: evaluateDecision
+      x-required-permission: decision:evaluate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DecisionRequest" }
+            example:
+              application_id: LOAN-APP-DEMO-0001
+              product_code: KTA_DEMO
+              applicant:
+                age_years: 29
+                monthly_income: "12000000.00"
+                existing_installment: "2500000.00"
+                employment_tenure_months: 36
+                slik_max_kol: 1
+                is_blacklisted: false
+      responses:
+        "200":
+          description: The policy was evaluated and gave a business decision (`APPROVE`, `REFER`, or `REJECT`).
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DecisionResult" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: The product code is unknown.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error: { code: PRODUCT_NOT_FOUND, message: product not found }
+                request_id: 7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409":
+          description: The product is retired or has no active policy version.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error: { code: POLICY_NOT_ACTIVE, message: the product has no active policy }
+                request_id: 8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422":
+          description: The request or the applicant data is invalid. Never a rejection of the application.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error:
+                  code: INPUT_VALIDATION_ERROR
+                  message: the application data is invalid
+                  details:
+                    - { field: applicant.monthly_income, issue: below_min_value }
+                request_id: 9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f
+        "500":
+          description: |
+            A technical failure. `INTERNAL_ERROR`, `POLICY_CONFIGURATION_ERROR` (the active policy
+            cannot be evaluated), or `EVALUATION_ERROR` (a failure while evaluating). No decision
+            was made, and in particular the application was not rejected.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error: { code: EVALUATION_ERROR, message: "the application could not be evaluated; no decision was made" }
+                request_id: 0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a
 security:
   - bearerAuth: []
 
@@ -1896,6 +2011,160 @@ components:
         scorecard:
           oneOf: [{ $ref: "#/components/schemas/Scorecard" }, { type: "null" }]
           description: Null when no scorecard is configured.
+    DecisionRequest:
+      type: object
+      required: [application_id, product_code, applicant]
+      additionalProperties: false
+      properties:
+        application_id:
+          type: string
+          pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$"
+          description: The caller's own reference of the application. Synthetic data only.
+          example: LOAN-APP-DEMO-0001
+        product_code: { type: string, pattern: "^[A-Z][A-Z0-9_]{2,31}$", example: KTA_DEMO }
+        applicant:
+          type: object
+          maxProperties: 100
+          description: |
+            The applicant facts, keyed by the INPUT variables of the data dictionary. Integers are
+            JSON numbers, decimals are strings, booleans are booleans. Derived variables
+            (`dsr_ratio`, `net_disposable_income`) are computed and must not be sent.
+          additionalProperties: true
+    DecisionResult:
+      type: object
+      required:
+        - application_id
+        - product_code
+        - policy_version
+        - status
+        - final_decision
+        - risk_grade
+        - total_score
+        - reason_codes
+        - refer_flag
+        - derived_features
+        - rac_results
+        - rac_not_evaluated
+        - base_score
+        - score_breakdown
+        - matrix
+      example:
+        application_id: LOAN-APP-DEMO-0001
+        product_code: KTA_DEMO
+        policy_version: { id: 3f0c1d2e-4a5b-4c6d-8e7f-9a0b1c2d3e4f, number: 1, checksum: "9d2f1c0b8a7e6d5c4b3a29181716151413121110fedcba9876543210abcdef01" }
+        status: COMPLETED
+        final_decision: APPROVE
+        risk_grade: A
+        total_score: "685.00"
+        reason_codes: []
+        refer_flag: false
+        derived_features:
+          - { code: dsr_ratio, value: "0.208333", exact: 5/24, unit: ratio, formula_version: 1, expression: existing_installment / monthly_income }
+          - { code: net_disposable_income, value: "9500000.00", exact: "9500000", unit: IDR, formula_version: 1, expression: monthly_income - existing_installment }
+        rac_results:
+          - { order: 1, rule_code: RAC_MIN_AGE, reason_code: AGE_BELOW_MINIMUM, action: REJECT, passed: true, inputs: [{ variable: age_years, value: "29" }] }
+          - { order: 2, rule_code: RAC_BLACKLIST, reason_code: BLACKLISTED, action: REJECT, passed: true, inputs: [{ variable: is_blacklisted, value: "false" }] }
+          - { order: 3, rule_code: RAC_SLIK, reason_code: SLIK_REVIEW_REQUIRED, action: REFER, passed: true, inputs: [{ variable: slik_max_kol, value: "1" }] }
+        rac_not_evaluated: []
+        base_score: "350.00"
+        score_breakdown:
+          - { characteristic: age_group, variable: age_years, value: "29", missing: false, bin_order: 2, bin: 25 to 45, points: "85.00" }
+          - { characteristic: dsr_band, variable: dsr_ratio, value: 5/24, missing: false, bin_order: 1, bin: below 0.30, points: "150.00" }
+          - { characteristic: employment_tenure, variable: employment_tenure_months, value: "36", missing: false, bin_order: 2, bin: 24 months or more, points: "100.00" }
+        matrix: { row_order: 3, label: 650 to 900, decision: APPROVE }
+      properties:
+        application_id: { type: string }
+        product_code: { type: string }
+        policy_version:
+          type: object
+          description: The exact policy version that decided, so the decision can be replayed against its frozen snapshot.
+          required: [id, number, checksum]
+          properties:
+            id: { type: string, format: uuid }
+            number: { type: integer, minimum: 1 }
+            checksum: { type: string, pattern: "^[0-9a-f]{64}$", description: SHA-256 of the canonical snapshot. }
+        status:
+          type: string
+          enum: [COMPLETED]
+          description: Processing state. A technical failure is an error response, not a status.
+        final_decision: { $ref: "#/components/schemas/MatrixDecision" }
+        risk_grade:
+          type: [string, "null"]
+          description: Grade of the matrix row. Null when a hard RAC rule rejected before scoring.
+        total_score:
+          oneOf: [{ $ref: "#/components/schemas/ScoreDecimal" }, { type: "null" }]
+          description: Base score plus the points of the selected bins. Null when not scored.
+        reason_codes:
+          type: array
+          items: { type: string }
+          description: Reason codes of the RAC rules that failed, in rule order. The matrix has none, so a matrix decision adds no code.
+        refer_flag: { type: boolean, description: True when a soft (REFER) RAC rule failed. }
+        derived_features:
+          type: array
+          description: Values computed by the feature builder, with the formula version so the run can be replayed.
+          items:
+            type: object
+            required: [code, value, exact, unit, formula_version, expression]
+            properties:
+              code: { type: string }
+              value: { type: string, description: "Rounded to the dictionary scale, for display only." }
+              exact: { type: string, description: "Lossless value: a whole number or a fraction such as 5/24." }
+              unit: { type: string }
+              formula_version: { type: integer, minimum: 1 }
+              expression: { type: string }
+        rac_results:
+          type: array
+          description: One entry per evaluated rule, in order. After a hard fail the later rules are listed in `rac_not_evaluated`.
+          items:
+            type: object
+            required: [order, rule_code, reason_code, action, passed, inputs]
+            properties:
+              order: { type: integer, minimum: 1 }
+              rule_code: { type: string }
+              reason_code: { type: string }
+              action: { type: string, enum: [REJECT, REFER], description: What a failure of this rule does. }
+              passed: { type: boolean }
+              inputs:
+                type: array
+                description: The variables the rule used and their values as text (exact fractions stay exact, `null` for a null).
+                items:
+                  type: object
+                  required: [variable, value]
+                  properties:
+                    variable: { type: string }
+                    value: { type: string }
+        rac_not_evaluated:
+          type: array
+          items: { type: string }
+          description: Rule codes that did not run because an earlier hard rule rejected.
+        base_score: { $ref: "#/components/schemas/ScoreDecimal" }
+        score_breakdown:
+          type: array
+          description: One entry per scorecard characteristic. Empty when RAC rejected before scoring.
+          items:
+            type: object
+            required: [characteristic, variable, value, missing, bin_order, bin, points]
+            properties:
+              characteristic: { type: string }
+              variable: { type: string }
+              value: { type: string, description: "The value read, as text; `null` when missing." }
+              missing: { type: boolean, description: True when the value was null and the characteristic's missing-data points applied. }
+              bin_order:
+                type: [integer, "null"]
+                description: Position of the selected bin; null when missing.
+              bin: { type: [string, "null"], description: "Label of the selected bin, when it has one." }
+              points: { $ref: "#/components/schemas/ScoreDecimal" }
+        matrix:
+          description: The decision matrix row that contained the total score. Null when not scored.
+          oneOf:
+            - type: object
+              required: [row_order, label, decision]
+              properties:
+                row_order: { type: integer, minimum: 1 }
+                label: { type: [string, "null"] }
+                decision:
+                  $ref: "#/components/schemas/MatrixDecision"
+            - type: "null"
     MatrixDecision:
       type: string
       enum: [APPROVE, REFER, REJECT]
@@ -2210,6 +2479,9 @@ components:
                 - POLICY_CONFLICT
                 - POLICY_VERSION_FROZEN
                 - POLICY_VALIDATION_FAILED
+                - POLICY_NOT_ACTIVE
+                - POLICY_CONFIGURATION_ERROR
+                - EVALUATION_ERROR
                 - SERVICE_BUSY
                 - INTERNAL_ERROR
             message: { type: string }

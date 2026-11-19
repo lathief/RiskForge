@@ -54,6 +54,7 @@ Go 1.25 · Goravel v1.18 · Fiber v3 (via `goravel/fiber`) · PostgreSQL 18 · J
 | `GET` / `PUT` | `/api/v1/policy-versions/{version_id}/test-cases` | `policy:read` / `policy:write` (golden test cases of a version) |
 | `POST` | `/api/v1/policy-versions/{version_id}/validate` | `policy:submit` (analyst; full validation report, changes nothing) |
 | `POST` | `/api/v1/policy-versions/{version_id}/submit` | `policy:submit` (analyst; runs the full validation, then freezes) |
+| `POST` | `/api/v1/decisions/evaluate` | `decision:evaluate` (API consumer; evaluates an application against the active policy, stores nothing yet) |
 
 Contract: [api/openapi/openapi.yaml](api/openapi/openapi.yaml). Real requests and responses: [API_EXAMPLES.md](docs/API_EXAMPLES.md). Postman: [api/postman/](api/postman/).
 
@@ -82,7 +83,7 @@ Contract: [api/openapi/openapi.yaml](api/openapi/openapi.yaml). Real requests an
 | M1 Foundation | Bootstrap, PostgreSQL, identity and RBAC, product catalog | Done |
 | Hardening, LOG-001, DX-001, DOC-001 | Three review rounds, structured logs, Swagger and Postman, guides | Done (branch `fix/M1-hardening`, pending merge) |
 | M2 Policy configuration | Data dictionary, versioned policy drafts, RAC, scorecard, matrix validation | Done (RF-005 to RF-010); golden tests are executed since RF-013 |
-| M3 Decision engine | Features, RAC, scorecard and matrix evaluation, idempotent decision API | In progress: RF-011 feature builder, RF-012 RAC evaluator, and RF-013 scorecard and matrix evaluator with golden test execution done (branches `feature/RF-011-feature-builder`, `feature/RF-012-rac-evaluator`, `feature/RF-013-scorecard-matrix-evaluator`); RF-014 to RF-016 planned |
+| M3 Decision engine | Features, RAC, scorecard and matrix evaluation, idempotent decision API | In progress: RF-011 to RF-014 done (feature builder, RAC evaluator, scorecard and matrix evaluator with golden tests, Decision API; one branch per ticket, `feature/RF-011-feature-builder` to `feature/RF-014-decision-api`); RF-015 and RF-016 planned |
 | M4 Governance | Simulator, multi-level approval, atomic publishing | Planned |
 | M5 Hardening | Audit search, metrics, CI/CD, benchmarks, demo | Planned |
 

@@ -39,6 +39,8 @@ type fakeRepo struct {
 	matrixWrites    int
 	testCases       map[string]domain.TestCases
 	testCaseWrites  int
+	// active holds the version each "PRODUCT|SCOPE" is bound to (RF-014).
+	active map[string]domain.Version
 }
 
 func newFakeRepo() *fakeRepo {

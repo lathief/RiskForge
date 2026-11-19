@@ -199,6 +199,22 @@ func (r *PolicyRepository) FindVersion(ctx context.Context, id string, forUpdate
 	return rows[0].toDomain(), nil
 }
 
+// FindActiveVersion follows the active binding of the package of (productCode, scope). The
+// join returns at most one row because package_id is the primary key of the binding.
+func (r *PolicyRepository) FindActiveVersion(ctx context.Context, productCode, scope string) (domain.Version, error) {
+	var rows []versionRow
+	if err := r.db.Querier(ctx).Select(&rows,
+		`SELECT `+versionColumns+versionFrom+`
+		   JOIN policy.active_policy_bindings b ON b.policy_version_id = v.id AND b.package_id = p.id
+		  WHERE pr.code = $1 AND p.scope = $2`, productCode, scope); err != nil {
+		return domain.Version{}, err
+	}
+	if len(rows) == 0 {
+		return domain.Version{}, application.ErrNoActivePolicy
+	}
+	return rows[0].toDomain(), nil
+}
+
 func (r *PolicyRepository) ListVersions(ctx context.Context, packageID string) ([]domain.Version, error) {
 	var rows []versionRow
 	if err := r.db.Querier(ctx).Select(&rows,
