@@ -11,6 +11,8 @@ import (
 	"goravel/app/http/middleware"
 	catalogapp "goravel/app/modules/catalog/application"
 	cataloginfra "goravel/app/modules/catalog/infrastructure"
+	decisionapp "goravel/app/modules/decision/application"
+	decisioninfra "goravel/app/modules/decision/infrastructure"
 	dictionaryapp "goravel/app/modules/dictionary/application"
 	dictionaryinfra "goravel/app/modules/dictionary/infrastructure"
 	identityapp "goravel/app/modules/identity/application"
@@ -29,6 +31,7 @@ const (
 	moduleCatalog    = "catalog"
 	moduleDictionary = "dictionary"
 	modulePolicy     = "policy"
+	moduleDecision   = "decision"
 	moduleDocs       = "docs"
 )
 
@@ -78,12 +81,18 @@ func Api() {
 	canReadDictionary := middleware.NewRequirePermission(domain.PermDictionaryRead)
 	canWriteDictionary := middleware.NewRequirePermission(domain.PermDictionaryWrite)
 	policyDB := dbManager.WithModule(modulePolicy)
-	policyController := controllers.NewPolicyController(policyapp.NewPolicyService(
+	policyService := policyapp.NewPolicyService(
 		policyinfra.NewPolicyRepository(policyDB),
 		policyinfra.NewCatalogProducts(catalogService),
 		policyinfra.NewDictionaryVersions(dictionaryService),
 		policyDB,
-	))
+	)
+	policyController := controllers.NewPolicyController(policyService)
+	// Decision API (RF-014): reads the active policy through the policy module; the decision
+	// module owns no tables yet (persistence arrives with RF-015).
+	decisionController := controllers.NewDecisionController(
+		decisionapp.NewEvaluationService(decisioninfra.NewPolicyResolver(policyService)))
+	canEvaluateDecisions := middleware.NewRequirePermission(domain.PermDecisionEval)
 	canReadPolicies := middleware.NewRequirePermission(domain.PermPolicyRead)
 	canWritePolicies := middleware.NewRequirePermission(domain.PermPolicyWrite)
 	canSubmitPolicies := middleware.NewRequirePermission(domain.PermPolicySubmit)
@@ -94,6 +103,7 @@ func Api() {
 	catalog := middleware.NewModule(moduleCatalog)
 	dictionary := middleware.NewModule(moduleDictionary)
 	policy := middleware.NewModule(modulePolicy)
+	decision := middleware.NewModule(moduleDecision)
 
 	facades.Route().Prefix("/api/v1").Group(func(router route.Router) {
 		router.Middleware(identity).Post("/auth/login", authController.Login)
@@ -125,5 +135,6 @@ func Api() {
 		router.Middleware(policy, authenticate, canWritePolicies).Put("/policy-versions/{version_id}/test-cases", policyController.ReplaceTestCases)
 		router.Middleware(policy, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/validate", policyController.ValidateVersion)
 		router.Middleware(policy, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/submit", policyController.SubmitVersion)
+		router.Middleware(decision, authenticate, canEvaluateDecisions).Post("/decisions/evaluate", decisionController.Evaluate)
 	})
 }

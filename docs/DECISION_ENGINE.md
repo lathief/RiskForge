@@ -1,6 +1,6 @@
 # Decision engine
 
-> **Status: Partly implemented.** The evaluation core is implemented as pure functions (feature builder RF-011, RAC RF-012, scorecard, matrix, precedence, and golden test execution RF-013); the Decision API, persistence, idempotency, and cache (RF-014 to RF-016) are planned. This page is the engineering specification for milestone M3 (RF-011 to RF-016), distilled from `SYSTEM_DESIGN.md` sections 8, 10, 12, and 20. The configuration side is implemented and marked where it applies: RAC expressions are checked by `app/modules/ruleengine` (RF-007), scorecard bins and matrix rows are validated (RF-008, RF-009), and golden test cases are stored and checked statically (RF-010).
+> **Status: Partly implemented.** The evaluation core is implemented as pure functions (feature builder RF-011, RAC RF-012, scorecard, matrix, precedence, and golden test execution RF-013); the Decision API is implemented (RF-014: `POST /decisions/evaluate`, nothing stored); persistence, idempotency, and the cache (RF-015, RF-016) are planned. This page is the engineering specification for milestone M3 (RF-011 to RF-016), distilled from `SYSTEM_DESIGN.md` sections 8, 10, 12, and 20. The configuration side is implemented and marked where it applies: RAC expressions are checked by `app/modules/ruleengine` (RF-007), scorecard bins and matrix rows are validated (RF-008, RF-009), and golden test cases are stored and checked statically (RF-010).
 
 The engine turns one loan application plus one immutable policy version into one decision and a complete trace. It is the part of RiskForge that is not CRUD: correctness, determinism, and explainability matter more than speed.
 
@@ -166,6 +166,30 @@ Failures are errors, never `REJECT`. A fact the scorecard needs that is missing 
 | `INPUT_VALIDATION_ERROR` | The input is refused (dictionary rules or feature preconditions such as `monthly_income > 0`) |
 
 A required case that fails is an issue (`decision_mismatch`, `grade_mismatch`, `reason_codes_mismatch`, `input_rejected`, `validation_error_not_raised`, `evaluation_failed`) and blocks submit; an optional case that fails is reported in `golden_tests` only. A technical failure is never a pass. When another validation check already failed, the cases are not executed and `pending_checks` says so. Limits: [M3_NOTES.md](M3_NOTES.md).
+
+## Decision API (implemented, RF-014)
+`POST /api/v1/decisions/evaluate` (permission `decision:evaluate`, the API consumer) runs the pipeline above for one application. Steps in order:
+
+1. Check the request: `application_id`, `product_code`, and an `applicant` object (unknown top-level keys are refused).
+2. Resolve the active policy **once**: product (404 if unknown, 409 `POLICY_NOT_ACTIVE` if retired), then the version its active binding points to. The frozen snapshot is verified against its checksum and used for the whole request; the content tables are not read.
+3. Validate the applicant against the dictionary of that snapshot and build the derived features. Invalid data, unknown keys, and a derived value sent by the caller are 422 `INPUT_VALIDATION_ERROR` with every problem listed (`applicant.<variable>`).
+4. Evaluate RAC, scorecard, matrix, and precedence (`CompiledPolicy.Evaluate`).
+5. Return `200` with the decision and its trace: the policy version (`id`, `number`, `checksum`), `final_decision`, `risk_grade`, `total_score`, `reason_codes`, `derived_features` (exact value and formula version), `rac_results` with the values each rule used, `rac_not_evaluated`, `score_breakdown`, and the `matrix` row.
+
+| Situation | Response |
+|---|---|
+| Decision made (`APPROVE`, `REFER`, `REJECT`) | `200` |
+| Invalid request or applicant data | `422 INPUT_VALIDATION_ERROR` (never a `REJECT`) |
+| Unknown product | `404 PRODUCT_NOT_FOUND` |
+| Retired product, or no active version (a draft or pending version is never evaluated) | `409 POLICY_NOT_ACTIVE` |
+| Active policy cannot be evaluated | `500 POLICY_CONFIGURATION_ERROR` |
+| Technical failure while evaluating | `500 EVALUATION_ERROR` |
+
+Error responses never carry a decision. The cause of a `500` is in `error.log`, not in the response.
+
+**Not stored yet.** The decision has no `decision_id`, nothing is written, and `Idempotency-Key` is not read (RF-015). Evaluation is deterministic, so the same request gives the same response while the same version is active.
+
+**How a policy becomes active.** Publishing needs the approval workflow (M4). Until then, `./artisan db:seed` runs `DemoActivePolicySeeder` in local and testing environments: it submits the complete demo draft through the normal policy service and binds it as active in one transaction. See ADR 0015. A database whose first demo draft is not complete (an old `rf-dev`) is left alone, and `evaluate` answers `409` there.
 
 ## Worked runs
 

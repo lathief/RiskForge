@@ -1,6 +1,6 @@
 # Test coverage
 
-Statement coverage of the Go code, measured at RF-013 (branch `feature/RF-013-scorecard-matrix-evaluator`, which contains RF-011 and RF-012; they were not measured on their own). The numbers come from `./scripts/coverage.sh`, which runs the tests in a disposable `rf-test-*` Compose project with a real PostgreSQL and removes the project afterwards. There is no coverage gate yet; CI with a threshold arrives with RF-025. Re-measure after each ticket and update this file. Do not run it while another stack (for example `rf-dev`) is writing to `storage/logs` (see `AGENT_RUNBOOK.md`).
+Statement coverage of the Go code, measured at RF-014 (branch `feature/RF-014-decision-api`, which contains RF-011 to RF-013; those were measured together at RF-013 only). The numbers come from `./scripts/coverage.sh`, which runs the tests in a disposable `rf-test-*` Compose project with a real PostgreSQL and removes the project afterwards. There is no coverage gate yet; CI with a threshold arrives with RF-025. Re-measure after each ticket and update this file. Do not run it while another stack (for example `rf-dev`) is writing to `storage/logs` (see `AGENT_RUNBOOK.md`).
 
 ```sh
 ./scripts/coverage.sh                 # prints the two tables below as Markdown (project rf-test-coverage)
@@ -22,65 +22,68 @@ Both count every statement in `app/`, including packages that have no unit test 
 | RF-009 | 55.0% | 90.1% | Decision matrix validation and lookup, service, repository, endpoints |
 | RF-010 | 55.7% | 90.1% | Test cases, full policy validation, validate endpoint |
 | RF-013 | 61.0% | 90.7% | Feature builder (RF-011), RAC evaluator (RF-012), scorecard and matrix evaluator, golden test execution (RF-013) |
+| RF-014 | 60.0% | 90.3% | Decision API: use case, policy resolver, controller, active binding, snapshot parsing, activation seeder |
 
 ## Unit tests
-
 | Package | Statements | Covered | Coverage |
 |---|---:|---:|---:|
 | `app/http/auth` | 19 | 0 | 0.0% |
-| `app/http/controllers` | 672 | 0 | 0.0% |
+| `app/http/controllers` | 726 | 0 | 0.0% |
 | `app/http/middleware` | 103 | 13 | 12.6% |
 | `app/http/responses` | 11 | 0 | 0.0% |
 | `app/modules/catalog/application` | 31 | 29 | 93.5% |
 | `app/modules/catalog/domain` | 50 | 46 | 92.0% |
 | `app/modules/catalog/infrastructure` | 39 | 0 | 0.0% |
+| `app/modules/decision/application` | 30 | 29 | 96.7% |
+| `app/modules/decision/infrastructure` | 57 | 0 | 0.0% |
 | `app/modules/dictionary/application` | 69 | 61 | 88.4% |
 | `app/modules/dictionary/domain` | 291 | 284 | 97.6% |
 | `app/modules/dictionary/infrastructure` | 65 | 0 | 0.0% |
 | `app/modules/identity/application` | 29 | 29 | 100.0% |
 | `app/modules/identity/domain` | 30 | 22 | 73.3% |
 | `app/modules/identity/infrastructure` | 43 | 18 | 41.9% |
-| `app/modules/policy/application` | 357 | 316 | 88.5% |
-| `app/modules/policy/domain` | 772 | 753 | 97.5% |
-| `app/modules/policy/infrastructure` | 244 | 0 | 0.0% |
+| `app/modules/policy/application` | 368 | 327 | 88.9% |
+| `app/modules/policy/domain` | 821 | 802 | 97.7% |
+| `app/modules/policy/infrastructure` | 250 | 0 | 0.0% |
 | `app/modules/ruleengine` | 325 | 296 | 91.1% |
 | `app/platform/database` | 51 | 35 | 68.6% |
 | `app/platform/logging` | 188 | 156 | 83.0% |
 | `app/support` | 23 | 23 | 100.0% |
-| **total** | **3412** | **2081** | **61.0%** |
+| **total** | **3619** | **2170** | **60.0%** |
 
-The business-rule packages (`*/domain`, `*/application`, `ruleengine`) are the ones unit tests are meant to cover, and they sit between 88% and 100% apart from `identity/domain` (73.3%); `ruleengine` is at 91.1%. The 61.0% total is low because the packages that talk to HTTP or SQL (`controllers`, `infrastructure`, `responses`, `auth`) have no unit tests by design; they are covered by the integration suites below. A low unit total is therefore expected, and the per-package lines are the useful part.
+The business-rule packages (`*/domain`, `*/application`, `ruleengine`) are the ones unit tests are meant to cover, and they sit between 88% and 100% apart from `identity/domain` (73.3%); `ruleengine` is at 91.1%. The 60.0% total is low because the packages that talk to HTTP or SQL (`controllers`, `infrastructure`, `responses`, `auth`) have no unit tests by design; they are covered by the integration suites below. A low unit total is therefore expected, and the per-package lines are the useful part.
 
 ## Unit tests and integration tests together
-
 | Package | Statements | Covered | Coverage |
 |---|---:|---:|---:|
 | `app/http/auth` | 19 | 17 | 89.5% |
-| `app/http/controllers` | 672 | 641 | 95.4% |
+| `app/http/controllers` | 726 | 689 | 94.9% |
 | `app/http/middleware` | 103 | 93 | 90.3% |
 | `app/http/responses` | 11 | 11 | 100.0% |
 | `app/modules/catalog/application` | 31 | 29 | 93.5% |
 | `app/modules/catalog/domain` | 50 | 50 | 100.0% |
 | `app/modules/catalog/infrastructure` | 39 | 33 | 84.6% |
+| `app/modules/decision/application` | 30 | 29 | 96.7% |
+| `app/modules/decision/infrastructure` | 57 | 48 | 84.2% |
 | `app/modules/dictionary/application` | 69 | 61 | 88.4% |
 | `app/modules/dictionary/domain` | 291 | 288 | 99.0% |
 | `app/modules/dictionary/infrastructure` | 65 | 55 | 84.6% |
 | `app/modules/identity/application` | 29 | 29 | 100.0% |
 | `app/modules/identity/domain` | 30 | 30 | 100.0% |
 | `app/modules/identity/infrastructure` | 43 | 39 | 90.7% |
-| `app/modules/policy/application` | 357 | 317 | 88.8% |
-| `app/modules/policy/domain` | 772 | 757 | 98.1% |
-| `app/modules/policy/infrastructure` | 244 | 207 | 84.8% |
+| `app/modules/policy/application` | 368 | 328 | 89.1% |
+| `app/modules/policy/domain` | 821 | 806 | 98.2% |
+| `app/modules/policy/infrastructure` | 250 | 212 | 84.8% |
 | `app/modules/ruleengine` | 325 | 296 | 91.1% |
 | `app/platform/database` | 51 | 47 | 92.2% |
 | `app/platform/logging` | 188 | 172 | 91.5% |
 | `app/support` | 23 | 23 | 100.0% |
-| `database/migrations` | 108 | 10 | 9.3% |
-| `database/seeders` | 106 | 77 | 72.6% |
-| `routes` | 65 | 65 | 100.0% |
-| **total** | **3691** | **3347** | **90.7%** |
+| `database/migrations` | 117 | 11 | 9.4% |
+| `database/seeders` | 150 | 108 | 72.0% |
+| `routes` | 70 | 70 | 100.0% |
+| **total** | **3956** | **3574** | **90.3%** |
 
-`database/migrations` is low because the migration `Up()` bodies are SQL strings run once by `./artisan migrate`, which the suites call in a separate step; the effect of the migrations is verified by the constraint and trigger tests instead (for example `TestDatabaseRejectsInvalidRowsDirectly`, `TestDatabaseFreezesSubmittedVersionsEvenWhenTheServiceIsBypassed`, `TestDatabaseFreezesRulesOfSubmittedVersions`, `TestDatabaseFreezesTheScorecardOfSubmittedVersions`, `TestDatabaseFreezesTheMatrixOfSubmittedVersions`, and `TestDatabaseTestCaseConstraints`). `database/seeders` is below 100% because the `Run()` wrappers that check `APP_ENV` are not invoked by tests, which call the `Seed...` functions directly.
+`decision/infrastructure` shows 0.0% in the unit table because its tests (`database/seeders/demo_decision_test.go`) need the demo seed data and sit outside `go test ./app/...`; the second table counts them (84.2%). `database/migrations` is low because the migration `Up()` bodies are SQL strings run once by `./artisan migrate`, which the suites call in a separate step; the effect of the migrations is verified by the constraint and trigger tests instead (for example `TestDatabaseRejectsInvalidRowsDirectly`, `TestDatabaseFreezesSubmittedVersionsEvenWhenTheServiceIsBypassed`, `TestDatabaseFreezesRulesOfSubmittedVersions`, `TestDatabaseFreezesTheScorecardOfSubmittedVersions`, `TestDatabaseFreezesTheMatrixOfSubmittedVersions`, and `TestDatabaseTestCaseConstraints`). `database/seeders` is below 100% because the `Run()` wrappers that check `APP_ENV` are not invoked by tests, which call the `Seed...` functions directly.
 
 ## Where the unit tests stop
 

@@ -169,6 +169,15 @@ Run on branch `feature/RF-013-scorecard-matrix-evaluator` (RF-011 and RF-012 bel
 - Two existing feature tests needed a change because submit now executes the cases: `TestSubmitRefusesAMatrixThatNoLongerCoversTheScorecard` (the filler case written before the matrix was fixed is now refreshed by `complete()`) and `TestSubmitRacingWithAReplace...` (the replacing rule keeps the reason code and action of the old one). Both were failures of the test fixtures, not of the product, and both pass.
 - Not covered: the Decision API does not exist yet (RF-014), so nothing evaluates an application over HTTP; the evaluator is exercised through `validate`, submit, and unit tests. Not run for this ticket: repeated `-count=3` runs and `migrate:reset` (no migration changed).
 
+## M3: RF-014 (Decision API)
+Run on branch `feature/RF-014-decision-api` (RF-011 to RF-013 below it), in the disposable project `rf-test-rf014` (PostgreSQL 18), plus `rf-dev` for the Postman run.
+- `go vet ./...` clean; `go test -race -count=1 ./...` passes for every package, including `tests/feature` with the contract suites at 31 operations and the new decision tests (authorization per role, the full example trace, the other worked runs, input errors, malformed envelopes, 409 and 404 cases, repeatability, binding constraints). The new `migrate` step (`active_policy_bindings`) ran on a fresh database.
+- Unit tests of the resolver and the whole evaluation path run in `database/seeders` against the real demo policy frozen into a snapshot (`demo_decision_test.go`), including 30 concurrent goroutines under `-race`.
+- `redocly lint` reports OpenAPI 0.12.0 valid. `./scripts/generate-postman.sh` produced 31 requests and `--check` reports the committed collection up to date.
+- Live on `rf-dev` after `migrate` and `db:seed`: `./scripts/smoke-postman.sh` reported 31/31 requests as expected (the evaluate request answers 403 for the read-only auditor). A real `evaluate` call as `demo_loan_application` on `rf-dev` answered `409 POLICY_NOT_ACTIVE`, as expected there (its version 1 is an empty draft, so the activation seeder skipped it with a warning).
+- Real responses of `evaluate` (`APPROVE` 685.00, `REFER`, hard `REJECT`, and the 422 envelope) were captured from a disposable stack and are in `docs/API_EXAMPLES.md`.
+- Not covered: persistence and idempotency (RF-015); the policy cache and any latency or throughput figure (RF-016, RF-024: nothing was measured); per-product authorization of API consumers; repeated `-count=3` runs and `migrate:reset` of the new migration were not run.
+
 ## Not verified yet
 
 | Item | Why | Planned in |

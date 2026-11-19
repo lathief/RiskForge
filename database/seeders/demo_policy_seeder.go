@@ -23,7 +23,7 @@ const DemoPolicyScope = domain.DefaultScope
 // DemoPolicySeeder opens the demo policy for KTA_DEMO with an empty first draft. It only
 // runs in local/testing, needs the demo product and dictionary to exist, and never modifies
 // an existing policy. The draft is not submitted or activated: publishing goes through
-// approval (M4), and seeding creates no bypass.
+// approval (M4); the development shortcut that activates it is DemoActivePolicySeeder.
 type DemoPolicySeeder struct{}
 
 func (s *DemoPolicySeeder) Signature() string {

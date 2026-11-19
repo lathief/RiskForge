@@ -41,3 +41,19 @@ Things a reader of the M3 code should know that are not obvious from the design.
 | Versions frozen before RF-013 are not re-evaluated | By design | Their snapshots do not change. `validate` on such a version now executes its cases and may report `valid: false` if a stored case never matched. |
 | Snapshot does not record the evaluator behaviour | Accepted | `EvaluatorVersion` stays `"1"`. If the semantics of evaluation change in a way that alters decisions, raise it and add a snapshot format, as noted for the formula version. |
 | Test helpers changed | Test-only | `complete()` (HTTP and application tests) writes a `FILLER_CASE` that records the policy's own actual result and refreshes it when only the filler exists. `TestSubmitRacingWithAReplace...` now replaces the rule with one that has the same reason code and action, because a different reason code would make the filler case fail depending on which call wins. |
+
+## Decision API (RF-014)
+| Item | Status | Detail |
+|---|---|---|
+| API change: one new operation, `POST /decisions/evaluate` | By design | OpenAPI 0.12.0, 31 operations, Postman regenerated (`--check` passes), smoke 31/31 (the auditor gets 403 on the evaluate request, like every write). |
+| Nothing is stored; no `decision_id`, no `GET /decisions/{id}`, `Idempotency-Key` is not read | Deferred (RF-015) | OpenAPI says so. Evaluation is deterministic, so the same request gives the same response while the same version is active; that is not an idempotency guarantee. |
+| Active versions exist only through `DemoActivePolicySeeder` | Deviation, documented | `SYSTEM_DESIGN.md` section 17 allows a development shortcut before the approval workflow. It runs only in local and testing, goes through `PolicyService.Submit`, and binds in one transaction. There is no endpoint or use case that activates a policy. Real publishing is RF-018 to RF-020. |
+| A long-lived `rf-dev` has no active policy | Documented | Its `KTA_DEMO` version 1 is an empty draft, so the seeder logs a warning and skips it, and `evaluate` answers `409 POLICY_NOT_ACTIVE`. Reset the database (`migrate:reset`, `migrate`, `db:seed`) or use a fresh stack to get one. The Postman smoke does not depend on it. |
+| The policy is parsed and compiled on every request | Accepted (RF-016) | The version-keyed cache is RF-016. No performance claim is made; nothing was measured. |
+| Any API consumer can evaluate any product | Needs a decision | `SYSTEM_DESIGN.md` section 4 says "for authorized products". That needs `api_clients` with a product list, which do not exist. The permission `decision:evaluate` is the only check. |
+| Matrix rows have no reason code | Still open | A matrix `REJECT` or `REFER` has empty `reason_codes`; the `matrix` object and grade explain it. Raise it again when RF-015 fixes the stored result. |
+| Unknown `applicant` keys are refused | By design | A typo in an optional variable would otherwise become `null` silently and change the score. This differs from `ValidateInput`, which ignores unknown keys. |
+| Response differs from the example in section 13.3 | Deviation, documented | `policy_version` is an object, `bin` is a label with `bin_order`, `derived_features`, `refer_flag`, `base_score`, `rac_not_evaluated`, and the rule inputs are added, and `decision_id` and `execution_ms` are absent (the second would make replays differ). |
+| `base_score` is returned even when RAC rejected before scoring | By design | It is a property of the policy, not of the run; `total_score`, `risk_grade`, and `matrix` are `null`. |
+| Concurrency | Tested | The resolved policy is immutable; `TestTheResolvedPolicyIsSafeForConcurrentUse` runs 30 goroutines under `-race`. |
+| A snapshot with an unknown format or evaluator version | By design | `ErrUnsupportedSnapshot` is a policy configuration error (500), never evaluated on a guess. |

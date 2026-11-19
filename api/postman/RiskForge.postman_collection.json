@@ -16158,6 +16158,667 @@
           }
         }
       ]
+    },
+    {
+      "name": "Decisions",
+      "description": "Credit decisions against the active policy (RF-014).",
+      "item": [
+        {
+          "name": "Evaluate a loan application",
+          "request": {
+            "name": "Evaluate a loan application",
+            "description": {
+              "content": "Runs a credit decision for one application against the **active policy** of its product\n(SYSTEM_DESIGN.md 10, 13.2 to 13.4). The active version is resolved once at the start of\nthe request, so a publish during the request cannot change the version it uses, and the\nresponse names that version (`policy_version`).\n\nPipeline: the applicant data is validated and normalized against the data dictionary the\npolicy was written for; the derived features are built (`dsr_ratio` and\n`net_disposable_income`, exact, with the formula version); the RAC rules run in order;\nunless a hard rule rejected the application, the scorecard selects one bin per\ncharacteristic and adds its points, the decision matrix maps the total to a grade and a\ndecision, and the precedence hard RAC `REJECT` > matrix `REJECT` > soft RAC `REFER` >\nmatrix `APPROVE`/`REFER` gives `final_decision`.\n\n**Applicant data.** Integers are JSON numbers, decimals (money, ratios) are **strings**\nsuch as `\"12000000.00\"`; a JSON number for money is refused (`invalid_type`) instead of\nbeing rounded. A missing or `null` required value, a wrong type, a value outside the\ndictionary range, too many decimals, a key that is not a dictionary variable\n(`unknown_variable`), and a derived value sent by the caller (`derived_not_allowed`) are\nall `422 INPUT_VALIDATION_ERROR`, listed together with paths such as\n`applicant.monthly_income`. Invalid data is an error, never a `REJECT`.\n\n**Errors are not decisions.** `409 POLICY_NOT_ACTIVE` when the product is retired or has\nno active policy (a draft or a pending version is never evaluated); `404\nPRODUCT_NOT_FOUND`; `500 POLICY_CONFIGURATION_ERROR` when the active policy cannot be\nevaluated; `500 EVALUATION_ERROR` for a technical failure while evaluating. None of them\ncarries a decision, and the cause is logged server-side only.\n\n**Not stored yet.** The decision is not persisted and has no `decision_id`, and the\n`Idempotency-Key` header is not read: persistence and idempotency arrive with RF-015\n(`GET /decisions/{decision_id}` too). Meanwhile the same request gives the same response\nas long as the same version is active. Any `API_CONSUMER` may evaluate any product;\nper-product authorization needs API clients, which do not exist yet.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "decisions",
+                "evaluate"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [],
+              "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The policy was evaluated and gave a business decision (`APPROVE`, `REFER`, or `REJECT`).",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"policy_version\": {\n    \"id\": \"3f0c1d2e-4a5b-4c6d-8e7f-9a0b1c2d3e4f\",\n    \"number\": 1,\n    \"checksum\": \"9d2f1c0b8a7e6d5c4b3a29181716151413121110fedcba9876543210abcdef01\"\n  },\n  \"status\": \"COMPLETED\",\n  \"final_decision\": \"APPROVE\",\n  \"risk_grade\": \"A\",\n  \"total_score\": \"685.00\",\n  \"reason_codes\": [],\n  \"refer_flag\": false,\n  \"derived_features\": [\n    {\n      \"code\": \"dsr_ratio\",\n      \"value\": \"0.208333\",\n      \"exact\": \"5/24\",\n      \"unit\": \"ratio\",\n      \"formula_version\": 1,\n      \"expression\": \"existing_installment / monthly_income\"\n    },\n    {\n      \"code\": \"net_disposable_income\",\n      \"value\": \"9500000.00\",\n      \"exact\": \"9500000\",\n      \"unit\": \"IDR\",\n      \"formula_version\": 1,\n      \"expression\": \"monthly_income - existing_installment\"\n    }\n  ],\n  \"rac_results\": [\n    {\n      \"order\": 1,\n      \"rule_code\": \"RAC_MIN_AGE\",\n      \"reason_code\": \"AGE_BELOW_MINIMUM\",\n      \"action\": \"REJECT\",\n      \"passed\": true,\n      \"inputs\": [\n        {\n          \"variable\": \"age_years\",\n          \"value\": \"29\"\n        }\n      ]\n    },\n    {\n      \"order\": 2,\n      \"rule_code\": \"RAC_BLACKLIST\",\n      \"reason_code\": \"BLACKLISTED\",\n      \"action\": \"REJECT\",\n      \"passed\": true,\n      \"inputs\": [\n        {\n          \"variable\": \"is_blacklisted\",\n          \"value\": \"false\"\n        }\n      ]\n    },\n    {\n      \"order\": 3,\n      \"rule_code\": \"RAC_SLIK\",\n      \"reason_code\": \"SLIK_REVIEW_REQUIRED\",\n      \"action\": \"REFER\",\n      \"passed\": true,\n      \"inputs\": [\n        {\n          \"variable\": \"slik_max_kol\",\n          \"value\": \"1\"\n        }\n      ]\n    }\n  ],\n  \"rac_not_evaluated\": [],\n  \"base_score\": \"350.00\",\n  \"score_breakdown\": [\n    {\n      \"characteristic\": \"age_group\",\n      \"variable\": \"age_years\",\n      \"value\": \"29\",\n      \"missing\": false,\n      \"bin_order\": 2,\n      \"bin\": \"25 to 45\",\n      \"points\": \"85.00\"\n    },\n    {\n      \"characteristic\": \"dsr_band\",\n      \"variable\": \"dsr_ratio\",\n      \"value\": \"5/24\",\n      \"missing\": false,\n      \"bin_order\": 1,\n      \"bin\": \"below 0.30\",\n      \"points\": \"150.00\"\n    },\n    {\n      \"characteristic\": \"employment_tenure\",\n      \"variable\": \"employment_tenure_months\",\n      \"value\": \"36\",\n      \"missing\": false,\n      \"bin_order\": 2,\n      \"bin\": \"24 months or more\",\n      \"points\": \"100.00\"\n    }\n  ],\n  \"matrix\": {\n    \"row_order\": 3,\n    \"label\": \"650 to 900\",\n    \"decision\": \"APPROVE\"\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The product code is unknown.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"PRODUCT_NOT_FOUND\",\n    \"message\": \"product not found\"\n  },\n  \"request_id\": \"7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The product is retired or has no active policy version.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_NOT_ACTIVE\",\n    \"message\": \"the product has no active policy\"\n  },\n  \"request_id\": \"8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request body exceeds 64 KiB. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Entity Too Large",
+              "code": 413,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Entity Too Large",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The request or the applicant data is invalid. Never a rejection of the application.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INPUT_VALIDATION_ERROR\",\n    \"message\": \"the application data is invalid\",\n    \"details\": [\n      {\n        \"field\": \"applicant.monthly_income\",\n        \"issue\": \"below_min_value\"\n      }\n    ]\n  },\n  \"request_id\": \"9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "A technical failure. `INTERNAL_ERROR`, `POLICY_CONFIGURATION_ERROR` (the active policy\ncannot be evaluated), or `EVALUATION_ERROR` (a failure while evaluating). No decision\nwas made, and in particular the application was not rejected.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"EVALUATION_ERROR\",\n    \"message\": \"the application could not be evaluated; no decision was made\"\n  },\n  \"request_id\": \"0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        }
+      ]
     }
   ],
   "auth": {
@@ -16182,7 +16843,7 @@
     "name": "RiskForge API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": {
-      "content": "Contract for the endpoints implemented so far (RF-001 to RF-013, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; the role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
+      "content": "Contract for the endpoints implemented so far (RF-001 to RF-014, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; the role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
       "type": "text/plain"
     },
     "_postman_id": "4b6e2f0a-9c3d-4e51-8a7b-1f2e3d4c5b6a"
