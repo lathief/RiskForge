@@ -21,7 +21,7 @@ Things a reader of the M2 code (RF-005 to RF-010) should know that are not obvio
 | Item | Status | Detail |
 |---|---|---|
 | No inactive or deprecated state for a variable | Deferred | Variables are append-only and never deleted, because frozen policies refer to them. Retiring a variable (so new drafts cannot use it) is not modelled yet; add a status with its own version row when a ticket needs it. |
-| Formulas of `DERIVED` variables | Deferred (RF-011) | `dsr_ratio` and `net_disposable_income` have a type, unit, and scale, but no formula. Test cases may not supply them (`derived_not_allowed`), and RAC expressions and scorecard characteristics may use them because their type is known. |
+| Formulas of `DERIVED` variables | Fixed (RF-011; see [M3_NOTES.md](M3_NOTES.md)) | At RF-005 `dsr_ratio` and `net_disposable_income` had a type, unit, and scale, but no formula; the feature builder now computes them. Test cases may not supply them (`derived_not_allowed`), and RAC expressions and scorecard characteristics may use them because their type is known. |
 
 ## Policy package and versions (RF-006)
 | Item | Status | Detail |

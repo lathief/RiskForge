@@ -32,8 +32,8 @@ var DemoVariables = []domain.NewInput{
 		Description: "Simulated worst collectability code (1 to 5). No connection to SLIK."},
 	{Code: "is_blacklisted", Type: "BOOLEAN",
 		Description: "Synthetic blacklist flag supplied by the Loan Application."},
-	// Derived variables are computed by the feature builder (RF-011); only their contract is
-	// defined here. Ratios are 0..1, not percentages, and rounding happens on display only.
+	// Derived variables are computed by domain.BuildFeatures (RF-011), whose formulas are keyed
+	// by these codes; only their contract (type, unit, scale) is defined here. Ratios are 0..1, not percentages, and rounding happens on display only.
 	{Code: "dsr_ratio", Origin: "DERIVED", Type: "DECIMAL", Unit: "ratio", Scale: ptr(6), MinValue: ptr("0"),
 		Description: "existing_installment / monthly_income (simplified demo formula, not a banking standard)."},
 	{Code: "net_disposable_income", Origin: "DERIVED", Type: "DECIMAL", Unit: "IDR",

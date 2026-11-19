@@ -591,7 +591,7 @@ Gunakan **satu database PostgreSQL** dengan schema logis melalui driver resmi `g
 |---|---|---|
 | `identity` | `users`, `roles`, `user_roles`, `api_clients` | Credential/token metadata tidak diekspos ke consumer. |
 | `catalog` | `products` | Unique product code dan active state. |
-| `dictionary` | `schema_state`, `variables`, `variable_versions` (RF-005); `feature_definitions` (RF-011) | Type, nullability, scale, unit, valid range; append-only versions dengan schema version global (8.1). |
+| `dictionary` | `schema_state`, `variables`, `variable_versions` (RF-005). Rumus fitur (RF-011) ada di kode, bukan tabel: lihat 8.2 | Type, nullability, scale, unit, valid range; append-only versions dengan schema version global (8.1). |
 | `policy` | `policy_packages`, `policy_versions` (RF-006), `rac_rules` (RF-007), `scorecards`, `scorecard_characteristics`, `scorecard_bins` (RF-008), `decision_matrix_rows` (RF-009), `test_cases` (RF-010), `active_policy_bindings` | Relational constraints & version references. |
 | `approval` | `workflow_definitions`, `workflow_versions`, `workflow_steps`, `requests`, `actions` | Role, quorum, frozen workflow snapshot. |
 | `decision` | `requests`, `runs`, `rule_traces` | Idempotency, policy ref, result, score breakdown, execution status. |
@@ -684,7 +684,34 @@ Status: terimplementasi pada branch `feature/RF-005-data-dictionary`. Keputusan 
 
 **Required / null.** `required=true` berarti kunci harus ada dan bukan `null`; kunci hilang dan `null` sama-sama `required` (Bagian 8, kontrak 1). `nullable=true` hanya untuk variabel opsional yang boleh bernilai `null` secara eksplisit. Fungsi murni `domain.ValidateInput(dictionary, input)` menerapkan kontrak ini (`required`, `null_not_allowed`, `invalid_type`, `exceeds_scale`, `below_min_value`, `above_max_value`) dan akan dipakai feature builder (RF-011) serta Decision API (RF-014); pelanggaran selalu `INPUT_VALIDATION_ERROR`, bukan `REJECT`. Fungsi ini belum terhubung ke endpoint HTTP mana pun.
 
-**Batas.** Rentang adalah *sanity check* data (mis. `age_years` 0..120), bukan kebijakan kredit: batas kelayakan seperti usia minimum tetap berada di RAC (RF-007) agar pelanggarannya menjadi keputusan `REJECT`, bukan error input. Rumus variabel `DERIVED` (`dsr_ratio`, `net_disposable_income`) didefinisikan di RF-011 (`feature_definitions`); RF-005 hanya mendefinisikan kontrak tipe, unit, dan skala-nya. Setiap versi mencatat `created_by` (user) untuk audit; tabel `audit.events` baru hadir di RF-022.
+**Batas.** Rentang adalah *sanity check* data (mis. `age_years` 0..120), bukan kebijakan kredit: batas kelayakan seperti usia minimum tetap berada di RAC (RF-007) agar pelanggarannya menjadi keputusan `REJECT`, bukan error input. Rumus variabel `DERIVED` (`dsr_ratio`, `net_disposable_income`) didefinisikan di RF-011 (Bagian 8.2); RF-005 hanya mendefinisikan kontrak tipe, unit, dan skala-nya. Setiap versi mencatat `created_by` (user) untuk audit; tabel `audit.events` baru hadir di RF-022.
+
+### 8.2 Feature builder (RF-011)
+
+Status: terimplementasi pada branch `feature/RF-011-feature-builder`, dari `main`. Keputusan lengkap: `docs/adr/0012-feature-builder.md`.
+
+**Fungsi.** `domain.BuildFeatures(dictionary, input)` (`app/modules/dictionary/domain/feature.go`) memvalidasi input applicant lalu menghitung setiap variabel `DERIVED` pada dictionary, terurut menurut `code`. Paket murni: tanpa Goravel, HTTP, SQL, jam, atau float. Setiap nilai adalah `big.Rat` eksak; pembulatan hanya ada di `FeatureValue.Display()` (setengah dibulatkan menjauhi nol, ke `scale` dictionary), sehingga evaluator membandingkan nilai eksak dan batas `0.30` pada scorecard tidak pernah salah karena pembulatan.
+
+| Rumus (versi 1) | Definisi | Prasyarat input |
+|---|---|---|
+| `dsr_ratio` | `existing_installment / monthly_income` (rasio 0..tak hingga, bukan persen) | `monthly_income > 0`, `existing_installment >= 0` |
+| `net_disposable_income` | `monthly_income - existing_installment` (dapat negatif) | sama |
+
+**Rumus ada di kode, bukan di tabel.** Rumus adalah logika yang dieksekusi dan diuji, bukan konfigurasi policy; satu-satunya cara mengubahnya adalah menaikkan `Version` rumus. Setiap `FeatureValue` membawa `FormulaVersion`, `Expression`, `Unit`, nilai eksak (`Exact()`, mis. `5/24`), dan nilai tampilan (`Display()`, mis. `0.208333`) agar trace (Bagian 8, kontrak 5) dapat diputar ulang. Tabel `dictionary.feature_definitions` yang semula disebut di Bagian 7 tidak dibuat: tidak ada pembaca atau penulisnya, dan menyimpan rumus di database membuka jalan ke ekspresi bebas yang dilarang kontrak 4. Menyimpan versi rumus di snapshot policy ditunda sampai ada konsumennya (RF-014/RF-015).
+
+**Kesalahan.**
+
+| Kondisi | Hasil |
+|---|---|
+| Field wajib hilang/`null`/tipe salah, di luar rentang, melebihi `scale` | `*InputError` dengan isu `ValidateInput` (`required`, `invalid_type`, `exceeds_scale`, `below_min_value`, ...). Nanti dipetakan ke `INPUT_VALIDATION_ERROR`. |
+| `monthly_income <= 0` | `*InputError`, `must_be_positive`. Tidak pernah ada pembagian dengan nol, walaupun dictionary tidak punya `min_value`. |
+| `existing_installment < 0` | `*InputError`, `must_not_be_negative` |
+| Applicant mengirim nilai variabel `DERIVED` | `*InputError`, `derived_not_allowed` (sama dengan test case RF-010); pemanggil tidak boleh memilih rasionya sendiri |
+| Variabel `DERIVED` tanpa rumus, input rumus tidak ada/turunan/non-numerik/tidak wajib, atau tipe derived bukan `DECIMAL` | error yang membungkus `ErrFeatureConfiguration`, diperiksa lebih dulu daripada input. Nanti dipetakan ke `POLICY_CONFIGURATION_ERROR`; bukan kesalahan pemanggil dan **bukan** `REJECT`. |
+
+Semua masalah input dilaporkan sekaligus, terurut menurut nama field. Kunci input yang tidak dikenal tetap diabaikan di sini, seperti pada `ValidateInput`.
+
+**Belum ada (disengaja).** Pemanggilan dari evaluator RAC dan scorecard (RF-012, RF-013), penulisan nilai derived ke trace dan ke `decision_runs` (RF-015), pemetaan error ke respons HTTP (RF-014), dan penolakan membuat variabel `DERIVED` tanpa rumus di `POST /dictionary/variables` (lihat `docs/M3_NOTES.md`). RF-011 tidak menambah endpoint, sehingga OpenAPI dan Postman Collection tidak berubah.
 
 ---
 
@@ -1374,7 +1401,7 @@ Review independen kedua atas `fix/M1-hardening` (tanpa temuan severity high) men
 
 ### M3 — Decision Engine
 
-- [ ] **RF-011 Feature builder.** DSR + disposable income, invalid input handling, deterministic decimal math.
+- [x] **RF-011 Feature builder.** DSR + disposable income, invalid input handling, deterministic decimal math. **Selesai pada branch `feature/RF-011-feature-builder`** (dari `main`, belum di-merge): `domain.BuildFeatures` di `app/modules/dictionary/domain/feature.go` (paket murni, `big.Rat` eksak, tanpa float), dua rumus berversi, validasi input (`must_be_positive`, `must_not_be_negative`, `derived_not_allowed`), `ErrFeatureConfiguration` untuk dictionary yang tidak dapat dihitung. Tidak ada endpoint HTTP baru, jadi OpenAPI (30 operasi) dan Postman tidak berubah. Bagian 8.2, ADR 0012, `docs/M3_NOTES.md`.
 - [ ] **RF-012 Pure RAC evaluator.** Hard reject, refer, reason codes, rule traces, unit tests.
 - [ ] **RF-013 Scorecard + matrix evaluator.** Bin matching, score aggregation, matrix lookup, precedence rules.
 - [ ] **RF-014 Goravel/Fiber Decision API.** Route/controller Goravel + official Fiber driver, auth API consumer, active version resolution, evaluate, error mapping, **OpenAPI 3.1 + Swagger UI + generated Postman request**; domain bebas framework.
@@ -1647,4 +1674,4 @@ Setiap ADR mencatat **context, decision, alternatives, consequences, date**.
 - [ ] Agent dapat menjalankan stack dari Compose `api + db`, menguji dengan `rf-test-*` terisolasi, dan membersihkan test project tanpa menghapus volume development.
 - [ ] Tidak ada data pribadi sesungguhnya, keys, atau credentials di repo.
 
-**Status kini (diperbarui 25 November 2026): M2 (RF-005 sampai RF-010) selesai. Setiap tiket ada di branch-nya sendiri (`feature/RF-005-data-dictionary` sampai `feature/RF-010-full-policy-validation`, bertumpuk), dan semuanya tergabung di branch `feature/M2-policy-configuration`, yang divalidasi sebagai satu kesatuan (`docs/VERIFICATION.md`); belum di-merge ke `main`. Batasan dan penyimpangan M2 yang diketahui: `docs/M2_NOTES.md`. Langkah berikutnya: M3, mulai `RF-011 Feature builder`.** Riwayat status sebelumnya: RF-005..RF-009 selesai per branch (24 November 2026). M1/RF-001..RF-004 selesai di `main`. M1 hardening (17.1), LOG-001 structured logs (15.4), dan DX-001 Swagger UI + generated Postman Collection (5.6) selesai di branch `fix/M1-hardening`, bersama DOC-001 (guide di `docs/`) dan perbaikan review kedua serta ketiga (17.2); menunggu merge ke `main`. Langkah berikutnya: `RF-005 Data Dictionary`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.
+**Status kini (diperbarui 25 November 2026): M2 (RF-005 sampai RF-010) selesai. Setiap tiket ada di branch-nya sendiri (`feature/RF-005-data-dictionary` sampai `feature/RF-010-full-policy-validation`, bertumpuk), dan semuanya tergabung di branch `feature/M2-policy-configuration`, yang divalidasi sebagai satu kesatuan (`docs/VERIFICATION.md`); belum di-merge ke `main`. Batasan dan penyimpangan M2 yang diketahui: `docs/M2_NOTES.md`. Pembaruan M3: RF-011 selesai di `feature/RF-011-feature-builder` (dari `main`); langkah berikutnya `RF-012 Pure RAC evaluator`.** Riwayat status sebelumnya: RF-005..RF-009 selesai per branch (24 November 2026). M1/RF-001..RF-004 selesai di `main`. M1 hardening (17.1), LOG-001 structured logs (15.4), dan DX-001 Swagger UI + generated Postman Collection (5.6) selesai di branch `fix/M1-hardening`, bersama DOC-001 (guide di `docs/`) dan perbaikan review kedua serta ketiga (17.2); menunggu merge ke `main`. Langkah berikutnya: `RF-005 Data Dictionary`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.

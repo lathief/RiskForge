@@ -159,6 +159,13 @@ Di Git Bash Windows, jalankan dengan `MSYS_NO_PATHCONV=1` dan ganti `$PWD` denga
 - Modul lain dibaca lewat port (`ProductLookup`, `DictionaryReader`), bukan lewat tabelnya.
 - Smoke Postman memerlukan stack yang sudah di-seed: `scripts/postman/resolve-ids.js` mengambil id policy pertama untuk variabel `policyId` dan `versionId`.
 
+## Feature builder (RF-011)
+- `domain.BuildFeatures(dictionary, input)` (`app/modules/dictionary/domain/feature.go`) adalah satu-satunya tempat variabel `DERIVED` dihitung. Pakai fungsi ini di evaluator (RF-012, RF-013) dan Decision API (RF-014); jangan menulis ulang rumus atau membagi `big.Rat` di tempat lain.
+- Rumus ada di kode (`Formulas()`), bukan di database atau ekspresi `expr`. Mengubah rumus: ubah fungsi hitungnya, naikkan `Version`, dan tambahkan test. Menambah variabel `DERIVED` baru berarti menambah rumus; tanpa rumus, `BuildFeatures` mengembalikan `ErrFeatureConfiguration`.
+- Jangan memakai `float64` untuk uang atau rasio, dan jangan membulatkan di tengah perhitungan. Bandingkan `FeatureValue.Value` (eksak); `Display()` hanya untuk output.
+- Dua tipe error dengan makna berbeda: `*InputError` (kesalahan pemanggil, `INPUT_VALIDATION_ERROR`) dan `ErrFeatureConfiguration` (`POLICY_CONFIGURATION_ERROR`). Keduanya bukan `REJECT`; cek dengan `errors.As` dan `errors.Is`.
+- RF-011 tidak menambah endpoint, jadi OpenAPI dan Postman tidak berubah. Tiket M3 berikutnya yang menambah endpoint (RF-014) wajib memperbaruinya di tiket yang sama.
+- Batasan dan keputusan terbuka: `docs/M3_NOTES.md`; keputusan: `docs/adr/0012-feature-builder.md`.
 ## Coverage
 `./scripts/coverage.sh [rf-test-<nama>]` mengukur coverage statement (unit saja, lalu unit + integrasi) di project Compose sekali pakai dan mencetak tabel Markdown. Hasilnya dicatat di `docs/coverage.md`; perbarui file itu setelah setiap tiket.
 
