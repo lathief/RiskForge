@@ -1,5 +1,6 @@
-// Package application contains the decision use case (RF-014): evaluate one loan application
-// against the active policy of its product. It depends on ports only; the policy and dictionary
+// Package application contains the decision use cases (RF-014, RF-015): evaluate one loan
+// application against the active policy of its product, store the result once per
+// idempotency key, and read it back. It depends on ports only; the policy and dictionary
 // modules are reached through an adapter in the infrastructure package.
 package application
 
@@ -7,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 )
 
 // DefaultScope is the policy scope the Decision API evaluates. The MVP has one scope per
@@ -23,10 +25,15 @@ var (
 	ErrPolicyConfiguration = errors.New("policy configuration error")
 	// ErrEvaluation: a technical failure while evaluating (500 EVALUATION_ERROR), never a REJECT.
 	ErrEvaluation = errors.New("evaluation error")
+	// ErrIdempotencyConflict: the Idempotency-Key was used before with a different request
+	// (409 IDEMPOTENCY_CONFLICT, SYSTEM_DESIGN.md 13.5).
+	ErrIdempotencyConflict = errors.New("idempotency key reused with a different request")
+	// ErrDecisionNotFound: no such decision, or it belongs to another client (404).
+	ErrDecisionNotFound = errors.New("decision not found")
 )
 
 // Issue is one problem with the request, with a stable code. Field is a request path such as
-// "applicant.monthly_income".
+// "applicant.monthly_income", or a header name.
 type Issue struct {
 	Field   string
 	Issue   string
@@ -54,76 +61,79 @@ type Request struct {
 
 // PolicyRef identifies the policy version a decision was made with, so it can be replayed.
 type PolicyRef struct {
-	VersionID     string
-	VersionNumber int
-	Checksum      string
-	ProductCode   string
-	Scope         string
+	VersionID     string `json:"version_id"`
+	VersionNumber int    `json:"version_number"`
+	Checksum      string `json:"checksum"`
+	ProductCode   string `json:"product_code"`
+	Scope         string `json:"scope"`
 }
 
 // FeatureTrace is one derived value with the formula that produced it.
 type FeatureTrace struct {
-	Code           string
-	Value          string // rounded for display
-	Exact          string // lossless
-	FormulaVersion int
-	Expression     string
-	Unit           string
+	Code           string `json:"code"`
+	Value          string `json:"value"` // rounded for display
+	Exact          string `json:"exact"` // lossless
+	FormulaVersion int    `json:"formula_version"`
+	Expression     string `json:"expression"`
+	Unit           string `json:"unit"`
 }
 
 // FactTrace is one variable a rule used and its value as text.
 type FactTrace struct {
-	Variable string
-	Value    string
+	Variable string `json:"variable"`
+	Value    string `json:"value"`
 }
 
 // RuleTrace is one evaluated RAC rule.
 type RuleTrace struct {
-	Order      int
-	RuleCode   string
-	ReasonCode string
-	Action     string
-	Expression string
-	Passed     bool
-	Inputs     []FactTrace
+	Order      int         `json:"order"`
+	RuleCode   string      `json:"rule_code"`
+	ReasonCode string      `json:"reason_code"`
+	Action     string      `json:"action"`
+	Expression string      `json:"expression"`
+	Passed     bool        `json:"passed"`
+	Inputs     []FactTrace `json:"inputs"`
 }
 
 // ScoreTrace is the contribution of one scorecard characteristic.
 type ScoreTrace struct {
-	Characteristic string
-	Variable       string
-	Value          string
-	Missing        bool
-	BinOrder       int // 0 when Missing
-	BinLabel       string
-	Points         string
+	Characteristic string `json:"characteristic"`
+	Variable       string `json:"variable"`
+	Value          string `json:"value"`
+	Missing        bool   `json:"missing"`
+	BinOrder       int    `json:"bin_order"` // 0 when Missing
+	BinLabel       string `json:"bin_label"`
+	Points         string `json:"points"`
 }
 
 // MatrixTrace is the decision matrix row that contained the total score.
 type MatrixTrace struct {
-	RowOrder int
-	Label    string
-	Decision string // what the matrix said before precedence
+	RowOrder int    `json:"row_order"`
+	Label    string `json:"label"`
+	Decision string `json:"decision"` // what the matrix said before precedence
 }
 
-// Outcome is the business result and its trace, as produced by the policy evaluator.
+// Outcome is the business result and its trace, as produced by the policy evaluator. It is
+// stored as it is (JSON) with the run, so a stored decision never has to be recomputed.
 type Outcome struct {
-	FinalDecision string
-	RiskGrade     string // empty when RAC rejected before scoring
-	Scored        bool
-	BaseScore     string
-	TotalScore    string // empty unless Scored
-	ReferFlag     bool
-	ReasonCodes   []string
-	Features      []FeatureTrace
-	Rules         []RuleTrace
-	NotEvaluated  []string
-	Score         []ScoreTrace
-	Matrix        *MatrixTrace
+	FinalDecision string         `json:"final_decision"`
+	RiskGrade     string         `json:"risk_grade"` // empty when RAC rejected before scoring
+	Scored        bool           `json:"scored"`
+	BaseScore     string         `json:"base_score"`
+	TotalScore    string         `json:"total_score"` // empty unless Scored
+	ReferFlag     bool           `json:"refer_flag"`
+	ReasonCodes   []string       `json:"reason_codes"`
+	Features      []FeatureTrace `json:"features"`
+	Rules         []RuleTrace    `json:"rules"`
+	NotEvaluated  []string       `json:"not_evaluated"`
+	Score         []ScoreTrace   `json:"score"`
+	Matrix        *MatrixTrace   `json:"matrix"`
 }
 
-// Decision is the result of one evaluation.
+// Decision is the result of one evaluation. ID and CreatedAt are set once it is stored.
 type Decision struct {
+	ID            string
+	CreatedAt     time.Time
 	ApplicationID string
 	ProductCode   string
 	Policy        PolicyRef

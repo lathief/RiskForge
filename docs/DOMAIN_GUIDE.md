@@ -26,8 +26,8 @@ RiskForge separates the two:
 | **Golden test case** | An example application stored with the policy and the result it must give: a decision (with optional grade and reason codes) or an input validation error. Required cases gate submit. | Stored and checked against the dictionary, RAC, and matrix (RF-010); executed through the whole policy at validate and submit (RF-013) |
 | **Reason code** | A stable machine-readable code that explains an outcome, such as `AGE_BELOW_MINIMUM`. Messages can change; codes do not. | Planned |
 | **Maker-checker** | The person who submits a policy (maker) can never approve it (checker). | Enforced in the permission matrix today; workflow planned (RF-019) |
-| **Decision run** | One evaluation of one application against one policy version, stored with its input, result, and trace. | Planned (RF-015) |
-| **Idempotency key** | A client-supplied key that makes retries safe: the same key and payload return the same decision instead of evaluating twice. | Planned (RF-015) |
+| **Decision run** | One evaluation of one application against one policy version, stored with its input, result, and trace. | Implemented (RF-015) |
+| **Idempotency key** | A client-supplied key that makes retries safe: the same key and payload return the same decision instead of evaluating twice. | Implemented (RF-015) |
 
 ## How a decision is made (planned flow)
 

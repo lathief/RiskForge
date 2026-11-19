@@ -53,10 +53,17 @@ func applicantOf(t *testing.T, changes ...string) map[string]any {
 
 func evaluateDemo(t *testing.T, applicant map[string]any) (application.Decision, error) {
 	t.Helper()
-	svc := application.NewEvaluationService(infrastructure.NewPolicyResolver(activeDemo(t)))
-	return svc.Evaluate(context.Background(), application.Request{
-		ApplicationID: "LOAN-APP-DEMO-0001", ProductCode: "KTA_DEMO", Applicant: applicant,
-	})
+	// The policy evaluation alone, as the use case calls it inside its transaction. Storage and
+	// idempotency are tested in the application package and over HTTP.
+	policy, err := infrastructure.NewPolicyResolver(activeDemo(t)).ResolveActive(context.Background(), "KTA_DEMO", application.DefaultScope)
+	if err != nil {
+		return application.Decision{}, err
+	}
+	outcome, err := policy.Evaluate(applicant)
+	if err != nil {
+		return application.Decision{}, err
+	}
+	return application.Decision{ApplicationID: "LOAN-APP-DEMO-0001", ProductCode: "KTA_DEMO", Policy: policy.Ref(), Outcome: outcome}, nil
 }
 
 func TestTheExampleApplicantIsApprovedWithAFullTrace(t *testing.T) {

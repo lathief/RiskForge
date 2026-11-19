@@ -88,11 +88,14 @@ func Api() {
 		policyDB,
 	)
 	policyController := controllers.NewPolicyController(policyService)
-	// Decision API (RF-014): reads the active policy through the policy module; the decision
-	// module owns no tables yet (persistence arrives with RF-015).
+	// Decision API (RF-014, RF-015): reads the active policy through the policy module and
+	// stores decisions in the decision schema, one transaction per request.
+	decisionDB := dbManager.WithModule(moduleDecision)
 	decisionController := controllers.NewDecisionController(
-		decisionapp.NewEvaluationService(decisioninfra.NewPolicyResolver(policyService)))
+		decisionapp.NewEvaluationService(decisioninfra.NewPolicyResolver(policyService),
+			decisioninfra.NewDecisionRepository(decisionDB), decisionDB))
 	canEvaluateDecisions := middleware.NewRequirePermission(domain.PermDecisionEval)
+	canReadDecisions := middleware.NewRequirePermission(domain.PermDecisionRead)
 	canReadPolicies := middleware.NewRequirePermission(domain.PermPolicyRead)
 	canWritePolicies := middleware.NewRequirePermission(domain.PermPolicyWrite)
 	canSubmitPolicies := middleware.NewRequirePermission(domain.PermPolicySubmit)
@@ -136,5 +139,6 @@ func Api() {
 		router.Middleware(policy, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/validate", policyController.ValidateVersion)
 		router.Middleware(policy, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/submit", policyController.SubmitVersion)
 		router.Middleware(decision, authenticate, canEvaluateDecisions).Post("/decisions/evaluate", decisionController.Evaluate)
+		router.Middleware(decision, authenticate, canReadDecisions).Get("/decisions/{decision_id}", decisionController.Show)
 	})
 }

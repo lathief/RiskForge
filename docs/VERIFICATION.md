@@ -178,6 +178,14 @@ Run on branch `feature/RF-014-decision-api` (RF-011 to RF-013 below it), in the 
 - Real responses of `evaluate` (`APPROVE` 685.00, `REFER`, hard `REJECT`, and the 422 envelope) were captured from a disposable stack and are in `docs/API_EXAMPLES.md`.
 - Not covered: persistence and idempotency (RF-015); the policy cache and any latency or throughput figure (RF-016, RF-024: nothing was measured); per-product authorization of API consumers; repeated `-count=3` runs and `migrate:reset` of the new migration were not run.
 
+## M3: RF-015 (decision persistence and idempotency)
+Run on branch `feature/RF-015-decision-persistence` (RF-011 to RF-014 below it), in the disposable project `rf-test-rf015` (PostgreSQL 18), plus `rf-dev` for the Postman run.
+- `go vet ./...` clean; `go test -race -count=1 ./...` passes for every package, including `tests/feature` at 32 operations. The new migration (`decision` tables and triggers) ran on a fresh database.
+- The concurrency tests (12 goroutines: one key and one request, one key with two payloads, distinct keys, and an abandoned first request) were repeated 8 times with `-race` without a failure.
+- `redocly lint` reports OpenAPI 0.13.0 valid. `./scripts/generate-postman.sh` produced 32 requests and `--check` reports the committed collection up to date (the `Idempotency-Key` header and the new `GET` request are in it).
+- Live on `rf-dev` after `migrate` and `db:seed`: `./scripts/smoke-postman.sh` reported 32/32 requests as expected (evaluate answers 403 for the auditor; `GET /decisions/{id}` with a placeholder id answers 404). `rf-dev` still has no active policy (older data), so a live `evaluate` there answers `409`; the stored-decision paths were checked on the disposable stack, where the real responses in `docs/API_EXAMPLES.md` come from.
+- Not covered: behaviour of a waiting duplicate when the 3 second request limit cancels the context (the limit is the only bound); another consumer's `404` over HTTP (one consumer user exists; the rule is unit tested); retention and volume; any latency figure (nothing measured). `migrate:reset` of the new migration was not run.
+
 ## Not verified yet
 
 | Item | Why | Planned in |

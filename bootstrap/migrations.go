@@ -19,5 +19,6 @@ func Migrations() []schema.Migration {
 		&migrations.M20261124000001CreatePolicyDecisionMatrixTable{},
 		&migrations.M20261125000001CreatePolicyTestCasesTable{},
 		&migrations.M20261126000001CreatePolicyActiveBindingsTable{},
+		&migrations.M20261127000001CreateDecisionTables{},
 	}
 }

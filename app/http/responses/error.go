@@ -18,6 +18,7 @@ const (
 	CodePolicyNotActive     = "POLICY_NOT_ACTIVE"
 	CodePolicyConfiguration = "POLICY_CONFIGURATION_ERROR"
 	CodeEvaluation          = "EVALUATION_ERROR"
+	CodeIdempotencyConflict = "IDEMPOTENCY_CONFLICT"
 	CodeRouteNotFound       = "ROUTE_NOT_FOUND"
 	CodeServiceBusy         = "SERVICE_BUSY"
 	genericInternalMessage  = "an unexpected error occurred"
