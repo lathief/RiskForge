@@ -62,7 +62,7 @@ func pairs(fields []FieldError) []string {
 
 func TestACompletePolicyIsValid(t *testing.T) {
 	dict := fullDictionary()
-	report := ValidatePolicy(demoContent(t), dict, fakeCheck(dict))
+	report := ValidatePolicy(demoContent(t), dict, fakeCheck(dict), fakePrepare(dict))
 	assert.True(t, report.Valid(), pairs(report.Issues))
 	assert.Equal(t, Summary{RACRules: 2, ScorecardCharacteristics: 3, DecisionMatrixRows: 3, TestCases: 2, RequiredTestCases: 2}, report.Summary)
 	assert.Equal(t, &ScoreRange{Min: "420.00", Max: "685.00"}, report.ScoreRange)
@@ -70,7 +70,7 @@ func TestACompletePolicyIsValid(t *testing.T) {
 
 func TestCompletenessIsRequired(t *testing.T) {
 	dict := fullDictionary()
-	report := ValidatePolicy(Content{}, dict, fakeCheck(dict))
+	report := ValidatePolicy(Content{}, dict, fakeCheck(dict), fakePrepare(dict))
 	assert.Equal(t, []string{"scorecard:missing_section", "decision_matrix:missing_section", "test_cases:no_required_test_cases"}, pairs(report.Issues))
 	assert.False(t, report.Valid())
 	for _, f := range report.Issues {
@@ -80,7 +80,7 @@ func TestCompletenessIsRequired(t *testing.T) {
 	noRules := demoContent(t)
 	noRules.Rules = nil
 	noRules.TestCases = nil
-	report = ValidatePolicy(noRules, dict, fakeCheck(dict))
+	report = ValidatePolicy(noRules, dict, fakeCheck(dict), fakePrepare(dict))
 	assert.Equal(t, []string{"test_cases:no_required_test_cases"}, pairs(report.Issues), "RAC rules are optional; test cases are not")
 }
 
@@ -89,7 +89,7 @@ func TestEveryStaleSectionIsReportedTogether(t *testing.T) {
 	// The dictionary loses slik_max_kol and employment_tenure_months.
 	small := scDictionary()[:1]
 	small = append(small, DictionaryVariable{Code: "dsr_ratio", Type: "DECIMAL", Origin: "DERIVED", Scale: ptr(6), MinValue: ptr("0")})
-	report := ValidatePolicy(c, small, fakeCheck(small))
+	report := ValidatePolicy(c, small, fakeCheck(small), fakePrepare(small))
 	got := pairs(report.Issues)
 	assert.Contains(t, got, "rules[1].expression:unknown_variable")
 	assert.Contains(t, got, "scorecard.characteristics[2].variable:unknown_variable")
@@ -104,14 +104,69 @@ func TestMatrixCoverageIsCheckedAgainstTheStoredScorecard(t *testing.T) {
 	sc, err := ValidateScorecard(raised, fullDictionary())
 	require.NoError(t, err)
 	c.Scorecard = sc
-	report := ValidatePolicy(c, fullDictionary(), fakeCheck(fullDictionary()))
+	report := ValidatePolicy(c, fullDictionary(), fakeCheck(fullDictionary()), fakePrepare(fullDictionary()))
 	assert.Equal(t, []string{"decision_matrix.rows[2].max_score:does_not_cover_score_range"}, pairs(report.Issues))
 }
 
-func TestPendingChecksNameTheGoldenTestExecution(t *testing.T) {
-	require.Len(t, PendingChecks, 1)
-	assert.Equal(t, "golden_test_execution", PendingChecks[0].Check)
-	assert.True(t, strings.Contains(PendingChecks[0].Reason, "RF-013"))
+func TestGoldenTestsRunWhenTheStaticChecksPass(t *testing.T) {
+	dict := fullDictionary()
+	report := ValidatePolicy(demoContent(t), dict, fakeCheck(dict), fakePrepare(dict))
+	require.True(t, report.Valid(), pairs(report.Issues))
+	assert.Empty(t, report.Pending, "everything ran")
+	require.Len(t, report.Golden, 2)
+	assert.Equal(t, 2, report.GoldenPassed())
+	assert.Equal(t, 0, report.GoldenFailed())
+	assert.Equal(t, ActualDecision, report.Golden[0].Actual.Outcome)
+	assert.Equal(t, DecisionApprove, report.Golden[0].Actual.Decision)
+	assert.Equal(t, "A", report.Golden[0].Actual.Grade)
+	assert.Equal(t, "685.00", report.Golden[0].Actual.TotalScore)
+	assert.Equal(t, ActualInputValidationError, report.Golden[1].Actual.Outcome)
+}
+
+func TestARequiredGoldenFailureBlocksAndAnOptionalOneDoesNot(t *testing.T) {
+	dict := fullDictionary()
+	c := demoContent(t)
+	c.TestCases[0].Decision = DecisionReject // the policy gives APPROVE
+
+	report := ValidatePolicy(c, dict, fakeCheck(dict), fakePrepare(dict))
+	assert.Equal(t, []string{"test_cases[0].expected.decision:decision_mismatch"}, pairs(report.Issues))
+	assert.Contains(t, report.Issues[0].Message, "expected REJECT, got APPROVE")
+	assert.False(t, report.Valid())
+
+	c.TestCases[0].Required = false // case 1 (the validation-error case) is still required and passes
+	report = ValidatePolicy(c, dict, fakeCheck(dict), fakePrepare(dict))
+	assert.True(t, report.Valid(), "an optional case that fails is reported but does not block: %v", pairs(report.Issues))
+	assert.Equal(t, 1, report.GoldenFailed())
+	assert.False(t, report.Golden[0].Passed)
+}
+
+func TestGoldenTestsAreSkippedWithAReasonWhenOtherChecksFail(t *testing.T) {
+	dict := fullDictionary()
+	report := ValidatePolicy(Content{}, dict, fakeCheck(dict), fakePrepare(dict))
+	require.Len(t, report.Pending, 1)
+	assert.Equal(t, CheckGoldenTestExecution, report.Pending[0].Check)
+	assert.Contains(t, report.Pending[0].Reason, "other validation issues")
+	assert.Empty(t, report.Golden)
+
+	report = ValidatePolicy(demoContent(t), dict, fakeCheck(dict), nil)
+	require.Len(t, report.Pending, 1, "no preparer: not run is never reported as passed")
+	assert.True(t, strings.Contains(report.Pending[0].Reason, "not executed"))
+}
+
+func TestADictionaryThatBreaksTheScorecardSkipsExecution(t *testing.T) {
+	dict := fullDictionary()
+	c := demoContent(t)
+	broken := append([]DictionaryVariable{}, dict...)
+	for i := range broken {
+		if broken[i].Code == "age_years" {
+			broken[i].Type = "BOOLEAN"
+		}
+	}
+	report := ValidatePolicy(c, broken, fakeCheck(broken), fakePrepare(broken))
+	assert.False(t, report.Valid())
+	assert.NotEmpty(t, report.Issues)
+	assert.Empty(t, report.Golden, "nothing is executed against a policy that does not hold together")
+	assert.Len(t, report.Pending, 1)
 }
 
 // --- test cases --------------------------------------------------------------------------

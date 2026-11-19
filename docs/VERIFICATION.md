@@ -160,6 +160,15 @@ Run on branch `feature/M2-policy-configuration`, created from the tip of the RF-
 - `redocly lint` reports the spec valid; `./scripts/generate-postman.sh --check` reports the committed collection (30 requests) up to date.
 - Live on `rf-dev`: `migrate`, `db:seed`, `./scripts/smoke-postman.sh` 30/30 as expected, `/swagger` 200.
 - Docs were checked against the code: operation counts (30), the stale "planned in RF-010" statements, removed identifiers (`contentIssues`), the seeder description (the demo draft is now complete), and the snapshot format. Known limits and open decisions of M2 are collected in [M2_NOTES.md](M2_NOTES.md).
+## M3: RF-011 to RF-013 (feature builder, RAC evaluator, scorecard and matrix evaluator)
+Run on branch `feature/RF-013-scorecard-matrix-evaluator` (RF-011 and RF-012 below it), unit tests also on the host, integration tests in the disposable project `rf-test-rf013` (PostgreSQL 18), plus `rf-dev` for the Postman run.
+- `go vet ./...` clean. `go test -race -count=1 ./...` passes for every package, including `tests/feature` (the whole HTTP and database suite, with the contract suites at 30 operations). RF-011 and RF-012 added no endpoint; their unit tests (feature builder, RAC evaluator with exact decimals and 50 concurrent goroutines under `-race`) passed on the host and again in the container run above.
+- `redocly lint` reports the OpenAPI 0.11.0 spec valid. `./scripts/generate-postman.sh` regenerated the collection (30 requests; only the `validate` description and example changed) and `--check` reports it up to date.
+- Live on `rf-dev` after `migrate` and `db:seed`: `./scripts/smoke-postman.sh` reported 30/30 requests as expected (reads 200, writes 403 for the auditor, including `POST validate`).
+- The real `POST validate` response of the seeded demo draft was captured from a disposable stack: `valid: true`, `pending_checks: []`, `golden_tests` 6 executed, 6 passed. The happy-path case gave `APPROVE`, grade `A`, `685.00`; the age and blacklist cases `REJECT` with no grade and no score; the SLIK case `REFER` with `685.00`; the two invalid-input cases `INPUT_VALIDATION_ERROR`. On `rf-dev` the stale versions show the skip path (`pending_checks` with the reason "the policy has other validation issues").
+- Two existing feature tests needed a change because submit now executes the cases: `TestSubmitRefusesAMatrixThatNoLongerCoversTheScorecard` (the filler case written before the matrix was fixed is now refreshed by `complete()`) and `TestSubmitRacingWithAReplace...` (the replacing rule keeps the reason code and action of the old one). Both were failures of the test fixtures, not of the product, and both pass.
+- Not covered: the Decision API does not exist yet (RF-014), so nothing evaluates an application over HTTP; the evaluator is exercised through `validate`, submit, and unit tests. Not run for this ticket: repeated `-count=3` runs and `migrate:reset` (no migration changed).
+
 ## Not verified yet
 
 | Item | Why | Planned in |

@@ -3,6 +3,8 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"sort"
 	"strings"
 	"testing"
 
@@ -11,6 +13,7 @@ import (
 
 	dictionarydomain "goravel/app/modules/dictionary/domain"
 	"goravel/app/modules/policy/domain"
+	"goravel/app/modules/ruleengine"
 )
 
 func (f *fakeRepo) ListTestCases(_ context.Context, versionID string) (domain.TestCases, error) {
@@ -55,6 +58,30 @@ func (d *fakeDictionary) CheckInput(vars []domain.DictionaryVariable, facts map[
 	return out
 }
 
+// PrepareInput uses the real feature builder, as the production adapter does.
+func (d *fakeDictionary) PrepareInput(vars []domain.DictionaryVariable, input map[string]any) (domain.Prepared, []domain.FieldError, error) {
+	defs := make([]dictionarydomain.Variable, 0, len(vars))
+	for _, v := range vars {
+		defs = append(defs, dictionarydomain.Variable{
+			Code: v.Code, Origin: dictionarydomain.Origin(v.Origin), Type: dictionarydomain.ValueType(v.Type),
+			Unit: v.Unit, Required: v.Required, Nullable: v.Nullable, Scale: v.Scale, MinValue: v.MinValue, MaxValue: v.MaxValue,
+		})
+	}
+	facts, _, err := dictionarydomain.BuildFacts(defs, input)
+	var invalid *dictionarydomain.InputError
+	switch {
+	case errors.As(err, &invalid):
+		out := make([]domain.FieldError, 0, len(invalid.Fields))
+		for _, f := range invalid.Fields {
+			out = append(out, domain.FieldError{Field: f.Field, Issue: f.Issue})
+		}
+		return domain.Prepared{}, out, nil
+	case err != nil:
+		return domain.Prepared{}, nil, err
+	}
+	return domain.Prepared{Facts: ruleengine.Facts(facts)}, nil, nil
+}
+
 // complete fills the sections a draft needs to pass the full policy validation (RF-010) with
 // minimal content, directly in the fake repository, without touching sections it already has.
 // Tests about something else use it so that their submit still succeeds; tests about the
@@ -78,10 +105,25 @@ func (f *fixture) complete(t *testing.T, versionID string) {
 		f.repo.matrices[versionID] = domain.DecisionMatrix{{Order: 1, Grade: "A", Decision: domain.DecisionRefer}}
 	}
 	if f.repo.testCases[versionID].RequiredCount() == 0 {
-		f.repo.testCases[versionID] = domain.TestCases{{
+		filler := domain.TestCase{
 			Order: 1, Code: "FILLER_CASE", Required: true, Input: validInput(t, f.dict.vars),
 			Outcome: domain.OutcomeDecision, Decision: domain.DecisionRefer, ReasonCodes: []string{},
-		}}
+		}
+		// Since RF-013 a required case must give its expected result, so the filler records what
+		// the draft's own content gives for it. If the content does not compile (a test about a
+		// stale section), the guess stays and the test sees its own problem.
+		content := domain.Content{Rules: f.repo.rules[versionID], Scorecard: f.repo.scorecards[versionID], Matrix: f.repo.matrices[versionID]}
+		if compiled, err := domain.CompilePolicy(content, f.dict.vars); err == nil {
+			prepare := func(in map[string]any) (domain.Prepared, []domain.FieldError, error) {
+				return f.dict.PrepareInput(f.dict.vars, in)
+			}
+			if got := domain.RunTestCases(compiled, prepare, domain.TestCases{filler}); len(got) == 1 && got[0].Actual.Outcome == domain.ActualDecision {
+				filler.Decision, filler.Grade = got[0].Actual.Decision, got[0].Actual.Grade
+				filler.ReasonCodes = append([]string{}, got[0].Actual.ReasonCodes...)
+				sort.Strings(filler.ReasonCodes)
+			}
+		}
+		f.repo.testCases[versionID] = domain.TestCases{filler}
 	}
 }
 

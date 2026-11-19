@@ -135,7 +135,62 @@ type validationResponse struct {
 	Summary                 validationSummary      `json:"summary"`
 	ScoreRange              *scoreRange            `json:"score_range"`
 	Issues                  []responses.Detail     `json:"issues"`
+	GoldenTests             goldenTestsResponse    `json:"golden_tests"`
 	PendingChecks           []pendingCheckResponse `json:"pending_checks"`
+}
+
+type goldenActualResponse struct {
+	Outcome     string   `json:"outcome"`
+	Decision    *string  `json:"decision"`
+	Grade       *string  `json:"grade"`
+	TotalScore  *string  `json:"total_score"`
+	ReasonCodes []string `json:"reason_codes"`
+	Message     *string  `json:"message"`
+}
+
+type goldenResultResponse struct {
+	CaseCode   string               `json:"case_code"`
+	Required   bool                 `json:"required"`
+	Passed     bool                 `json:"passed"`
+	Actual     goldenActualResponse `json:"actual"`
+	Mismatches []responses.Detail   `json:"mismatches"`
+}
+
+type goldenTestsResponse struct {
+	Executed int                    `json:"executed"`
+	Passed   int                    `json:"passed"`
+	Failed   int                    `json:"failed"`
+	Results  []goldenResultResponse `json:"results"`
+}
+
+func optionalText(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func toGoldenTests(report domain.Report) goldenTestsResponse {
+	out := goldenTestsResponse{
+		Executed: len(report.Golden), Passed: report.GoldenPassed(), Failed: report.GoldenFailed(),
+		Results: make([]goldenResultResponse, 0, len(report.Golden)),
+	}
+	for _, g := range report.Golden {
+		item := goldenResultResponse{
+			CaseCode: g.Code, Required: g.Required, Passed: g.Passed,
+			Actual: goldenActualResponse{
+				Outcome: string(g.Actual.Outcome), Decision: optionalText(string(g.Actual.Decision)),
+				Grade: optionalText(g.Actual.Grade), TotalScore: optionalText(g.Actual.TotalScore),
+				ReasonCodes: append([]string{}, g.Actual.ReasonCodes...), Message: optionalText(g.Actual.Message),
+			},
+			Mismatches: make([]responses.Detail, 0, len(g.Mismatches)),
+		}
+		for _, m := range g.Mismatches {
+			item.Mismatches = append(item.Mismatches, responses.Detail{Field: m.Field, Issue: m.Issue, Message: m.Message})
+		}
+		out.Results = append(out.Results, item)
+	}
+	return out
 }
 
 // ValidateVersion runs the full policy validation and returns the report. It changes nothing.
@@ -153,7 +208,8 @@ func (c *PolicyController) ValidateVersion(ctx http.Context) http.Response {
 			RequiredTestCases: report.Summary.RequiredTestCases,
 		},
 		Issues:        make([]responses.Detail, 0, len(report.Issues)),
-		PendingChecks: make([]pendingCheckResponse, 0, len(domain.PendingChecks)),
+		GoldenTests:   toGoldenTests(report),
+		PendingChecks: make([]pendingCheckResponse, 0, len(report.Pending)),
 	}
 	if report.ScoreRange != nil {
 		out.ScoreRange = &scoreRange{Min: report.ScoreRange.Min, Max: report.ScoreRange.Max}
@@ -161,7 +217,7 @@ func (c *PolicyController) ValidateVersion(ctx http.Context) http.Response {
 	for _, f := range report.Issues {
 		out.Issues = append(out.Issues, responses.Detail{Field: f.Field, Issue: f.Issue, Message: f.Message})
 	}
-	for _, pc := range domain.PendingChecks {
+	for _, pc := range report.Pending {
 		out.PendingChecks = append(out.PendingChecks, pendingCheckResponse{Check: pc.Check, Reason: pc.Reason})
 	}
 	return ctx.Response().Json(http.StatusOK, out)

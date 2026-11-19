@@ -1,6 +1,6 @@
 # Decision engine
 
-> **Status: Planned behavior.** Evaluation is not implemented yet. This page is the engineering specification for milestone M3 (RF-011 to RF-016), distilled from `SYSTEM_DESIGN.md` sections 8, 10, 12, and 20. The configuration side is implemented and marked where it applies: RAC expressions are checked by `app/modules/ruleengine` (RF-007), scorecard bins and matrix rows are validated (RF-008, RF-009), and golden test cases are stored and checked statically (RF-010).
+> **Status: Partly implemented.** The evaluation core is implemented as pure functions (feature builder RF-011, RAC RF-012, scorecard, matrix, precedence, and golden test execution RF-013); the Decision API, persistence, idempotency, and cache (RF-014 to RF-016) are planned. This page is the engineering specification for milestone M3 (RF-011 to RF-016), distilled from `SYSTEM_DESIGN.md` sections 8, 10, 12, and 20. The configuration side is implemented and marked where it applies: RAC expressions are checked by `app/modules/ruleengine` (RF-007), scorecard bins and matrix rows are validated (RF-008, RF-009), and golden test cases are stored and checked statically (RF-010).
 
 The engine turns one loan application plus one immutable policy version into one decision and a complete trace. It is the part of RiskForge that is not CRUD: correctness, determinism, and explainability matter more than speed.
 
@@ -146,6 +146,27 @@ hard RAC REJECT  >  matrix REJECT  >  soft RAC REFER  >  matrix APPROVE / REFER
 | Pass | `REFER` | `REFER` |
 | Pass | `APPROVE` | `APPROVE` |
 
+## Evaluation and golden tests (implemented, RF-013)
+`policy/domain.CompilePolicy(content, dictionary)` turns the content of one version into an immutable `CompiledPolicy`, and `Evaluate(facts)` runs stages 3 to 6 above on facts from `dictionary/domain.BuildFacts`. It is pure Go, exact (`big.Rat`), and safe for concurrent use.
+
+| Step | What happens |
+|---|---|
+| RAC | `ruleengine` runs the rules (RF-012). A hard fail ends the run: `REJECT`, no score, no grade. |
+| Scorecard | For each characteristic in order, the bin that contains the fact (`[min, max)`) adds its points; a null fact uses `missing_points`. The total is `base_score` plus the points, exact, shown with two decimals. The trace lists each characteristic, the value read, the bin, and its points. |
+| Matrix | The row that contains the total gives the grade and a decision. |
+| Precedence | `domain.Precedence`: hard RAC `REJECT` > matrix `REJECT` > soft RAC `REFER` > matrix `APPROVE`/`REFER`. |
+
+Failures are errors, never `REJECT`. A fact the scorecard needs that is missing or not a number is a `ScoringError` (`EVALUATION_ERROR`). A value that no bin or matrix row contains, a null with no `missing_points`, or a policy that does not compile wraps `ErrPolicyConfiguration` (`POLICY_CONFIGURATION_ERROR`). Matrix rows carry no reason code, so a matrix `REJECT` or `REFER` has an empty `ReasonCodes`; the grade, score, and matrix row in the result explain it.
+
+**Golden tests.** `POST .../validate` and submit run every stored test case through this pipeline (`domain.RunTestCases`), using the same input validation and feature builder as a real request:
+
+| Expected | Passes when |
+|---|---|
+| `DECISION` | The input is accepted, the final decision is equal, the reason codes are the same set (a case that lists none expects none), and the grade is equal when the case names one |
+| `INPUT_VALIDATION_ERROR` | The input is refused (dictionary rules or feature preconditions such as `monthly_income > 0`) |
+
+A required case that fails is an issue (`decision_mismatch`, `grade_mismatch`, `reason_codes_mismatch`, `input_rejected`, `validation_error_not_raised`, `evaluation_failed`) and blocks submit; an optional case that fails is reported in `golden_tests` only. A technical failure is never a pass. When another validation check already failed, the cases are not executed and `pending_checks` says so. Limits: [M3_NOTES.md](M3_NOTES.md).
+
 ## Worked runs
 
 | Scenario | Input change from baseline | RAC | Score | Final |
@@ -219,7 +240,7 @@ From `SYSTEM_DESIGN.md` 12 (golden cases for `KTA_DEMO`):
 7. `monthly_income = 0` → validation error, no division by zero.
 8. Overlapping bins or a matrix gap → policy fails validation and cannot be published. (Implemented: RF-008 to RF-010.)
 
-**Storing the golden cases (implemented, RF-010).** Cases 1 to 4, 6, and 7 are stored with the demo policy as test cases (`GET`/`PUT /api/v1/policy-versions/{version_id}/test-cases`) with their expected outcome. Today each case is checked statically: its references must exist and its input is run against the data dictionary, so a validation-error case must really fail validation and a decision case must pass it. `POST .../validate` and submit report the comparison of expected and actual decisions as the pending check `golden_test_execution`; RF-013 runs the cases through this engine and makes failing required cases block submit.
+**Storing the golden cases (implemented, RF-010).** Cases 1 to 4, 6, and 7 are stored with the demo policy as test cases (`GET`/`PUT /api/v1/policy-versions/{version_id}/test-cases`) with their expected outcome. Each case is checked when it is saved: its references must exist and its input is run against the data dictionary and the feature builder, so a validation-error case must really be refused and a decision case accepted. Since RF-013, `POST .../validate` and submit also **execute** every case through this engine (see "Evaluation and golden tests" below) and failing required cases block submit.
 9. Simulating a draft does not affect decisions made with the active version.
 10. Re-evaluating the same input and policy snapshot gives the same output.
 
