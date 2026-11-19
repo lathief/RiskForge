@@ -169,6 +169,21 @@ func TestTheSameKeyAndRequestReturnsTheStoredDecisionWithoutEvaluating(t *testin
 	assert.Equal(t, 1, store.saves, "never two runs for one key")
 }
 
+func TestARequestRowWithoutADecisionIsAServerFaultNotANotFound(t *testing.T) {
+	// A request row is committed together with its run, so this cannot happen; if it ever does,
+	// the caller must not be told "decision not found" (a 404) for a POST that exists.
+	svc, resolver, store := newService(approvingPolicy())
+	hash, err := RequestHash(validRequest())
+	require.NoError(t, err)
+	store.requests["client-1|key-1"] = storedRequest{id: "req-orphan", hash: hash}
+
+	_, err = svc.Evaluate(context.Background(), "client-1", "key-1", validRequest())
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrDecisionNotFound)
+	assert.Contains(t, err.Error(), "req-orphan")
+	assert.Zero(t, resolver.resolve, "and nothing is evaluated on top of the broken row")
+}
+
 func TestTheSameKeyWithADifferentRequestIsAConflict(t *testing.T) {
 	svc, _, store := newService(approvingPolicy())
 	_, err := svc.Evaluate(context.Background(), "client-1", "key-1", validRequest())

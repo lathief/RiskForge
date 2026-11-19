@@ -16,32 +16,67 @@ import (
 
 // ActivePolicyService is the part of the policy use cases the resolver needs.
 type ActivePolicyService interface {
-	ActiveVersion(ctx context.Context, productCode, scope string) (policydomain.Version, error)
+	// ActiveReference names the active version of a product and scope without its snapshot.
+	ActiveReference(ctx context.Context, productCode, scope string) (policyapp.ActiveRef, error)
+	// LoadActiveSnapshot reads and verifies the frozen version a reference names.
+	LoadActiveSnapshot(ctx context.Context, ref policyapp.ActiveRef) (policydomain.Version, error)
 }
 
 var _ ActivePolicyService = (*policyapp.PolicyService)(nil)
 
-// PolicyResolver resolves the active policy version through the policy module, verifies and
-// parses its frozen snapshot, and compiles it. Compiling happens on every request for now;
-// the version-keyed cache is RF-016.
+// PolicyResolver resolves the active policy for a decision (SYSTEM_DESIGN.md 10.6): one small
+// query reads which version the active binding points to, and the compiled policy comes from an
+// in-memory cache keyed by (version id, checksum). Only a miss reads the snapshot, verifies its
+// checksum, parses it, and compiles it, and concurrent misses for one key share a single load.
+//
+// The cache never needs invalidating: a frozen version does not change, and a publish points
+// the binding at another version, which is another key. A decision keeps the version it
+// resolved at the start of its run, because the compiled policy it holds is immutable.
 type PolicyResolver struct {
 	policies ActivePolicyService
+	cache    *policyCache
 }
 
 var _ application.PolicyResolver = (*PolicyResolver)(nil)
 
+// NewPolicyResolver builds a resolver whose cache holds DefaultCacheEntries policies.
 func NewPolicyResolver(policies ActivePolicyService) *PolicyResolver {
-	return &PolicyResolver{policies: policies}
+	return NewPolicyResolverWithCache(policies, DefaultCacheEntries)
 }
 
+// NewPolicyResolverWithCache builds a resolver whose cache holds at most maxEntries policies.
+func NewPolicyResolverWithCache(policies ActivePolicyService, maxEntries int) *PolicyResolver {
+	return &PolicyResolver{policies: policies, cache: newPolicyCache(maxEntries)}
+}
+
+// CacheStats reports what the cache has done since the resolver was created.
+func (r *PolicyResolver) CacheStats() CacheStats { return r.cache.stats() }
+
 func (r *PolicyResolver) ResolveActive(ctx context.Context, productCode, scope string) (application.ResolvedPolicy, error) {
-	v, err := r.policies.ActiveVersion(ctx, productCode, scope)
+	ref, err := r.policies.ActiveReference(ctx, productCode, scope)
 	switch {
 	case errors.Is(err, policyapp.ErrProductNotFound):
 		return nil, application.ErrProductNotFound
 	case errors.Is(err, policyapp.ErrProductInactive), errors.Is(err, policyapp.ErrNoActivePolicy):
 		return nil, application.ErrPolicyNotActive
 	case err != nil:
+		return nil, err
+	}
+	policy, err := r.cache.get(ctx, cacheKey(ref.VersionID, ref.Checksum),
+		func() (*resolvedPolicy, error) { return r.load(ctx, ref) },
+		func(err error) bool { return errors.Is(err, application.ErrPolicyConfiguration) })
+	if err != nil {
+		return nil, err
+	}
+	return policy, nil
+}
+
+// load reads, verifies, parses, and compiles one frozen version. An error that wraps
+// application.ErrPolicyConfiguration says the version itself cannot be evaluated, which is the
+// same every time and is therefore cached; any other error is a fault of the moment.
+func (r *PolicyResolver) load(ctx context.Context, ref policyapp.ActiveRef) (*resolvedPolicy, error) {
+	v, err := r.policies.LoadActiveSnapshot(ctx, ref)
+	if err != nil {
 		return nil, err
 	}
 	snapshot, err := policydomain.ParseSnapshot(v.Snapshot)
@@ -69,7 +104,8 @@ func (r *PolicyResolver) ResolveActive(ctx context.Context, productCode, scope s
 	}, nil
 }
 
-// resolvedPolicy is immutable and safe for concurrent use.
+// resolvedPolicy is immutable and safe for concurrent use; the cache hands the same value to
+// every request.
 type resolvedPolicy struct {
 	ref        application.PolicyRef
 	compiled   *policydomain.CompiledPolicy
@@ -80,7 +116,8 @@ type resolvedPolicy struct {
 func (p *resolvedPolicy) Ref() application.PolicyRef { return p.ref }
 
 // Evaluate runs the pipeline of SYSTEM_DESIGN.md 10.1: validate and normalize the applicant,
-// build the derived features, then RAC, scorecard, matrix, and precedence.
+// build the derived features, then RAC, scorecard, matrix, and precedence. It does not change
+// the policy or the applicant map.
 func (p *resolvedPolicy) Evaluate(applicant map[string]any) (application.Outcome, error) {
 	var issues []application.Issue
 	for key := range applicant {

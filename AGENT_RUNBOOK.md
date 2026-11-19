@@ -197,6 +197,14 @@ Di Git Bash Windows, jalankan dengan `MSYS_NO_PATHCONV=1` dan ganti `$PWD` denga
 - Test konkurensi: `TestConcurrent*Produce*` dan `TestConcurrentRequests*` di `tests/feature/decision_test.go` memanggil use case dari banyak goroutine di atas repository nyata. Jalankan dengan `-race -count=8` bila Anda mengubah klaim atau transaksi.
 - Smoke Postman menjalankan `GET /decisions/{decision_id}` dengan `decisionId` placeholder dan mengharapkan 404 (`scripts/postman/smoke-check.js`); jangan mengubahnya menjadi 200 tanpa membuat decision di skrip (auditor read-only).
 - Keputusan: `docs/adr/0016-decision-persistence-and-idempotency.md`; batasan: `docs/M3_NOTES.md`.
+## Cache policy terkompilasi (RF-016)
+- Setiap decision membaca pointer versi aktif (`PolicyService.ActiveReference`, tanpa snapshot), lalu mengambil policy terkompilasi dari cache `decision/infrastructure/policy_cache.go` dengan kunci `(version id, checksum)`. Hanya saat miss `LoadActiveSnapshot` membaca snapshot, lalu `ParseSnapshot` dan `CompilePolicy`. Jangan menambah TTL atau invalidation: kunci immutable, dan publish menunjuk versi lain. Jangan meng-cache pointer; pointer harus dibaca setiap decision (Bagian 10.6).
+- `resolvedPolicy` dibagikan ke semua request, jadi harus tetap imutabel: jangan menambah field yang berubah atau metode yang menulis ke dictionary, `CompiledPolicy`, atau map `known`. `Evaluate` tidak boleh mengubah map applicant.
+- Cache menyimpan error deterministik (`ErrPolicyConfiguration`) dan tidak menyimpan kegagalan sementara. Bila Anda menambah jenis error di `load`, putuskan yang mana; fungsi `cacheable` ada di `ResolveActive`. Perbaikan kode yang membuat snapshot lama dapat dibaca membutuhkan restart proses.
+- Loader berjalan di goroutine pemanggil pertama dengan konteks dan transaksinya. Jangan memindahkannya ke goroutine lain dengan konteks yang sama: transaksi database tidak aman dipakai lintas goroutine.
+- Cache hanya untuk jalur decision. Simulator (RF-017) bekerja pada draft yang tidak punya kunci immutable dan tidak boleh memakainya.
+- `PolicyResolver.CacheStats()` memberi hits, misses, loads, waits, dan entries untuk tes; tes yang membuktikan "satu load" memakai angka itu. Untuk menjalankan benchmark informal: `go test -run XXX -bench BenchmarkResolveAndEvaluate ./database/seeders/` (bukan baseline, lihat RF-024).
+- Tes: `app/modules/decision/infrastructure/policy_cache_test.go` (unit, `-race`), `database/seeders/demo_decision_cache_test.go` (resolver di atas policy demo), `tests/feature/decision_cache_test.go` (publish yang dilakukan tangan lewat SQL, load tunggal dari database nyata). Keputusan: `docs/adr/0017-compiled-policy-cache.md`.
 ## Coverage
 `./scripts/coverage.sh [rf-test-<nama>]` mengukur coverage statement (unit saja, lalu unit + integrasi) di project Compose sekali pakai dan mencetak tabel Markdown. Hasilnya dicatat di `docs/coverage.md`; perbarui file itu setelah setiap tiket.
 

@@ -158,19 +158,36 @@ func (r *DecisionRepository) Save(ctx context.Context, requestID, clientID strin
 	if len(rows) != 1 {
 		return application.Decision{}, fmt.Errorf("decision run was not stored")
 	}
-	for _, rule := range d.Outcome.Rules {
-		inputs := rule.Inputs
-		if inputs == nil {
-			inputs = []application.FactTrace{}
+	if len(d.Outcome.Rules) > 0 {
+		// One statement for all rule traces, however many rules ran (at most MaxRules = 100),
+		// instead of one round trip per rule.
+		type traceRow struct {
+			Order      int                     `json:"trace_order"`
+			RuleCode   string                  `json:"rule_code"`
+			ReasonCode string                  `json:"reason_code"`
+			Action     string                  `json:"action"`
+			Expression string                  `json:"expression"`
+			Passed     bool                    `json:"passed"`
+			Inputs     []application.FactTrace `json:"inputs"`
 		}
-		inputsJSON, err := json.Marshal(inputs)
+		traces := make([]traceRow, 0, len(d.Outcome.Rules))
+		for _, rule := range d.Outcome.Rules {
+			inputs := rule.Inputs
+			if inputs == nil {
+				inputs = []application.FactTrace{}
+			}
+			traces = append(traces, traceRow{rule.Order, rule.RuleCode, rule.ReasonCode, rule.Action, rule.Expression, rule.Passed, inputs})
+		}
+		payload, err := json.Marshal(traces)
 		if err != nil {
 			return application.Decision{}, err
 		}
 		if err := q.Statement(
 			`INSERT INTO decision.rule_traces (run_id, trace_order, rule_code, reason_code, action, expression, passed, inputs)
-			 VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
-			rows[0].ID, rule.Order, rule.RuleCode, rule.ReasonCode, rule.Action, rule.Expression, rule.Passed, string(inputsJSON)); err != nil {
+			 SELECT $1::uuid, t.trace_order, t.rule_code, t.reason_code, t.action, t.expression, t.passed, t.inputs
+			   FROM jsonb_to_recordset($2::jsonb) AS t(trace_order integer, rule_code text, reason_code text,
+			                                          action text, expression text, passed boolean, inputs jsonb)`,
+			rows[0].ID, string(payload)); err != nil {
 			return application.Decision{}, err
 		}
 	}

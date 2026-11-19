@@ -1,6 +1,6 @@
 # Decision engine
 
-> **Status: Partly implemented.** The evaluation core is implemented as pure functions (feature builder RF-011, RAC RF-012, scorecard, matrix, precedence, and golden test execution RF-013); the Decision API is implemented (RF-014: `POST /decisions/evaluate`), with durable decisions and idempotency (RF-015: `Idempotency-Key`, `GET /decisions/{decision_id}`); the compiled policy cache (RF-016) is planned. This page is the engineering specification for milestone M3 (RF-011 to RF-016), distilled from `SYSTEM_DESIGN.md` sections 8, 10, 12, and 20. The configuration side is implemented and marked where it applies: RAC expressions are checked by `app/modules/ruleengine` (RF-007), scorecard bins and matrix rows are validated (RF-008, RF-009), and golden test cases are stored and checked statically (RF-010).
+> **Status: Implemented (milestone 3).** The evaluation core is implemented as pure functions (feature builder RF-011, RAC RF-012, scorecard, matrix, precedence, and golden test execution RF-013); the Decision API is implemented (RF-014: `POST /decisions/evaluate`), with durable decisions and idempotency (RF-015: `Idempotency-Key`, `GET /decisions/{decision_id}`) and the compiled policy cache (RF-016). Simulation of drafts (RF-017) and publishing (RF-018 to RF-020) belong to milestone 4. This page is the engineering specification for milestone M3 (RF-011 to RF-016), distilled from `SYSTEM_DESIGN.md` sections 8, 10, 12, and 20. The configuration side is implemented and marked where it applies: RAC expressions are checked by `app/modules/ruleengine` (RF-007), scorecard bins and matrix rows are validated (RF-008, RF-009), and golden test cases are stored and checked statically (RF-010).
 
 The engine turns one loan application plus one immutable policy version into one decision and a complete trace. It is the part of RiskForge that is not CRUD: correctness, determinism, and explainability matter more than speed.
 
@@ -171,7 +171,7 @@ A required case that fails is an issue (`decision_mismatch`, `grade_mismatch`, `
 `POST /api/v1/decisions/evaluate` (permission `decision:evaluate`, the API consumer) runs the pipeline above for one application. Steps in order:
 
 1. Check the request: `application_id`, `product_code`, and an `applicant` object (unknown top-level keys are refused).
-2. Resolve the active policy **once**: product (404 if unknown, 409 `POLICY_NOT_ACTIVE` if retired), then the version its active binding points to. The frozen snapshot is verified against its checksum and used for the whole request; the content tables are not read.
+2. Resolve the active policy **once**: product (404 if unknown, 409 `POLICY_NOT_ACTIVE` if retired), then the version its active binding points to (one small query, on every decision). The compiled policy for that version comes from the in-memory cache; only a miss reads the frozen snapshot, verifies its checksum, and compiles it (see "Compiled policy cache"). The content tables are not read.
 3. Validate the applicant against the dictionary of that snapshot and build the derived features. Invalid data, unknown keys, and a derived value sent by the caller are 422 `INPUT_VALIDATION_ERROR` with every problem listed (`applicant.<variable>`).
 4. Evaluate RAC, scorecard, matrix, and precedence (`CompiledPolicy.Evaluate`).
 5. Return `200` with the decision and its trace: the policy version (`id`, `number`, `checksum`), `final_decision`, `risk_grade`, `total_score`, `reason_codes`, `derived_features` (exact value and formula version), `rac_results` with the values each rule used, `rac_not_evaluated`, `score_breakdown`, and the `matrix` row.
@@ -262,6 +262,20 @@ The key belongs to the calling user (there are no API clients yet). `GET /decisi
 - Keyed by `policy_version_id` + checksum, which are immutable, so entries never need invalidation.
 - Each decision reads the small, indexed active-version pointer from PostgreSQL, then uses the in-memory compiled policy. No Redis.
 - A missing entry is loaded and compiled once, concurrency-safely.
+
+**Implemented (RF-016).** `decision/infrastructure.PolicyResolver` keeps compiled policies in a small LRU (64 entries) keyed by `(version id, checksum)`. Every decision first reads which version the binding points to; a hit returns the shared immutable policy, and a miss loads and compiles the snapshot once even if many requests miss together (single-flight).
+
+| Situation | Behaviour |
+|---|---|
+| Publish (binding moves to a new version) | The next decision uses the new version; no invalidation is needed because the key is another version. A run that already resolved the old version finishes with it. |
+| Product retired, or binding removed | Seen on the next decision, because the pointer is read every time |
+| Replay of an earlier request | Returns the stored decision; the cache and the policy are not consulted |
+| Snapshot that cannot be read or compiled | One load, then the same configuration error from memory (500 `POLICY_CONFIGURATION_ERROR`); fixed only by a new version |
+| Database failure while loading | Returned to the waiting requests and not remembered; the next request tries again |
+| The request that was loading is cancelled | A waiting request takes over the load instead of failing |
+| More than 64 versions | The least recently used entry is dropped and loaded again if asked for |
+
+An informal benchmark on one machine (no database latency, not a baseline): about 133 µs per decision on a warm cache against about 571 µs when the snapshot is compiled each time. On a live stack the query log shows the first decision reading the snapshot and the next ones not. ADR 0017.
 
 ## Edge cases the tests must cover
 

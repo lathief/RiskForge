@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.13.0
+  version: 0.13.1
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
-    Contract for the endpoints implemented so far (RF-001 to RF-015, plus M1 hardening).
+    Contract for the endpoints implemented so far (RF-001 to RF-016, plus M1 hardening).
 
     - All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.
     - Authorization is permission-based. Each operation lists the required permission
@@ -1178,7 +1178,11 @@ paths:
         Runs a credit decision for one application against the **active policy** of its product
         (SYSTEM_DESIGN.md 10, 13.2 to 13.4). The active version is resolved once at the start of
         the request, so a publish during the request cannot change the version it uses, and the
-        response names that version (`policy_version`).
+        response names that version (`policy_version`). The compiled policy comes from an
+        in-memory cache keyed by the version id and the checksum of its frozen snapshot (RF-016,
+        SYSTEM_DESIGN.md 10.6): every decision still reads which version is active, so a publish
+        takes effect on the next decision, and a retired product or a removed binding is seen at
+        once. The cache changes no request or response.
 
         Pipeline: the applicant data is validated and normalized against the data dictionary the
         policy was written for; the derived features are built (`dsr_ratio` and

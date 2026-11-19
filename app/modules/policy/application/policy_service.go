@@ -4,7 +4,6 @@ package application
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"goravel/app/modules/policy/domain"
 	"goravel/app/platform/tx"
@@ -125,9 +124,10 @@ type PolicyRepository interface {
 	ReplaceTestCases(ctx context.Context, versionID string, cases domain.TestCases) error
 	// CopyTestCases copies the test cases of one version onto another.
 	CopyTestCases(ctx context.Context, fromVersionID, toVersionID string) error
-	// FindActiveVersion returns the version the active binding of the product and scope points to,
-	// with its snapshot and checksum, or ErrNoActivePolicy. It reads one row (SYSTEM_DESIGN.md 10.6).
-	FindActiveVersion(ctx context.Context, productCode, scope string) (domain.Version, error)
+	// FindActiveReference follows the active binding of the product and scope and returns which
+	// version it points to, without the snapshot, or ErrNoActivePolicy. It is the one small query a
+	// decision makes before using the compiled policy cache (SYSTEM_DESIGN.md 10.6).
+	FindActiveReference(ctx context.Context, productCode, scope string) (ActiveRef, error)
 	// TouchDraft records that a DRAFT changed, by moving its updated_at.
 	TouchDraft(ctx context.Context, versionID string) error
 }
@@ -368,30 +368,6 @@ func (s *PolicyService) Submit(ctx context.Context, actorID, id string) (domain.
 		return err
 	})
 	return out, err
-}
-
-// ActiveVersion resolves the policy the Decision API evaluates for a product and scope
-// (RF-014): the version the active binding points to, with its frozen snapshot and checksum.
-// It returns ErrProductNotFound for an unknown product, ErrProductInactive for a retired one,
-// and ErrNoActivePolicy when nothing has been published. The snapshot is verified against
-// its checksum before it is returned, so a damaged row can never decide anything; that is a
-// plain error (a server fault), not a missing policy.
-func (s *PolicyService) ActiveVersion(ctx context.Context, productCode, scope string) (domain.Version, error) {
-	product, err := s.products.Lookup(ctx, productCode)
-	if err != nil {
-		return domain.Version{}, err
-	}
-	if !product.Active {
-		return domain.Version{}, ErrProductInactive
-	}
-	v, err := s.repo.FindActiveVersion(ctx, productCode, scope)
-	if err != nil {
-		return domain.Version{}, err
-	}
-	if v.Status != domain.StatusActive || len(v.Snapshot) == 0 || !domain.VerifySnapshot(v.Snapshot, v.Checksum) {
-		return domain.Version{}, fmt.Errorf("active policy version %s is not a verifiable ACTIVE snapshot", v.ID)
-	}
-	return v, nil
 }
 
 // Validate runs the full policy validation on a version and returns the report without changing
