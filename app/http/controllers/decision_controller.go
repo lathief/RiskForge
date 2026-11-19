@@ -3,15 +3,20 @@ package controllers
 import (
 	"errors"
 	"sort"
+	"time"
 
 	"github.com/goravel/framework/contracts/http"
 
+	"goravel/app/http/auth"
 	"goravel/app/http/responses"
 	"goravel/app/modules/decision/application"
+	identitydomain "goravel/app/modules/identity/domain"
 	"goravel/app/platform/logging"
 )
 
-// DecisionController is the HTTP adapter of the Decision API (RF-014).
+const codeDecisionNotFound = "DECISION_NOT_FOUND"
+
+// DecisionController is the HTTP adapter of the Decision API (RF-014, RF-015).
 type DecisionController struct {
 	service *application.EvaluationService
 }
@@ -66,6 +71,8 @@ type decisionMatrixTrace struct {
 }
 
 type decisionResponse struct {
+	DecisionID      string                   `json:"decision_id"`
+	CreatedAt       string                   `json:"created_at"`
 	ApplicationID   string                   `json:"application_id"`
 	ProductCode     string                   `json:"product_code"`
 	PolicyVersion   decisionPolicyVersion    `json:"policy_version"`
@@ -86,6 +93,7 @@ type decisionResponse struct {
 func toDecisionResponse(d application.Decision) decisionResponse {
 	o := d.Outcome
 	out := decisionResponse{
+		DecisionID: d.ID, CreatedAt: d.CreatedAt.UTC().Format(time.RFC3339),
 		ApplicationID: d.ApplicationID, ProductCode: d.ProductCode,
 		PolicyVersion: decisionPolicyVersion{ID: d.Policy.VersionID, Number: d.Policy.VersionNumber, Checksum: d.Policy.Checksum},
 		Status:        "COMPLETED", FinalDecision: o.FinalDecision, RiskGrade: nonEmpty(o.RiskGrade), TotalScore: nonEmpty(o.TotalScore),
@@ -127,8 +135,10 @@ func toDecisionResponse(d application.Decision) decisionResponse {
 }
 
 // Evaluate runs a credit decision for one application against the active policy of its
-// product: {"application_id", "product_code", "applicant": {...}}. Nothing is stored yet
-// (RF-015), and the Idempotency-Key header is not read yet.
+// product and stores it once per Idempotency-Key (SYSTEM_DESIGN.md 13.5):
+// {"application_id", "product_code", "applicant": {...}}. A repeated key with the same request
+// returns the stored decision (header Idempotent-Replayed: true); with a different request it
+// is a 409.
 func (c *DecisionController) Evaluate(ctx http.Context) http.Response {
 	body, resp := bindObject(ctx, map[string]bool{"application_id": true, "product_code": true, "applicant": true})
 	if resp != nil {
@@ -148,16 +158,40 @@ func (c *DecisionController) Evaluate(ctx http.Context) http.Response {
 	if len(details) > 0 {
 		return responses.ValidationError(ctx, "invalid decision request", details...)
 	}
+	principal, ok := auth.PrincipalFrom(ctx)
+	if !ok {
+		return responses.Unauthenticated(ctx)
+	}
 
-	decision, err := c.service.Evaluate(ctx.Context(), application.Request{ApplicationID: id, ProductCode: code, Applicant: applicant})
+	result, err := c.service.Evaluate(ctx.Context(), principal.UserID, ctx.Request().Header(application.IdempotencyKeyHeader, ""),
+		application.Request{ApplicationID: id, ProductCode: code, Applicant: applicant})
 	if err != nil {
 		return c.fail(ctx, err)
 	}
-	return ctx.Response().Json(http.StatusOK, toDecisionResponse(decision))
+	if result.Replayed {
+		ctx.Response().Header("Idempotent-Replayed", "true")
+	}
+	return ctx.Response().Json(http.StatusOK, toDecisionResponse(result.Decision))
 }
 
-// fail maps an evaluation error to the standard envelope. A technical failure is an error
-// response and never a REJECT (SYSTEM_DESIGN.md 10.5); its cause is logged, not returned.
+// Show returns a stored decision (SYSTEM_DESIGN.md 13.1). A caller reads the decisions of its
+// own requests; an auditor (audit:read) reads all of them. Another client's decision is a 404.
+func (c *DecisionController) Show(ctx http.Context) http.Response {
+	principal, ok := auth.PrincipalFrom(ctx)
+	if !ok {
+		return responses.Unauthenticated(ctx)
+	}
+	d, err := c.service.Get(ctx.Context(),
+		application.Viewer{ClientID: principal.UserID, CanReadAll: principal.Can(identitydomain.PermAuditRead)},
+		ctx.Request().Route("decision_id"))
+	if err != nil {
+		return c.fail(ctx, err)
+	}
+	return ctx.Response().Json(http.StatusOK, toDecisionResponse(d))
+}
+
+// fail maps an error to the standard envelope. A technical failure is an error response and
+// never a REJECT (SYSTEM_DESIGN.md 10.5); its cause is logged, not returned.
 func (c *DecisionController) fail(ctx http.Context, err error) http.Response {
 	var invalid *application.InputError
 	switch {
@@ -168,6 +202,10 @@ func (c *DecisionController) fail(ctx http.Context, err error) http.Response {
 		}
 		sort.SliceStable(details, func(i, j int) bool { return details[i].Field < details[j].Field })
 		return responses.ValidationError(ctx, "the application data is invalid", details...)
+	case errors.Is(err, application.ErrIdempotencyConflict):
+		return responses.Conflict(ctx, responses.CodeIdempotencyConflict, "the Idempotency-Key was already used with a different request")
+	case errors.Is(err, application.ErrDecisionNotFound):
+		return responses.NotFound(ctx, codeDecisionNotFound, "decision not found")
 	case errors.Is(err, application.ErrProductNotFound):
 		return responses.NotFound(ctx, codeProductNotFound, "product not found")
 	case errors.Is(err, application.ErrPolicyNotActive):
@@ -181,7 +219,7 @@ func (c *DecisionController) fail(ctx http.Context, err error) http.Response {
 		return responses.Error(ctx, http.StatusInternalServerError, responses.CodeEvaluation,
 			"the application could not be evaluated; no decision was made")
 	default:
-		logging.Default().Error(ctx.Context(), "decision: evaluate failed", err)
+		logging.Default().Error(ctx.Context(), "decision: request failed", err)
 		return responses.Internal(ctx)
 	}
 }

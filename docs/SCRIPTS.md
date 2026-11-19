@@ -43,7 +43,7 @@ How it works:
 
 1. **Install** (network): `npm ci` from `scripts/postman/package-lock.json` into the Docker volume `riskforge-postman-tools`. npm verifies every package against the lockfile. The step is skipped while the lockfile is unchanged.
 2. **Convert** (no network): `openapi-to-postmanv2` converts the spec in a container started with `--network none` and a read-only filesystem. Only `api/openapi` (read-only), `scripts/postman` (read-only), the tools volume (read-only), and `api/postman` (writable) are mounted; `.env.agent` never is.
-3. **Normalize:** `scripts/postman/normalize.js` removes random ids, sets `{{baseUrl}}`, `{{accessToken}}`, `{{productCode}}`, `{{variableCode}}`, `{{policyId}}`, `{{versionId}}`, and sets auth per request from the spec (`noauth` for `security: []`, bearer otherwise). It fails if the collection and the spec disagree on any `(METHOD, path)`.
+3. **Normalize:** `scripts/postman/normalize.js` removes random ids, sets `{{baseUrl}}`, `{{accessToken}}`, `{{productCode}}`, `{{variableCode}}`, `{{policyId}}`, `{{versionId}}`, `{{decisionId}}`, and sets auth per request from the spec (`noauth` for `security: []`, bearer otherwise). It fails if the collection and the spec disagree on any `(METHOD, path)`.
 
 The output is byte-identical between runs. If `--check` fails right after you regenerated, a schema in the spec is probably missing an `example` (the converter then invents random values); add one.
 
@@ -105,12 +105,12 @@ ok   403 DELETE Remove the decision matrix of a draft
 ok   200 GET List the test cases of a version
 ok   403 PUT Replace the test cases of a draft
 ok   403 POST Validate a whole policy version
-postman smoke: 31/31 requests as expected
+postman smoke: 32/32 requests as expected
 ```
 
 The stack must be up, migrated, and seeded with the current `DEMO_USER_PASSWORD`. A test project whose users were created by the Go test suite has a different password, so login fails there.
 
-Policy ids are not fixed, so before running Newman the script asks the API for the first policy (`scripts/postman/resolve-ids.js`, `GET /api/v1/policies?per_page=1`) and passes its id and its latest version id as `policyId` and `versionId`. A stack without a policy fails early with "seed the stack first".
+`GET /decisions/{decision_id}` runs with a placeholder `decisionId` (the read-only auditor cannot create a decision) and is expected to answer `404 DECISION_NOT_FOUND`, which still proves the route and the permission. Policy ids are not fixed, so before running Newman the script asks the API for the first policy (`scripts/postman/resolve-ids.js`, `GET /api/v1/policies?per_page=1`) and passes its id and its latest version id as `policyId` and `versionId`. A stack without a policy fails early with "seed the stack first".
 ## coverage.sh
 ```sh
 ./scripts/coverage.sh                 # project rf-test-coverage

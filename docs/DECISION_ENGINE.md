@@ -1,6 +1,6 @@
 # Decision engine
 
-> **Status: Partly implemented.** The evaluation core is implemented as pure functions (feature builder RF-011, RAC RF-012, scorecard, matrix, precedence, and golden test execution RF-013); the Decision API is implemented (RF-014: `POST /decisions/evaluate`, nothing stored); persistence, idempotency, and the cache (RF-015, RF-016) are planned. This page is the engineering specification for milestone M3 (RF-011 to RF-016), distilled from `SYSTEM_DESIGN.md` sections 8, 10, 12, and 20. The configuration side is implemented and marked where it applies: RAC expressions are checked by `app/modules/ruleengine` (RF-007), scorecard bins and matrix rows are validated (RF-008, RF-009), and golden test cases are stored and checked statically (RF-010).
+> **Status: Partly implemented.** The evaluation core is implemented as pure functions (feature builder RF-011, RAC RF-012, scorecard, matrix, precedence, and golden test execution RF-013); the Decision API is implemented (RF-014: `POST /decisions/evaluate`), with durable decisions and idempotency (RF-015: `Idempotency-Key`, `GET /decisions/{decision_id}`); the compiled policy cache (RF-016) is planned. This page is the engineering specification for milestone M3 (RF-011 to RF-016), distilled from `SYSTEM_DESIGN.md` sections 8, 10, 12, and 20. The configuration side is implemented and marked where it applies: RAC expressions are checked by `app/modules/ruleengine` (RF-007), scorecard bins and matrix rows are validated (RF-008, RF-009), and golden test cases are stored and checked statically (RF-010).
 
 The engine turns one loan application plus one immutable policy version into one decision and a complete trace. It is the part of RiskForge that is not CRUD: correctness, determinism, and explainability matter more than speed.
 
@@ -187,7 +187,7 @@ A required case that fails is an issue (`decision_mismatch`, `grade_mismatch`, `
 
 Error responses never carry a decision. The cause of a `500` is in `error.log`, not in the response.
 
-**Not stored yet.** The decision has no `decision_id`, nothing is written, and `Idempotency-Key` is not read (RF-015). Evaluation is deterministic, so the same request gives the same response while the same version is active.
+**Stored once per key (RF-015).** The decision is stored with a `decision_id` and replayed for a repeated `Idempotency-Key`; see "Idempotency and persistence" below.
 
 **How a policy becomes active.** Publishing needs the approval workflow (M4). Until then, `./artisan db:seed` runs `DemoActivePolicySeeder` in local and testing environments: it submits the complete demo draft through the normal policy service and binds it as active in one transaction. See ADR 0015. A database whose first demo draft is not complete (an old `rf-dev`) is left alone, and `evaluate` answers `409` there.
 
@@ -244,6 +244,18 @@ A PostgreSQL failure, parser error, timeout, or bug is an error response, never 
 - Same key + different payload: `409 IDEMPOTENCY_CONFLICT`.
 - A duplicate arriving while the first is in flight waits briefly or gets a retriable conflict. There are never two runs for one key.
 - The run, result, and trace commit in one transaction, and the response is sent only after the commit.
+
+**Implemented (RF-015).** `POST /decisions/evaluate` requires the `Idempotency-Key` header. In one transaction it claims the key (an `INSERT ... ON CONFLICT DO NOTHING` on the unique `(client_id, idempotency_key)`), resolves the active policy, evaluates, and stores the run and one trace row per evaluated rule in `decision.requests`, `decision.runs`, and `decision.rule_traces`. The tables are append-only, and a run carries the policy version and checksum that made it, plus the normalized input.
+
+| Request | Result |
+|---|---|
+| New key | Evaluated and stored; `200` with `decision_id` and `created_at` |
+| Same key, same request (key order and white space do not matter) | The stored decision, byte for byte, with the header `Idempotent-Replayed: true`. Nothing is evaluated and the active policy is not consulted, so it still works after the policy changed |
+| Same key, different request | `409 IDEMPOTENCY_CONFLICT` |
+| Duplicate while the first is still running | Waits for the first (the unique index makes it wait; the request timeout bounds it) and returns its decision. Never a second run |
+| Any request that gives no decision (422, 404, 409, 500) | Rolled back with its key. The key stays free, so a corrected retry is evaluated |
+
+The key belongs to the calling user (there are no API clients yet). `GET /decisions/{decision_id}` returns a stored decision as it was returned: the consumer reads its own, an auditor reads all, anyone else gets `404 DECISION_NOT_FOUND`. Details: ADR 0016 and [M3_NOTES.md](M3_NOTES.md).
 
 ## Compiled policy cache
 

@@ -977,7 +977,31 @@ Status: terimplementasi pada branch `feature/RF-014-decision-api`, di atas RF-01
 
 **Pemetaan error (Bagian 10.5, 13.4).** 401 `UNAUTHENTICATED`; 403 `FORBIDDEN`; 404 `PRODUCT_NOT_FOUND`; 409 `POLICY_NOT_ACTIVE` (produk nonaktif atau tanpa versi aktif); 422 `INPUT_VALIDATION_ERROR`; 500 `POLICY_CONFIGURATION_ERROR` (snapshot tidak didukung, policy tidak dapat dikompilasi, nilai di luar semua bin atau baris matrix) dan `EVALUATION_ERROR` (fakta hilang, pembagian dengan nol); 500 `INTERNAL_ERROR` untuk kegagalan lain. Kegagalan teknis tidak pernah menjadi `REJECT` dan respons error tidak memuat keputusan; penyebabnya hanya di `error.log`.
 
-**Belum ada (disengaja).** Penyimpanan run dan trace, `decision_id`, `GET /decisions/{decision_id}`, `Idempotency-Key`, dan penguncian request duplikat (RF-015); cache policy terkompilasi (RF-016: kini setiap request mengurai dan mengompilasi snapshot); batas per produk untuk API consumer (butuh `api_clients`); publish nyata (RF-018 sampai RF-020).
+**Belum ada (disengaja).** *(Penyimpanan run dan trace, `decision_id`, `GET /decisions/{decision_id}`, `Idempotency-Key`, dan penguncian request duplikat ditambahkan di RF-015, Bagian 10.10.)* Cache policy terkompilasi (RF-016: kini setiap request mengurai dan mengompilasi snapshot); batas per produk untuk API consumer (butuh `api_clients`); publish nyata (RF-018 sampai RF-020).
+
+### 10.10 Implementasi persistensi decision dan idempotency (RF-015)
+
+Status: terimplementasi pada branch `feature/RF-015-decision-persistence`, di atas RF-014. Keputusan lengkap: `docs/adr/0016-decision-persistence-and-idempotency.md`.
+
+**Tabel** (schema `decision`, semuanya append-only: trigger menolak `UPDATE` dan `DELETE`):
+
+| Tabel | Isi |
+|---|---|
+| `requests` | `client_id`, `idempotency_key`, `request_hash` (SHA-256); unik `(client_id, idempotency_key)` |
+| `runs` | decision tersimpan: `application_id`, `product_code`, `policy_version_id`, `policy_checksum`, `input_snapshot` (JSONB, input yang dinormalisasi), `final_decision`, `risk_grade`, `total_score`, `reason_codes`, `outcome` (JSONB, seluruh hasil dan trace), `created_at`; satu run per request |
+| `rule_traces` | satu baris per aturan RAC yang dievaluasi: urutan, kode aturan dan alasan, aksi, ekspresi, lulus atau tidak, input yang dipakai |
+
+Trigger insert pada `runs` memastikan `policy_checksum` sama dengan checksum versi yang disebut dan versi itu `ACTIVE` atau `ARCHIVED`, sehingga setiap decision dapat dikaitkan ke snapshot beku yang memutuskannya (Bagian 7.2). Indeks: `(application_id, created_at DESC)`, `(policy_version_id, created_at DESC)`, `(client_id, created_at DESC)` (Bagian 7.3).
+
+**Alur satu request** (`EvaluationService.Evaluate`, satu transaksi; respons dikirim setelah commit, Bagian 13.5): validasi amplop dan kunci tanpa menyentuh database; hash request kanonik; klaim kunci dengan `INSERT ... ON CONFLICT DO NOTHING`; bila kunci sudah ada dan hash berbeda `409 IDEMPOTENCY_CONFLICT`, bila hash sama decision tersimpan dikembalikan tanpa evaluasi dan tanpa membaca policy (header `Idempotent-Replayed: true`); bila kunci baru: resolusi policy aktif (Bagian 10.9), evaluasi, simpan run dan trace.
+
+**Duplikat konkuren.** Insert kedua dengan kunci yang sama menunggu transaksi pertama: setelah commit ia menemukan baris dan mengembalikan decision yang sama; setelah rollback ia menjadi pemilik. Tidak pernah dua run untuk satu kunci. Batas tunggu adalah timeout request. Diuji dengan 12 goroutine (kunci dan request sama: satu run, 11 replay; kunci sama dan payload berbeda: satu pemenang, sisanya replay atau konflik; kunci berbeda: semuanya dievaluasi), diulang delapan kali.
+
+**Yang tidak disimpan.** Input tidak valid, produk tidak ada, tidak ada policy aktif, dan kegagalan teknis membatalkan transaksi bersama klaim kuncinya, sehingga kunci tetap bebas dan retry yang diperbaiki dievaluasi. Status `RECEIVED` dan `FAILED` (Bagian 10.5) adalah keadaan di dalam transaksi atau respons error, bukan baris.
+
+**Kontrak.** `Idempotency-Key` wajib (`422`, field `Idempotency-Key`); respons evaluasi menambah `decision_id` (UUID) dan `created_at`. `GET /decisions/{decision_id}` (izin `decision:read`) mengembalikan respons yang sama; consumer hanya membaca decision dari request miliknya, auditor membaca semuanya, yang lain 404 `DECISION_NOT_FOUND`. `api_client_id` adalah id user terautentikasi sampai `api_clients` ada.
+
+**Belum ada (disengaja).** Retensi dan partisi (Bagian 7.3), pencarian decision berdasarkan aplikasi (hanya indeks), audit event (RF-022), cache policy (RF-016), batas per produk untuk consumer.
 
 ---
 
@@ -1142,7 +1166,11 @@ Perbedaan dari tabel rencana: `{id}` pada `/policies/{id}/clone` adalah id **pac
 | Method | Absolute path | Auth / Permission |
 |---|---|---|
 | `POST` | `/api/v1/decisions/evaluate` | Bearer + `decision:evaluate` (API consumer); mengevaluasi satu aplikasi terhadap policy aktif produknya; belum menyimpan apa pun |
-`GET /decisions/{decision_id}` dan `Idempotency-Key` ditunda ke RF-015 karena membutuhkan penyimpanan.
+**Telah terimplementasi (Milestone 3, RF-015, branch `feature/RF-015-decision-persistence`):** satu operasi baca dan perubahan kontrak pada evaluate. Total OpenAPI 0.13.0, Swagger UI, dan Postman Collection menjadi 32 operasi. Rancangan di Bagian 10.10.
+| Method | Absolute path | Auth / Permission |
+|---|---|---|
+| `GET` | `/api/v1/decisions/{decision_id}` | Bearer + `decision:read`; API consumer membaca decision miliknya, auditor (`audit:read`) membaca semuanya; selain itu 404 |
+`POST /decisions/evaluate` kini mewajibkan header `Idempotency-Key`, menyimpan decision, dan menambah `decision_id` dan `created_at` pada respons (header `Idempotent-Replayed: true` pada replay; `409 IDEMPOTENCY_CONFLICT`).
 **Target berikutnya (planned, bukan otomatis sudah live):** tabel di bawah memakai path relatif `/api/v1` kecuali health. Operasi planned ditambahkan ke `openapi.yaml` **hanya pada tiket implementasi terkait**.
 
 | Method | Path | Auth | Purpose |
@@ -1150,7 +1178,6 @@ Perbedaan dari tabel rencana: `{id}` pada `/policies/{id}/clone` adalah id **pac
 | `POST` | `/policy-versions/{id}/simulate` | Analyst | Simulate draft/selected version. |
 | `GET` | `/approval-requests/{id}` | Approver / Auditor | Review request and diff. |
 | `POST` | `/approval-requests/{id}/actions` | Approver | Approve/reject active tier. |
-| `GET` | `/decisions/{decision_id}` | Authorized consumer / Auditor | Decision result and authorized trace. |
 
 Untuk setiap operasi, wajib memperbarui **OpenAPI 3.1 → Swagger UI → Postman Collection** dalam PR yang sama. Dokumen OpenAPI mencakup pagination, security per permission, standard error shape, `X-Request-ID`, `Idempotency-Key` bila berlaku, serta validation messages; Postman dibuat dengan generator di Bagian 5.6. Jangan mencampur endpoint rencana dengan endpoint yang sudah live.
 
@@ -1471,7 +1498,7 @@ Review independen kedua atas `fix/M1-hardening` (tanpa temuan severity high) men
 - [x] **RF-012 Pure RAC evaluator.** Hard reject, refer, reason codes, rule traces, unit tests. **Selesai pada branch `feature/RF-012-rac-evaluator`** (di atas RF-011, belum di-merge): `ruleengine.CompileRules` dan `CompiledRules.Evaluate` dengan aritmetika `big.Rat` eksak, `BuildFacts` dan `RuleSet.EngineRules` sebagai perekat, `EvaluationError` dan `CompileError` yang bukan `REJECT`. Tidak ada endpoint baru; OpenAPI (30 operasi) dan Postman tidak berubah. Bagian 10.7, ADR 0013, `docs/M3_NOTES.md`.
 - [x] **RF-013 Scorecard + matrix evaluator.** Bin matching, score aggregation, matrix lookup, precedence rules. **Selesai pada branch `feature/RF-013-scorecard-matrix-evaluator`** (di atas RF-012, belum di-merge): `policy/domain.CompilePolicy` dan `CompiledPolicy.Evaluate` (RAC, scorecard, matrix, `Precedence`), `RunTestCases` yang mengeksekusi golden test pada `POST .../validate` dan submit, `golden_tests` pada respons validate. **Mengubah kontrak API:** OpenAPI 0.11.0 (30 operasi), Postman diregenerasi dan `--check` lulus, Redocly lint lulus. Bagian 10.8, ADR 0014, `docs/M3_NOTES.md`.
 - [x] **RF-014 Goravel/Fiber Decision API.** *(Selesai pada branch `feature/RF-014-decision-api`, di atas RF-013, belum di-merge: `POST /api/v1/decisions/evaluate`, tabel `policy.active_policy_bindings`, resolusi versi aktif dari snapshot terverifikasi, pemetaan error, OpenAPI 0.12.0 dengan 31 operasi, Postman diregenerasi, smoke 31/31. Bagian 10.9, ADR 0015, `docs/M3_NOTES.md`. Aktivasi policy untuk pengembangan lewat `DemoActivePolicySeeder`; `decision_id` dan idempotency di RF-015.)* Teks tiket asli: Route/controller Goravel + official Fiber driver, auth API consumer, active version resolution, evaluate, error mapping, **OpenAPI 3.1 + Swagger UI + generated Postman request**; domain bebas framework.
-- [ ] **RF-015 Decision persistence + idempotency.** Request hash, unique key, durable result/trace; duplicate concurrency tests.
+- [x] **RF-015 Decision persistence + idempotency.** Request hash, unique key, durable result/trace; duplicate concurrency tests. **Selesai pada branch `feature/RF-015-decision-persistence`** (di atas RF-014, belum di-merge): schema `decision` (`requests`, `runs`, `rule_traces`, append-only), klaim kunci dengan unique index dalam satu transaksi bersama evaluasi dan penyimpanan, `Idempotency-Key` wajib, replay tanpa evaluasi ulang, `409 IDEMPOTENCY_CONFLICT`, `GET /decisions/{decision_id}`, tes konkurensi duplikat. **Mengubah kontrak API:** OpenAPI 0.13.0 (32 operasi), Postman diregenerasi, smoke 32/32. Bagian 10.10, ADR 0016, `docs/M3_NOTES.md`.
 - [ ] **RF-016 Compiled policy cache.** Version-keyed, concurrency-safe, correct after publish, no Redis.
 
 ### M4 — Governance
@@ -1740,4 +1767,4 @@ Setiap ADR mencatat **context, decision, alternatives, consequences, date**.
 - [ ] Agent dapat menjalankan stack dari Compose `api + db`, menguji dengan `rf-test-*` terisolasi, dan membersihkan test project tanpa menghapus volume development.
 - [ ] Tidak ada data pribadi sesungguhnya, keys, atau credentials di repo.
 
-**Status kini (diperbarui 25 November 2026): M2 (RF-005 sampai RF-010) selesai. Setiap tiket ada di branch-nya sendiri (`feature/RF-005-data-dictionary` sampai `feature/RF-010-full-policy-validation`, bertumpuk), dan semuanya tergabung di branch `feature/M2-policy-configuration`, yang divalidasi sebagai satu kesatuan (`docs/VERIFICATION.md`); belum di-merge ke `main`. Batasan dan penyimpangan M2 yang diketahui: `docs/M2_NOTES.md`. Pembaruan M3: RF-011 selesai di `feature/RF-011-feature-builder` (dari `main`) RF-012 di `feature/RF-012-rac-evaluator` (di atas RF-011), dan RF-013 di `feature/RF-013-scorecard-matrix-evaluator` (di atas RF-012), dan RF-014 di `feature/RF-014-decision-api` (di atas RF-013); langkah berikutnya `RF-015 Decision persistence + idempotency`.** Riwayat status sebelumnya: RF-005..RF-009 selesai per branch (24 November 2026). M1/RF-001..RF-004 selesai di `main`. M1 hardening (17.1), LOG-001 structured logs (15.4), dan DX-001 Swagger UI + generated Postman Collection (5.6) selesai di branch `fix/M1-hardening`, bersama DOC-001 (guide di `docs/`) dan perbaikan review kedua serta ketiga (17.2); menunggu merge ke `main`. Langkah berikutnya: `RF-005 Data Dictionary`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.
+**Status kini (diperbarui 25 November 2026): M2 (RF-005 sampai RF-010) selesai. Setiap tiket ada di branch-nya sendiri (`feature/RF-005-data-dictionary` sampai `feature/RF-010-full-policy-validation`, bertumpuk), dan semuanya tergabung di branch `feature/M2-policy-configuration`, yang divalidasi sebagai satu kesatuan (`docs/VERIFICATION.md`); belum di-merge ke `main`. Batasan dan penyimpangan M2 yang diketahui: `docs/M2_NOTES.md`. Pembaruan M3: RF-011 selesai di `feature/RF-011-feature-builder` (dari `main`) RF-012 di `feature/RF-012-rac-evaluator` (di atas RF-011), dan RF-013 di `feature/RF-013-scorecard-matrix-evaluator` (di atas RF-012), RF-014 di `feature/RF-014-decision-api` (di atas RF-013), dan RF-015 di `feature/RF-015-decision-persistence` (di atas RF-014); langkah berikutnya `RF-016 Compiled policy cache`.** Riwayat status sebelumnya: RF-005..RF-009 selesai per branch (24 November 2026). M1/RF-001..RF-004 selesai di `main`. M1 hardening (17.1), LOG-001 structured logs (15.4), dan DX-001 Swagger UI + generated Postman Collection (5.6) selesai di branch `fix/M1-hardening`, bersama DOC-001 (guide di `docs/`) dan perbaikan review kedua serta ketiga (17.2); menunggu merge ke `main`. Langkah berikutnya: `RF-005 Data Dictionary`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.
