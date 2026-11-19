@@ -506,7 +506,7 @@ Invalid applicant data is an error, never a rejection (`monthly_income` `"0.00"`
 ```json
 {"error":{"code":"INPUT_VALIDATION_ERROR","details":[{"field":"applicant.monthly_income","issue":"below_min_value"}],"message":"the application data is invalid"},"request_id":"0dfcabfd33d8527ee060235119c0949f"}
 ```
-The same envelope reports every problem at once: a missing or `null` required value (`required`), a wrong type (`invalid_type`, which includes money sent as a JSON number), a value outside the dictionary range (`above_max_value`, `below_min_value`), too many decimals (`exceeds_scale`), a key that is not a dictionary variable (`unknown_variable`), and a derived value such as `dsr_ratio` (`derived_not_allowed`).
+The same envelope reports every problem at once: a missing or `null` required value (`required`), a wrong type (`invalid_type`, which includes money sent as a JSON number), a value outside the dictionary range (`above_max_value`, `below_min_value`), too many decimals (`exceeds_scale`), a key that is not a dictionary variable (`unknown_variable`), and a derived value such as `dsr_ratio` (`derived_not_allowed`). A decimal string has at most 18 integer digits and 32 fraction digits and no exponent; anything else is `invalid_type`. The request and response bodies of the decision endpoints are never written to `storage/logs/activity.log`, because they hold the applicant's financial data; the entry keeps only the caller, route, status, duration, and request id.
 
 Without an active policy the answer is a conflict, and an unknown product a 404:
 ```json

@@ -36,6 +36,7 @@ Dokumen ini adalah **single source of truth untuk scope, desain, dan perilaku Ri
 | `SYSTEM_DESIGN.md` (dokumen ini) | **Design specification**: scope, invariant, desain target, backlog. | Keputusan desain (diubah lewat ADR). |
 | `docs/*.md` | **Panduan praktis**: getting started, arsitektur, domain, contoh API, testing, decision engine. Bagian yang belum terimplementasi ditandai *Planned* beserta tiketnya. | Implementasi aktual dan test-nya. |
 | `docs/adr/` | Alasan dan konsekuensi setiap keputusan teknis. | Keputusan yang sudah diambil. |
+| `docs/POST_M5_BACKLOG.md` | Temuan review (keamanan, keandalan, desain, tooling) yang belum diperbaiki dan dikerjakan setelah M5. | Hasil review per milestone. |
 | `AGENT_RUNBOOK.md` | Perintah dan konvensi persis untuk developer dan AI agent. | Tooling aktual. |
 | `api/openapi/openapi.yaml` | Kontrak HTTP (sumber tunggal Swagger UI dan Postman). | Endpoint yang live. |
 
@@ -1388,6 +1389,7 @@ Empat file JSON-lines di `storage/logs` (juga ke stdout bila `LOG_PRINT=true`), 
 | `LOG_FILES` | `true`: empat file di `storage/logs` | `false`: keempat file terstruktur tidak ditulis (belum ada rotasi, RF-023); hanya log framework Goravel harian (`goravel-*.log`) |
 | `LOG_PRINT` | `false` | `true`: semua entri ke stdout (`docker logs`) |
 
+**Body yang tidak pernah dicatat (review M3).** Request dan respons route `/api/v1/decisions...` membawa data keuangan pemohon dan keputusan yang dihasilkan. Sensor berbasis nama key tidak mengenali nilai seperti `monthly_income`, dan data dictionary dapat dikonfigurasi, sehingga seluruh body route itu diganti `{"_omitted":"sensitive_route"}` (`logging.BodyWithheld`) walaupun `LOG_HTTP_BODIES=true`. Tetap tercatat: pemanggil, route, status, durasi, `requestID`. Daftar ini adalah deny list; route berikutnya yang menerima data pemohon (simulator, RF-017) harus ditambahkan (`docs/POST_M5_BACKLOG.md` SEC-04).
 **Status yang dicatat** adalah yang benar-benar diterima klien: request yang melewati timeout 3 detik dicatat `408` walaupun handler selesai belakangan, dan panic setelah deadline tetap masuk `error.log`.
 
 ---
@@ -1428,7 +1430,7 @@ Setiap tiket hanya selesai jika:
 |---|---|---|
 | M1 — Foundation | Goravel + Fiber driver bootstrap, Compose agent sandbox, Postgres driver, config, migrations, auth/RBAC, product catalog | **Done pada `main` (PR #1..#4, commit `07e9ebea`);** bukti runtime tersedia di `docs/VERIFICATION.md`. |
 | M2 — Policy Configuration | Data dictionary (DX-001 Swagger UI + Postman baseline sudah selesai), versioned draft, RAC/scorecard/matrix CRUD + validation | Valid & invalid policy examples pass contract tests; setiap endpoint M2 tersedia di OpenAPI, Swagger UI, dan Postman. |
-| M3 — Decision Engine | Derived features, RAC, scorecard, matrix, decision API, idempotency | Golden dataset passes; decision run stored durably. **Tercapai pada branch tiket RF-011 sampai RF-016** (belum di-merge ke `main`): enam golden case demo lulus lewat pipeline penuh dan `validate`/submit, decision disimpan dengan trace dan idempotency, policy terkompilasi di-cache. |
+| M3 — Decision Engine | Derived features, RAC, scorecard, matrix, decision API, idempotency | Golden dataset passes; decision run stored durably. **Tercapai pada branch tiket RF-011 sampai RF-016, yang dikumpulkan di branch `feature/M3-decision-engine`** (belum di-merge ke `main`): enam golden case demo lulus lewat pipeline penuh dan `validate`/submit, decision disimpan dengan trace dan idempotency, policy terkompilasi di-cache. Audit milestone (COMPLETE/PARTIAL/MISSING dengan bukti) dan review semantik/keamanan: Bagian 17.3 dan `docs/M3_NOTES.md`; temuan yang ditunda: `docs/POST_M5_BACKLOG.md`. |
 | M4 — Governance | Simulator, workflow config, tier approval, publish/rollback semantics | Self-approval blocked; concurrency tests pass; version is immutable. |
 | M5 — Portfolio Hardening | Audit search, observability, CI untuk validasi OpenAPI + Postman parity, tests, demo | Complete E2E demo reproducible dari Compose project baru + fresh DB; docs/collection drift gagal di CI. |
 
@@ -1482,6 +1484,20 @@ Review independen kedua atas `fix/M1-hardening` (tanpa temuan severity high) men
 **Review ketiga (sebelum publikasi):** `artisan` yang terhapus tidak sengaja dipulihkan, bit executable skrip diperbaiki, password smoke test tidak lagi muncul di command line `docker`, cakupan redaksi diperluas (`pwd`, `pass`, `passphrase`, data kartu, `nik`, `user:password@` di URL), level log ROLLBACK membedakan rollback bisnis (`warn`) dari kegagalan BEGIN/COMMIT/deadline (`error`), dan base image Dockerfile dipin dengan digest. Detail: `docs/VERIFICATION.md`.
 
 **Temuan baru saat verifikasi:** `./artisan migrate:fresh` tidak cocok dengan schema logis (hanya menghapus tabel di `public`, lalu gagal `relation already exists`, padahal tetap mencetak "success"). Reset yang benar: `./artisan migrate:reset && ./artisan migrate`, atau `down -v` untuk project Compose. Lihat `AGENT_RUNBOOK.md`.
+
+---
+
+### 17.3 Validasi dan review Milestone 3 (`feature/M3-decision-engine`)
+
+M3 divalidasi sebagai satu kesatuan (bukti dan angka: `docs/VERIFICATION.md`; audit COMPLETE/PARTIAL/MISSING per gate: `docs/M3_NOTES.md`): `go vet` bersih, 666 tes lulus dengan `-race` (0 gagal, 0 dilewati), OpenAPI 0.13.2 lulus lint dengan 32 operasi, Postman diregenerasi dan `--check` lulus, smoke Newman 32/32, serta alur happy dan unhappy Decision API dijalankan pada stack nyata. Review semantik dan keamanan atas RF-011 sampai RF-016 menghasilkan perbaikan berikut, semuanya diuji:
+
+| Temuan | Perbaikan |
+|---|---|
+| Keamanan: `activity.log` memuat body request dan respons decision utuh (penghasilan, cicilan, keputusan) bila `LOG_HTTP_BODIES=true`, default dev/test. Sensor berbasis nama key tidak mengenali `monthly_income`, dan dictionary dapat dikonfigurasi (15.4). | Body route `/api/v1/decisions...` diganti `{"_omitted":"sensitive_route"}`; metadata tetap dicatat. Unit test dan test HTTP yang memeriksa tidak ada penghasilan, cicilan, id aplikasi, atau skor di log. ADR 0004 diamandemen. |
+| Keamanan (resource): string desimal pemohon boleh berpecahan tanpa batas panjang (sampai batas body 64 KiB) lalu di-parse dan disimpan. | Input pemohon dibatasi 32 digit pecahan (`invalid_type` bila lebih); batas yang ditetapkan analis tidak berubah. |
+| Celah test: isolasi antar-API consumer hanya diuji unit. | Test HTTP: consumer lain mendapat `404 DECISION_NOT_FOUND` yang sama dengan id tak dikenal; `Idempotency-Key` yang sama dari consumer lain adalah request baru (bukan replay, bukan konflik). |
+
+Temuan yang tidak diperbaiki sekarang dicatat sebagai pekerjaan setelah M5 di `docs/POST_M5_BACKLOG.md` (keamanan: data pemohon tanpa retensi atau enkripsi, tanpa rate limit, consumer berupa user biasa tanpa batas per produk, daftar `withheldBodyPrefixes` berupa deny list; keandalan: duplikat menunggu tanpa `lock_timeout`, error cache tidak kedaluwarsa; desain: baris matrix tanpa reason code, jalan pintas seeder aktivasi policy; tooling: smoke Postman tidak menjalankan happy path decision, `gofmt` pada checkout CRLF).
 
 ---
 
@@ -1781,4 +1797,5 @@ Setiap ADR mencatat **context, decision, alternatives, consequences, date**.
 - [ ] Agent dapat menjalankan stack dari Compose `api + db`, menguji dengan `rf-test-*` terisolasi, dan membersihkan test project tanpa menghapus volume development.
 - [ ] Tidak ada data pribadi sesungguhnya, keys, atau credentials di repo.
 
-**Status kini (diperbarui 25 November 2026): M2 (RF-005 sampai RF-010) selesai. Setiap tiket ada di branch-nya sendiri (`feature/RF-005-data-dictionary` sampai `feature/RF-010-full-policy-validation`, bertumpuk), dan semuanya tergabung di branch `feature/M2-policy-configuration`, yang divalidasi sebagai satu kesatuan (`docs/VERIFICATION.md`); belum di-merge ke `main`. Batasan dan penyimpangan M2 yang diketahui: `docs/M2_NOTES.md`. Pembaruan M3: RF-011 selesai di `feature/RF-011-feature-builder` (dari `main`) RF-012 di `feature/RF-012-rac-evaluator` (di atas RF-011), dan RF-013 di `feature/RF-013-scorecard-matrix-evaluator` (di atas RF-012), RF-014 di `feature/RF-014-decision-api` (di atas RF-013), RF-015 di `feature/RF-015-decision-persistence` (di atas RF-014), dan RF-016 di `feature/RF-016-policy-cache` (di atas RF-015): seluruh tiket M3 selesai; langkah berikutnya M4, mulai `RF-017 Policy simulator`.** Riwayat status sebelumnya: RF-005..RF-009 selesai per branch (24 November 2026). M1/RF-001..RF-004 selesai di `main`. M1 hardening (17.1), LOG-001 structured logs (15.4), dan DX-001 Swagger UI + generated Postman Collection (5.6) selesai di branch `fix/M1-hardening`, bersama DOC-001 (guide di `docs/`) dan perbaikan review kedua serta ketiga (17.2); menunggu merge ke `main`. Langkah berikutnya: `RF-005 Data Dictionary`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.
+**Status kini (diperbarui 19 November 2026, validasi M3): M1 (RF-001 sampai RF-004), M1 hardening, LOG-001, DX-001, DOC-001, dan M2 (RF-005 sampai RF-010) sudah ada di `main` (PR #1 sampai #6). M3 (RF-011 sampai RF-016) selesai: tiap tiket ada di branch-nya (bertumpuk) dan semuanya dikumpulkan di branch `feature/M3-decision-engine` (dari `main`, merge `--no-ff` per tiket), yang divalidasi sebagai satu kesatuan (`docs/VERIFICATION.md`, audit milestone di `docs/M3_NOTES.md`, review di 17.3); branch itu belum dipush dan belum di-merge ke `main`. Langkah berikutnya: M4, mulai `RF-017 Policy simulator`. Temuan yang ditunda sampai setelah M5: `docs/POST_M5_BACKLOG.md`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.
+

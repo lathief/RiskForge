@@ -46,7 +46,11 @@ func (m *ActivityLog) Handle(ctx http.Context) {
 	reqCtx := ctx.Context() // carries the request deadline
 
 	entry := captureRequest(ctx, start)
-	if cfg.LogHTTPBodies {
+	withheld := logging.BodyWithheld(ctx.Request().Path())
+	switch {
+	case cfg.LogHTTPBodies && withheld:
+		entry.RequestBody = logging.WithheldBody()
+	case cfg.LogHTTPBodies:
 		body := readRequestBody(ctx, cfg.MaxBodyBytes)
 		entry.RequestBody = logging.RedactBodySized(body.data, body.size, cfg.MaxBodyBytes)
 	}
@@ -73,7 +77,10 @@ func (m *ActivityLog) Handle(ctx http.Context) {
 	m.addUser(ctx, &entry)
 	origin := ctx.Response().Origin()
 	entry.ResponseHeaders = logging.RedactHeaders(origin.Header())
-	if cfg.LogHTTPBodies {
+	switch {
+	case cfg.LogHTTPBodies && withheld:
+		entry.ResponseBody = logging.WithheldBody()
+	case cfg.LogHTTPBodies:
 		// The buffer aliases Fiber's pooled response; RedactBody copies what it keeps.
 		entry.ResponseBody = logging.RedactBody(origin.Body().Bytes(), cfg.MaxBodyBytes)
 	}

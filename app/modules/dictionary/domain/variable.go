@@ -47,10 +47,18 @@ const (
 var codePattern = regexp.MustCompile(`^[a-z][a-z0-9_]{2,63}$`)
 
 // A decimal string has at most 18 integer digits and no exponent, so every accepted value
-// fits NUMERIC(26,8) and survives JSON without floating-point loss.
+// fits NUMERIC(26,8) and survives JSON without floating-point loss. Applicant input
+// (inputDecimalPattern) also limits the fraction to 32 digits: MaxScale is 8, so a longer
+// fraction can never fit a variable's scale, and without a limit a request could carry tens of
+// thousands of digits that are parsed, compared, and stored for nothing. A longer fraction is
+// reported as invalid_type. Bounds set by analysts keep decimalPattern (the OpenAPI contract
+// of the dictionary endpoints is unchanged).
 var (
 	integerPattern = regexp.MustCompile(`^-?(0|[1-9][0-9]{0,17})$`)
 	decimalPattern = regexp.MustCompile(`^-?(0|[1-9][0-9]{0,17})(\.[0-9]+)?$`)
+
+	// inputDecimalPattern is decimalPattern for applicant input, with the fraction limited.
+	inputDecimalPattern = regexp.MustCompile(`^-?(0|[1-9][0-9]{0,17})(\.[0-9]{1,32})?$`)
 )
 
 // Variable is one variable at one version of its definition.

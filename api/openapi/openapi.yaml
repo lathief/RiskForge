@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.13.1
+  version: 0.13.2
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
     Contract for the endpoints implemented so far (RF-001 to RF-016, plus M1 hardening).
@@ -1194,7 +1194,9 @@ paths:
 
         **Applicant data.** Integers are JSON numbers, decimals (money, ratios) are **strings**
         such as `"12000000.00"`; a JSON number for money is refused (`invalid_type`) instead of
-        being rounded. A missing or `null` required value, a wrong type, a value outside the
+        being rounded. A decimal has at most 18 integer digits and 32 fraction digits and no
+        exponent; anything else is `invalid_type`. A missing or `null` required value, a wrong
+        type, a value outside the
         dictionary range, too many decimals, a key that is not a dictionary variable
         (`unknown_variable`), and a derived value sent by the caller (`derived_not_allowed`) are
         all `422 INPUT_VALIDATION_ERROR`, listed together with paths such as
@@ -1226,6 +1228,9 @@ paths:
         input, and the full trace, and cannot be changed or deleted. Read it with
         `GET /decisions/{decision_id}`. Any `API_CONSUMER` may evaluate any product;
         per-product authorization needs API clients, which do not exist yet.
+        The request and response bodies of the decision endpoints are never written to the
+        activity log (they hold the applicant's financial data); the log keeps the caller, the
+        route, the status, the duration, and the request id.
       operationId: evaluateDecision
       x-required-permission: decision:evaluate
       parameters:

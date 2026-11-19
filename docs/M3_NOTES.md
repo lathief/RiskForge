@@ -106,4 +106,41 @@ Things a reader of the M3 code should know that are not obvious from the design.
 | The resolver and cache tests sit in `database/seeders` because they reuse the demo policy fixture | A shared test-fixtures package would be cleaner; moving it touches many files for no behaviour change. |
 | `BuildFacts` sorts and copies the dictionary on every evaluation | Could be precomputed per policy; the benchmark shows evaluation at roughly 130 µs, which does not justify the change before RF-024 measures real load. |
 | No endpoint lists decisions by application | The index exists (`application_id, created_at`); the endpoint is part of the audit work (RF-022). |
-| Another consumer's `404` for `GET /decisions/{id}` is unit tested but not tested over HTTP | The demo data has a single consumer user. |
+| ~~Another consumer's `404` for `GET /decisions/{id}` is unit tested but not tested over HTTP~~ | Done in the milestone review: `TestAnotherConsumerCannotReadAnyDecisionOfThisOne` creates a second consumer for the test. |
+
+## Milestone 3 validation and review
+
+After RF-011 to RF-016 were collected in `feature/M3-decision-engine`, the milestone was validated as one unit (see `docs/VERIFICATION.md` for the commands and numbers) and reviewed again for code, architecture, and security. Everything not fixed is in [`POST_M5_BACKLOG.md`](POST_M5_BACKLOG.md).
+
+### Milestone audit (`SYSTEM_DESIGN.md` 19.4)
+
+| Release gate item (section 17, M3) | State | Evidence |
+|---|---|---|
+| Derived features | COMPLETE | `BuildFeatures` (RF-011), unit tests, live response `derived_features` (`5/24`, `9500000`) |
+| RAC (hard reject, refer, traces) | COMPLETE | `ruleengine` tests; live: age 19 gives `REJECT` with `AGE_BELOW_MINIMUM` and `rac_not_evaluated`; SLIK 3 gives `REFER` |
+| Scorecard and matrix, precedence | COMPLETE | `policy/domain` tests; live total `685.00`, grade `A` |
+| Golden dataset passes | COMPLETE | `TestTheDemoGoldenCasesAllPass`; golden tests run on `validate` and submit |
+| Decision API | COMPLETE | `POST /decisions/evaluate`, `GET /decisions/{id}`; 32 operations in OpenAPI 0.13.2, Swagger UI, Postman |
+| Idempotency | COMPLETE | replay (`Idempotent-Replayed: true`), `409 IDEMPOTENCY_CONFLICT`, 12 goroutine tests, keys scoped to the caller (new HTTP test) |
+| Decision run stored durably | COMPLETE | `decision.requests`, `runs`, `rule_traces`, append-only triggers, checksum trigger |
+| Compiled policy cache | COMPLETE | `policy_cache_test.go`, live query log shows one snapshot read |
+| Approval and publish | MISSING by design | M4. The demo policy is activated by `DemoActivePolicySeeder`, local and testing only |
+| Rate limit, API clients, retention | MISSING | security items in the backlog (SEC-01 to SEC-03) |
+
+### Findings fixed in this review
+
+| Finding | Kind | Fix and proof |
+|---|---|---|
+| `activity.log` contained the full request and response of every decision: applicant income, installments, credit history, and the decision. Key based redaction cannot recognise `monthly_income`, and the dictionary is configurable. Seen in the live run (`12000000` in the log) with `LOG_HTTP_BODIES=true`, the dev and test default. | Security | The bodies of `/api/v1/decisions...` are replaced by `{"_omitted":"sensitive_route"}` (`logging.BodyWithheld`, middleware `ActivityLog`). Unit test `TestBodiesOfTheDecisionRoutesAreWithheld`; HTTP test `TestTheActivityLogNeverContainsTheApplicantOrTheDecision` checks that no income, installment, application id, or score reaches the log for evaluate, get, and a 422. |
+| A decimal string could have a fraction of any length (`"100.000...0"` with thousands of digits) up to the 64 KiB body limit. It was parsed, compared, and kept in `input_snapshot` although a variable can have at most 8 fraction digits. | Security (resource use) | Applicant decimals accept at most 32 fraction digits (`inputDecimalPattern`); longer is `invalid_type`. Tests in `input_length_test.go`. The analyst bound patterns are unchanged (backlog SEC-09). |
+| Isolation between API consumers was only unit tested: another consumer reading a decision, and two consumers using the same `Idempotency-Key`. | Test gap | `TestAnotherConsumerCannotReadAnyDecisionOfThisOne` (404, the same body as an unknown id) and `TestIdempotencyKeysBelongToTheCaller` (same key from another consumer is a new request, not a replay and not a conflict). |
+| OpenAPI did not say how long a decimal may be, or that decision bodies are not logged. | Documentation | OpenAPI 0.13.2 (description only), Postman regenerated, `--check` and Redocly lint pass. |
+
+### Reviewed and found sound
+
+- `Claim`, `FindByRequest`, `Save`: parameterized SQL with explicit casts, no string building from input; the idempotency claim and the run are one transaction.
+- The use case never turns a technical error into `REJECT`: the live unhappy runs (422, 404, 409, 401, 403) return the error envelope and no decision.
+- Snapshot numbers are checked at parse time (`checkParsedNumbers`), so `mustRat` cannot panic on a damaged snapshot that passed the checksum.
+- The cache never stores a transient error, releases waiters when a loader panics, and lets a waiter take over from a cancelled leader.
+- Request size is bounded (64 KiB body, 100 applicant keys, id and key patterns), and unknown top-level keys are refused.
+

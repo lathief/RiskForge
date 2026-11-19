@@ -15,7 +15,8 @@
 | [DECISION_ENGINE.md](DECISION_ENGINE.md) | Understand how RAC, scorecard, and matrix will be evaluated, including precedence and edge cases. | **Implemented** (M3, RF-011..RF-016): features, RAC, scorecard, matrix, Decision API, persistence, idempotency, and the policy cache |
 | [SCRIPTS.md](SCRIPTS.md) | Run `scripts/*` (secrets, Postman generator and smoke test, Swagger UI update) and Artisan database commands. | Current |
 | [VERIFICATION.md](VERIFICATION.md) | See what was run to accept each ticket and what was observed. | Current |
-| [M3_NOTES.md](M3_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 3, starting with the feature builder (RF-011). | Current (M3, growing) |
+| [M3_NOTES.md](M3_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 3 (RF-011 to RF-016), plus its milestone audit and review fixes. | Current (M3 complete) |
+| [POST_M5_BACKLOG.md](POST_M5_BACKLOG.md) | Track the security, reliability, design, and tooling findings that are not fixed yet and are planned after milestone 5. | Current, open items |
 | [M1_NOTES.md](M1_NOTES.md) | See what milestone 1 built, as read from the code: architecture, endpoints, access control, logs, tooling, and its known limits. | Current (M1) |
 | [M2_NOTES.md](M2_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 2 (RF-005 to RF-010). | Current (M2) |
 | [adr/](adr/) | Know *why* a technical decision was made and what it costs. | Current |
