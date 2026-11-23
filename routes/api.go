@@ -20,6 +20,8 @@ import (
 	identityinfra "goravel/app/modules/identity/infrastructure"
 	policyapp "goravel/app/modules/policy/application"
 	policyinfra "goravel/app/modules/policy/infrastructure"
+	simulationapp "goravel/app/modules/simulation/application"
+	simulationinfra "goravel/app/modules/simulation/infrastructure"
 	"goravel/app/platform/database"
 	"goravel/app/platform/logging"
 	"goravel/app/support"
@@ -32,6 +34,7 @@ const (
 	moduleDictionary = "dictionary"
 	modulePolicy     = "policy"
 	moduleDecision   = "decision"
+	moduleSimulation = "simulation"
 	moduleDocs       = "docs"
 )
 
@@ -94,6 +97,11 @@ func Api() {
 	decisionController := controllers.NewDecisionController(
 		decisionapp.NewEvaluationService(decisioninfra.NewPolicyResolver(policyService),
 			decisioninfra.NewDecisionRepository(decisionDB), decisionDB))
+	// Policy simulator (RF-017): evaluates any version with the evaluation core of the Decision
+	// API and writes nothing, so it needs no database manager of its own.
+	simulationController := controllers.NewSimulationController(
+		simulationapp.NewService(simulationinfra.NewPolicySource(policyService)))
+	canSimulatePolicies := middleware.NewRequirePermission(domain.PermPolicySimulate)
 	canEvaluateDecisions := middleware.NewRequirePermission(domain.PermDecisionEval)
 	canReadDecisions := middleware.NewRequirePermission(domain.PermDecisionRead)
 	canReadPolicies := middleware.NewRequirePermission(domain.PermPolicyRead)
@@ -107,6 +115,7 @@ func Api() {
 	dictionary := middleware.NewModule(moduleDictionary)
 	policy := middleware.NewModule(modulePolicy)
 	decision := middleware.NewModule(moduleDecision)
+	simulation := middleware.NewModule(moduleSimulation)
 
 	facades.Route().Prefix("/api/v1").Group(func(router route.Router) {
 		router.Middleware(identity).Post("/auth/login", authController.Login)
@@ -138,6 +147,7 @@ func Api() {
 		router.Middleware(policy, authenticate, canWritePolicies).Put("/policy-versions/{version_id}/test-cases", policyController.ReplaceTestCases)
 		router.Middleware(policy, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/validate", policyController.ValidateVersion)
 		router.Middleware(policy, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/submit", policyController.SubmitVersion)
+		router.Middleware(simulation, authenticate, canSimulatePolicies).Post("/policy-versions/{version_id}/simulate", simulationController.Simulate)
 		router.Middleware(decision, authenticate, canEvaluateDecisions).Post("/decisions/evaluate", decisionController.Evaluate)
 		router.Middleware(decision, authenticate, canReadDecisions).Get("/decisions/{decision_id}", decisionController.Show)
 	})

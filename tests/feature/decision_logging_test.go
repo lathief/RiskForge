@@ -40,3 +40,33 @@ func (s *PolicyTestSuite) TestTheActivityLogNeverContainsTheApplicantOrTheDecisi
 		s.NotContains(buf.String(), value)
 	}
 }
+
+// The simulator takes the same applicant data and returns the same trace, so its bodies are
+// withheld too (RF-017). Other policy-version routes carry policy configuration and keep their
+// redacted bodies.
+func (s *PolicyTestSuite) TestTheActivityLogNeverContainsTheSimulatedApplicant() {
+	s.activate()
+	_, active := s.activeIDs()
+	buf := &bytes.Buffer{}
+	previous := logging.Default()
+	logging.SetDefault(logging.NewWithWriters(logging.Config{AppName: "RiskForge", LogHTTPBodies: true, MaxBodyBytes: 8192},
+		map[string]io.Writer{logging.TypeActivity: buf}))
+	defer logging.SetDefault(previous)
+
+	s.send("demo_analyst", "POST", simulatePath(active), simulateBody()).AssertOk()
+	s.send("demo_analyst", "POST", simulatePath(active), simulateBody(`"12000000.00"`, `"0.00"`)).AssertStatus(422)
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	s.Require().Len(lines, 2, "one activity entry per request")
+	for _, line := range lines {
+		var e map[string]any
+		s.Require().NoError(json.Unmarshal([]byte(line), &e))
+		s.Contains(e["path"], "/simulate")
+		s.NotEmpty(e["requestID"])
+		s.NotEmpty(e["userID"], "the caller is still logged")
+		s.Equal(map[string]any{"_omitted": "sensitive_route"}, e["requestBody"])
+		s.Equal(map[string]any{"_omitted": "sensitive_route"}, e["responseBody"])
+	}
+	for _, value := range []string{"12000000", "2500000", "slik_max_kol", "total_score"} {
+		s.NotContains(buf.String(), value)
+	}
+}

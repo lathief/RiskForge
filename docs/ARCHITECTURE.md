@@ -42,7 +42,8 @@ Solid lines exist today. Dashed lines are planned and described in `SYSTEM_DESIG
 | `policy` | Policy packages and versioned drafts with frozen, checksummed snapshots | Implemented (RF-006), with RAC rules (RF-007), scorecard (RF-008), decision matrix (RF-009), and test cases with full validation (RF-010); the test cases are executed through the decision pipeline, with the evaluator `CompilePolicy` (RF-013) | `app/modules/policy` |
 | `ruleengine` | Pure compile/validate/evaluate. Today: `Analyze` checks RAC expressions (syntax, allowed subset of the `expr` language, known variables, boolean result) | Checking (RF-007) and RAC evaluation (RF-012) implemented; scorecard and matrix evaluation planned (RF-013) | `app/modules/ruleengine` |
 | `decision` | Decision API: resolves the active policy, evaluates an application, returns the decision with its trace | `POST /decisions/evaluate` (RF-014) with durable runs, traces, and idempotency, and `GET /decisions/{id}` (RF-015) implemented, with the compiled policy cache (RF-016) | `app/modules/decision` |
-| `simulation`, `approval` | Draft simulation, multi-level approval, atomic publish | Planned (RF-017..RF-021) | |
+| `simulation` | Policy simulator: evaluates one applicant against any version with the Decision API's evaluation core (`decision/infrastructure.NewEvaluablePolicy`) and stores nothing. No tables. | `POST /policy-versions/{version_id}/simulate` implemented (RF-017) | `app/modules/simulation` |
+| `approval` | Multi-level approval, atomic publish | Planned (RF-018..RF-021) | |
 | `audit` | Append-only history and audit search | Planned (RF-022) | |
 | `platform` | Transaction manager, query logging, structured logs | Implemented | `app/platform` |
 

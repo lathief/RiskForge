@@ -61,12 +61,27 @@ type BodySummary struct {
 // request id) is logged. The stored decision in the database is the record of the input.
 var withheldBodyPrefixes = []string{"/api/v1/decisions"}
 
+// simulationPrefix and simulationSuffix delimit /api/v1/policy-versions/{version_id}/simulate
+// (RF-017). The simulator takes the same applicant data as a decision and returns its trace, so
+// its bodies are withheld too. The other policy-version routes carry policy configuration, not
+// applicant data, and stay logged.
+const (
+	simulationPrefix = "/api/v1/policy-versions/"
+	simulationSuffix = "/simulate"
+)
+
 // BodyWithheld reports whether bodies of requests to path must not be logged.
 func BodyWithheld(path string) bool {
 	for _, p := range withheldBodyPrefixes {
 		if path == p || strings.HasPrefix(path, p+"/") {
 			return true
 		}
+	}
+	// Any path of that shape is withheld, also one with an empty or malformed id that no route
+	// matches: the body of such a request is still an applicant, sent to the wrong address.
+	if len(path) >= len(simulationPrefix)+len(simulationSuffix) &&
+		strings.HasPrefix(path, simulationPrefix) && strings.HasSuffix(path, simulationSuffix) {
+		return true
 	}
 	return false
 }

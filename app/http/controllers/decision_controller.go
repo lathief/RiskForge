@@ -70,13 +70,9 @@ type decisionMatrixTrace struct {
 	Decision string  `json:"decision"`
 }
 
-type decisionResponse struct {
-	DecisionID      string                   `json:"decision_id"`
-	CreatedAt       string                   `json:"created_at"`
-	ApplicationID   string                   `json:"application_id"`
-	ProductCode     string                   `json:"product_code"`
-	PolicyVersion   decisionPolicyVersion    `json:"policy_version"`
-	Status          string                   `json:"status"`
+// outcomeResponse is the business result and its trace. A decision and a simulation return the
+// same fields, built by one function, so they cannot drift apart.
+type outcomeResponse struct {
 	FinalDecision   string                   `json:"final_decision"`
 	RiskGrade       *string                  `json:"risk_grade"`
 	TotalScore      *string                  `json:"total_score"`
@@ -90,13 +86,29 @@ type decisionResponse struct {
 	Matrix          *decisionMatrixTrace     `json:"matrix"`
 }
 
+type decisionResponse struct {
+	DecisionID    string                `json:"decision_id"`
+	CreatedAt     string                `json:"created_at"`
+	ApplicationID string                `json:"application_id"`
+	ProductCode   string                `json:"product_code"`
+	PolicyVersion decisionPolicyVersion `json:"policy_version"`
+	Status        string                `json:"status"`
+	outcomeResponse
+}
+
 func toDecisionResponse(d application.Decision) decisionResponse {
-	o := d.Outcome
-	out := decisionResponse{
+	return decisionResponse{
 		DecisionID: d.ID, CreatedAt: d.CreatedAt.UTC().Format(time.RFC3339),
 		ApplicationID: d.ApplicationID, ProductCode: d.ProductCode,
-		PolicyVersion: decisionPolicyVersion{ID: d.Policy.VersionID, Number: d.Policy.VersionNumber, Checksum: d.Policy.Checksum},
-		Status:        "COMPLETED", FinalDecision: o.FinalDecision, RiskGrade: nonEmpty(o.RiskGrade), TotalScore: nonEmpty(o.TotalScore),
+		PolicyVersion:   decisionPolicyVersion{ID: d.Policy.VersionID, Number: d.Policy.VersionNumber, Checksum: d.Policy.Checksum},
+		Status:          "COMPLETED",
+		outcomeResponse: toOutcomeResponse(d.Outcome),
+	}
+}
+
+func toOutcomeResponse(o application.Outcome) outcomeResponse {
+	out := outcomeResponse{
+		FinalDecision: o.FinalDecision, RiskGrade: nonEmpty(o.RiskGrade), TotalScore: nonEmpty(o.TotalScore),
 		ReasonCodes: append([]string{}, o.ReasonCodes...), ReferFlag: o.ReferFlag,
 		DerivedFeatures: make([]derivedFeatureResponse, 0, len(o.Features)),
 		RACResults:      make([]racResultResponse, 0, len(o.Rules)),
