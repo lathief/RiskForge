@@ -17,7 +17,7 @@ flowchart TD
         API --> CATALOG[catalog module]
         API -.-> POLICY[policy module - planned M2]
         API -.-> ENGINE[decision + ruleengine - planned M3]
-        API -.-> APPROVAL[approval module - workflow config RF-018, requests RF-019, publish planned]
+        API -.-> APPROVAL[approval module - workflow config RF-018, requests RF-019, atomic publish RF-020]
         ENGINE -.-> AUDIT[audit module - planned M5]
         PLATFORM[platform: transactions, structured logging]
     end
@@ -44,7 +44,7 @@ Solid lines exist today. Dashed lines are planned and described in `SYSTEM_DESIG
 | `decision` | Decision API: resolves the active policy, evaluates an application, returns the decision with its trace | `POST /decisions/evaluate` (RF-014) with durable runs, traces, and idempotency, and `GET /decisions/{id}` (RF-015) implemented, with the compiled policy cache (RF-016) | `app/modules/decision` |
 | `simulation` | Policy simulator: evaluates one applicant against any version with the Decision API's evaluation core (`decision/infrastructure.NewEvaluablePolicy`) and stores nothing. No tables. | `POST /policy-versions/{version_id}/simulate` implemented (RF-017) | `app/modules/simulation` |
 | `approval` | Approval workflow configuration (one workflow per product and policy scope, append-only versions of sequential steps with role, scope, quorum) and approval requests: submit opens a request pinned to the policy checksum and workflow version; the state machine records approver actions on the active step. Calls the policy module through a port. | Workflow configuration (RF-018) and state machine (RF-019) implemented, schema `approval`: `workflow_definitions`, `workflow_versions`, `workflow_steps`, `requests`, `actions`; atomic publish (RF-020) and diff (RF-021) planned | `app/modules/approval` |
-| `audit` | Append-only history and audit search | Planned (RF-022) | |
+| `audit` | Append-only domain event log (`audit.events`): who, when, action, entity, identifiers only | Event log written by the publication transaction (RF-020, `POLICY_VERSION_PUBLISHED`); audit search planned (RF-022) | `app/modules/audit` |
 | `platform` | Transaction manager, query logging, structured logs | Implemented | `app/platform` |
 
 Each PostgreSQL schema belongs to one module (`identity`, `catalog`, `dictionary`, `policy`, `approval`, `decision`, `audit`). A module never queries another module's tables; cross-module calls go through application interfaces.

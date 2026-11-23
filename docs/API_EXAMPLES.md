@@ -34,7 +34,7 @@ LOANAPP=$(token demo_loan_application)
 | 401 | `INVALID_CREDENTIALS` | Login failed (same body for unknown user, wrong password, disabled account). |
 | 403 | `FORBIDDEN`, `SELF_APPROVAL_FORBIDDEN`, `APPROVER_NOT_ELIGIBLE` | Authenticated but missing the permission / the submitter acting on their own approval request / an approver without the step's role or scope. |
 | 404 | `PRODUCT_NOT_FOUND`, `VARIABLE_NOT_FOUND`, `POLICY_NOT_FOUND`, `POLICY_VERSION_NOT_FOUND`, `APPROVAL_WORKFLOW_NOT_FOUND`, `APPROVAL_WORKFLOW_VERSION_NOT_FOUND`, `APPROVAL_REQUEST_NOT_FOUND`, `ROUTE_NOT_FOUND` | Unknown product code / dictionary variable / policy / policy version / approval workflow / workflow version / approval request / route. |
-| 409 | `PRODUCT_CODE_CONFLICT`, `VARIABLE_CODE_CONFLICT`, `POLICY_CONFLICT`, `POLICY_VERSION_FROZEN`, `APPROVAL_WORKFLOW_CONFLICT`, `APPROVAL_WORKFLOW_NOT_CONFIGURED`, `APPROVAL_REQUEST_CLOSED`, `APPROVAL_STEP_NOT_ACTIVE`, `APPROVAL_ALREADY_GIVEN` | Product, variable, policy, or approval workflow already exists / an edit or submit of a version that is no longer a draft / a submit without an approval workflow / an action on a closed request, a step that is not active, or a second action of one approver. |
+| 409 | `PRODUCT_CODE_CONFLICT`, `VARIABLE_CODE_CONFLICT`, `POLICY_CONFLICT`, `POLICY_VERSION_FROZEN`, `APPROVAL_WORKFLOW_CONFLICT`, `APPROVAL_WORKFLOW_NOT_CONFIGURED`, `APPROVAL_REQUEST_CLOSED`, `APPROVAL_STEP_NOT_ACTIVE`, `APPROVAL_ALREADY_GIVEN`, `POLICY_VERSION_SUPERSEDED`, `POLICY_NOT_PUBLISHABLE` | Product, variable, policy, or approval workflow already exists / an edit or submit of a version that is no longer a draft / a submit without an approval workflow / an action on a closed request, a step that is not active, or a second action of one approver. |
 | 422 | `INPUT_VALIDATION_ERROR`, `POLICY_VALIDATION_FAILED`, `POLICY_NOT_EVALUABLE` | Invalid JSON, field, query parameter, or a field that cannot be set / a draft that is incomplete or whose content (RAC expressions, scorecard, decision matrix, test cases) does not validate at submit / a version the simulator cannot evaluate yet (RF-017). |
 | 503 | `SERVICE_BUSY` | Login capacity saturated; honour `Retry-After`. |
 | 500 | `INTERNAL_ERROR` | Unexpected failure; the cause is only in `error.log`. |
@@ -641,7 +641,20 @@ curl -s -X POST $B/api/v1/approval-requests/$REQUEST/actions -H "Authorization: 
 {"id":"c0ae01cf-a899-4f09-8800-df1e6531725e","status":"APPROVED","current_step":null,"policy_version":{"id":"5315a944-d850-40f5-95d1-adbb81c58e76","number":2,"product_code":"KTA_DEMO","scope":"DEFAULT","checksum":"feabef501fdc65ae237e4c118f5f4b7b107479374955089f0afc11cb4f6b6032"},"workflow_version":{"id":"f8408ec9-a9cf-46a7-90ad-8fb5b90c4224","number":1},"submitted_by":"088a2e46-3f6c-41bd-a237-6a7141a141d8","submitted_at":"2026-11-23T09:39:40Z","closed_at":"2026-11-23T09:39:49Z","steps":[{"order":1,"name":"Risk Lead Review","required_role":"RISK_APPROVER","required_scope":"RISK_LEAD","min_approvers":1,"approvals":1,"state":"APPROVED"},{"order":2,"name":"Head of Risk Review","required_role":"RISK_APPROVER","required_scope":"HEAD_OF_RISK","min_approvers":1,"approvals":1,"state":"APPROVED"}],"actions":[{"id":"6479a599-39d7-495e-9b40-007755cc9430","step":1,"actor_id":"bb406f95-ac8a-4f1f-bbe6-cfba88d87dda","action":"APPROVE","comment":"Rules and golden tests reviewed.","created_at":"2026-11-23T09:39:46Z"},{"id":"d9c22d79-1bab-4a3f-8877-8865dd8f57cc","step":2,"actor_id":"65c6daf5-8003-45f6-8a96-eb1bc09b53c8","action":"APPROVE","comment":"Approved for publishing.","created_at":"2026-11-23T09:39:49Z"}]}
 ```
 
-The policy version is now `APPROVED`. Publishing it as the active policy is RF-020; until then the Decision API keeps the current active version.
+That run was captured at RF-019, when the version stopped at `APPROVED`. **Since RF-020 the final approval publishes in the same transaction** (`SYSTEM_DESIGN.md` 11.7). On a live stack at RF-020 (clone with `age_years >= 30`), after the head of risk's approval:
+
+```sh
+curl -s $B/api/v1/policy-versions/$V1 -H "Authorization: Bearer $ANALYST"     # "version_number":1,"status":"ARCHIVED"
+curl -s $B/api/v1/policy-versions/$DRAFT -H "Authorization: Bearer $ANALYST"  # "version_number":2,"status":"ACTIVE"
+```
+
+The same applicant evaluated before and after (new idempotency keys): before `"policy_version":{"id":"10d4e231-...","number":1}`, `"final_decision":"APPROVE"`; after `"policy_version":{"id":"b9bd6d0c-...","number":2}`, `"final_decision":"REJECT"`. The stored earlier decision still names version 1. The audit log got one event:
+
+```
+POLICY_VERSION_PUBLISHED | b9bd6d0c-48bf-46f3-a100-62c0b6f58252 | {"scope": "DEFAULT", "checksum": "3f00761757aad3c8b259e71737fd217a7deea1080572011cde82bd45908da035", "policy_id": "589b53b4-c919-42df-9954-2b81dae99c39", "product_code": "KTA_DEMO", "version_number": 2, "approval_request_id": "7d2f105e-75aa-4177-ab9f-929e82fa9202", "archived_version_id": "10d4e231-45fe-4853-9dde-bea1fddbf9a6", "workflow_version_id": "f6ef0904-8f55-410b-8560-482a753565d8"}
+```
+
+If the final approval cannot publish, nothing of it is kept and the request stays open at the last step: `409 POLICY_VERSION_SUPERSEDED` when a newer version is already active (reject the request; to roll back, clone the good version into a new draft and approve that), or `409 POLICY_NOT_PUBLISHABLE` when the snapshot no longer compiles.
 
 Refusals, all without writing anything:
 

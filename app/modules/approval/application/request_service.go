@@ -37,10 +37,38 @@ type PolicyGateway interface {
 	Find(ctx context.Context, versionID string) (SubmittedPolicy, error)
 	// Submit validates and freezes a draft (PolicyService.Submit) in the caller's transaction.
 	Submit(ctx context.Context, actorID, versionID string) (SubmittedPolicy, error)
-	// Conclude moves a PENDING_APPROVAL version to APPROVED or REJECTED, after checking it still
-	// has the checksum it was submitted with (SYSTEM_DESIGN.md 9.3).
-	Conclude(ctx context.Context, versionID, checksum string, approved bool) error
+	// Reject moves a PENDING_APPROVAL version to REJECTED, after checking it still has the
+	// checksum it was submitted with (SYSTEM_DESIGN.md 9.3).
+	Reject(ctx context.Context, versionID, checksum string) error
+	// ApproveAndPublish moves a PENDING_APPROVAL version to APPROVED and publishes it
+	// atomically (RF-020, SYSTEM_DESIGN.md 9.4): the previous active version is archived and the
+	// active binding moves. It returns what changed.
+	ApproveAndPublish(ctx context.Context, versionID, checksum, actorID string) (Publication, error)
 }
+
+// Publication is what a publish changed.
+type Publication struct {
+	PackageID         string
+	ActiveVersionID   string
+	ArchivedVersionID string // "" for the first publish of the package
+}
+
+// AuditEvent is one domain event for the audit log; Data holds identifiers only.
+type AuditEvent struct {
+	Action        string
+	AggregateType string
+	AggregateID   string
+	ActorID       string
+	Data          map[string]any
+}
+
+// AuditTrail writes audit events in the caller's transaction.
+type AuditTrail interface {
+	Record(ctx context.Context, e AuditEvent) error
+}
+
+// EventPolicyPublished is the audit action of a publication.
+const EventPolicyPublished = "POLICY_VERSION_PUBLISHED"
 
 // NewRequest is the row opened at submit.
 type NewRequest struct {
@@ -88,11 +116,12 @@ type RequestService struct {
 	requests  RequestRepository
 	workflows Repository
 	policies  PolicyGateway
+	audit     AuditTrail
 	tx        tx.Manager
 }
 
-func NewRequestService(requests RequestRepository, workflows Repository, policies PolicyGateway, txm tx.Manager) *RequestService {
-	return &RequestService{requests: requests, workflows: workflows, policies: policies, tx: txm}
+func NewRequestService(requests RequestRepository, workflows Repository, policies PolicyGateway, audit AuditTrail, txm tx.Manager) *RequestService {
+	return &RequestService{requests: requests, workflows: workflows, policies: policies, audit: audit, tx: txm}
 }
 
 // Submit freezes a draft and opens its approval request in one transaction (SYSTEM_DESIGN.md
@@ -137,11 +166,15 @@ func (s *RequestService) Submit(ctx context.Context, actorID, versionID string) 
 
 // Act applies one approver action. The request row is locked for the whole transaction, so two
 // approvers acting at once are decided one after the other and the quorum and the transition
-// happen exactly once (SYSTEM_DESIGN.md 11.3). A rejection, or the approval that completes the
-// last step, also moves the policy version to REJECTED or APPROVED in the same transaction.
+// happen exactly once (SYSTEM_DESIGN.md 11.3). A rejection moves the policy version to
+// REJECTED. The approval that completes the last step is the publication transaction of
+// SYSTEM_DESIGN.md 9.4: the last action, the closed request, the version APPROVED and then
+// ACTIVE, the previous version ARCHIVED, the moved binding, and the audit event commit together
+// or not at all. If the version cannot be published (superseded, does not compile), nothing is
+// recorded and the request stays open; the approver may reject it.
 // Errors: *domain.ValidationError (422), ErrRequestNotFound (404), domain.ErrSelfApproval and
 // domain.ErrNotEligible (403), domain.ErrRequestClosed, domain.ErrStepNotActive, and
-// domain.ErrAlreadyActed (409), or a server fault.
+// domain.ErrAlreadyActed (409), the policy module's publish errors, or a server fault.
 func (s *RequestService) Act(ctx context.Context, actor domain.Actor, requestID string, in domain.ActionInput) (domain.Request, error) {
 	action, err := domain.ValidateAction(in)
 	if err != nil {
@@ -163,8 +196,24 @@ func (s *RequestService) Act(ctx context.Context, actor domain.Actor, requestID 
 		if err := s.requests.InsertAction(ctx, r.ID, t.Action); err != nil {
 			return err
 		}
-		if t.Closed {
-			if err := s.policies.Conclude(ctx, r.PolicyVersionID, r.PolicyChecksum, t.Status == domain.RequestApproved); err != nil {
+		switch {
+		case t.Closed && t.Status == domain.RequestRejected:
+			if err := s.policies.Reject(ctx, r.PolicyVersionID, r.PolicyChecksum); err != nil {
+				return err
+			}
+		case t.Closed:
+			pub, err := s.policies.ApproveAndPublish(ctx, r.PolicyVersionID, r.PolicyChecksum, actor.ID)
+			if err != nil {
+				return err
+			}
+			if err := s.audit.Record(ctx, AuditEvent{
+				Action: EventPolicyPublished, AggregateType: "POLICY_VERSION", AggregateID: pub.ActiveVersionID, ActorID: actor.ID,
+				Data: map[string]any{
+					"approval_request_id": r.ID, "policy_id": pub.PackageID, "product_code": r.ProductCode, "scope": r.PolicyScope,
+					"version_number": r.PolicyVersionNumber, "checksum": r.PolicyChecksum,
+					"workflow_version_id": r.WorkflowVersionID, "archived_version_id": nullable(pub.ArchivedVersionID),
+				},
+			}); err != nil {
 				return err
 			}
 		}
@@ -180,6 +229,13 @@ func (s *RequestService) Act(ctx context.Context, actor domain.Actor, requestID 
 		return domain.Request{}, err
 	}
 	return out, nil
+}
+
+func nullable(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }
 
 // Get returns one request with its steps and actions.

@@ -83,9 +83,10 @@ func (f *fakeRequests) UpdateState(_ context.Context, id string, s domain.Reques
 }
 
 type fakePolicies struct {
-	versions  map[string]*SubmittedPolicy
-	concluded map[string]bool // version id -> approved
-	failNext  error
+	versions   map[string]*SubmittedPolicy
+	concluded  map[string]bool // version id -> approved
+	failNext   error
+	publishErr error
 }
 
 func (p *fakePolicies) Find(_ context.Context, id string) (SubmittedPolicy, error) {
@@ -109,13 +110,44 @@ func (p *fakePolicies) Submit(_ context.Context, actor, id string) (SubmittedPol
 	return *v, nil
 }
 
-func (p *fakePolicies) Conclude(_ context.Context, id, checksum string, approved bool) error {
+func (p *fakePolicies) conclude(id, checksum string, approved bool) error {
 	v := p.versions[id]
 	if v.Status != "PENDING_APPROVAL" || v.Checksum != checksum {
 		return errors.New("not pending or checksum mismatch")
 	}
 	p.concluded[id] = approved
-	v.Status = map[bool]string{true: "APPROVED", false: "REJECTED"}[approved]
+	return nil
+}
+
+func (p *fakePolicies) Reject(_ context.Context, id, checksum string) error {
+	if err := p.conclude(id, checksum, false); err != nil {
+		return err
+	}
+	p.versions[id].Status = "REJECTED"
+	return nil
+}
+
+func (p *fakePolicies) ApproveAndPublish(_ context.Context, id, checksum, _ string) (Publication, error) {
+	if err := p.publishErr; err != nil {
+		return Publication{}, err
+	}
+	if err := p.conclude(id, checksum, true); err != nil {
+		return Publication{}, err
+	}
+	p.versions[id].Status = "ACTIVE"
+	return Publication{PackageID: "pkg-1", ActiveVersionID: id}, nil
+}
+
+type fakeAudit struct {
+	events  []AuditEvent
+	failErr error
+}
+
+func (a *fakeAudit) Record(_ context.Context, e AuditEvent) error {
+	if a.failErr != nil {
+		return a.failErr
+	}
+	a.events = append(a.events, e)
 	return nil
 }
 
@@ -127,8 +159,9 @@ var (
 // requestTx rolls back the request rows, the policy versions, and the concluded map when the
 // unit of work fails.
 type requestTx struct {
-	req *fakeRequests
-	pol *fakePolicies
+	req   *fakeRequests
+	pol   *fakePolicies
+	audit *fakeAudit
 }
 
 func (t *requestTx) WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
@@ -147,7 +180,9 @@ func (t *requestTx) WithinTransaction(ctx context.Context, fn func(ctx context.C
 	for k, v := range t.pol.concluded {
 		concluded[k] = v
 	}
+	events := append([]AuditEvent{}, t.audit.events...)
 	if err := fn(ctx); err != nil {
+		t.audit.events = events
 		t.req.rows = map[string]*domain.Request{}
 		for k, v := range rows {
 			c := v
@@ -168,6 +203,7 @@ type requestFixture struct {
 	svc      *RequestService
 	req      *fakeRequests
 	pol      *fakePolicies
+	audit    *fakeAudit
 	workflow *WorkflowService
 }
 
@@ -184,7 +220,9 @@ func newRequestFixture(t *testing.T, withWorkflow bool) *requestFixture {
 	pol := &fakePolicies{concluded: map[string]bool{}, versions: map[string]*SubmittedPolicy{
 		draftID: {VersionID: draftID, ProductCode: "KTA_DEMO", PolicyScope: "DEFAULT", Number: 2, Status: "DRAFT"},
 	}}
-	return &requestFixture{svc: NewRequestService(req, wrepo, pol, &requestTx{req: req, pol: pol}), req: req, pol: pol, workflow: workflows}
+	audit := &fakeAudit{}
+	return &requestFixture{svc: NewRequestService(req, wrepo, pol, audit, &requestTx{req: req, pol: pol, audit: audit}),
+		req: req, pol: pol, audit: audit, workflow: workflows}
 }
 
 var (
@@ -250,7 +288,39 @@ func TestTwoTiersApproveTheVersion(t *testing.T) {
 	assert.Zero(t, r.CurrentStep)
 	assert.Len(t, r.Actions, 2)
 	assert.Equal(t, map[string]bool{draftID: true}, f.pol.concluded)
-	assert.Equal(t, "APPROVED", f.pol.versions[draftID].Status)
+	assert.Equal(t, "ACTIVE", f.pol.versions[draftID].Status, "the final approval publishes")
+	require.Len(t, f.audit.events, 1)
+	e := f.audit.events[0]
+	assert.Equal(t, EventPolicyPublished, e.Action)
+	assert.Equal(t, "POLICY_VERSION", e.AggregateType)
+	assert.Equal(t, draftID, e.AggregateID)
+	assert.Equal(t, "head", e.ActorID)
+	assert.Equal(t, r.ID, e.Data["approval_request_id"])
+	assert.Equal(t, "c0ffee", e.Data["checksum"])
+	assert.Nil(t, e.Data["archived_version_id"], "first publish")
+}
+
+func TestAFailedPublishRecordsNothingAndKeepsTheRequestOpen(t *testing.T) {
+	for name, setup := range map[string]func(f *requestFixture){
+		"superseded":   func(f *requestFixture) { f.pol.publishErr = errors.New("a newer version is active") },
+		"audit failed": func(f *requestFixture) { f.audit.failErr = errors.New("audit write failed") },
+	} {
+		f := newRequestFixture(t, true)
+		ctx := context.Background()
+		r, err := f.svc.Submit(ctx, "maker", draftID)
+		require.NoError(t, err)
+		_, err = f.svc.Act(ctx, riskLead, r.ID, domain.ActionInput{Action: "APPROVE"})
+		require.NoError(t, err)
+		setup(f)
+		_, err = f.svc.Act(ctx, headOfRisk, r.ID, domain.ActionInput{Action: "APPROVE"})
+		require.Error(t, err, name)
+		got, err := f.svc.Get(ctx, r.ID)
+		require.NoError(t, err)
+		assert.Equal(t, domain.RequestPending, got.Status, name)
+		assert.Len(t, got.Actions, 1, name)
+		assert.Equal(t, "PENDING_APPROVAL", f.pol.versions[draftID].Status, name)
+		assert.Empty(t, f.audit.events, name)
+	}
 }
 
 func TestARejectionClosesTheRequestAndTheVersion(t *testing.T) {

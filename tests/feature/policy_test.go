@@ -77,7 +77,7 @@ func (s *PolicyTestSuite) SetupSuite() {
 // fire the append-only triggers, so it is the supported way to reset a disposable database.
 func (s *PolicyTestSuite) SetupTest() {
 	db := facades.DB()
-	s.Require().NoError(db.Statement("TRUNCATE TABLE approval.actions, approval.requests, approval.workflow_steps, approval.workflow_versions, approval.workflow_definitions, decision.rule_traces, decision.runs, decision.requests, policy.active_policy_bindings, policy.test_cases, policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
+	s.Require().NoError(db.Statement("TRUNCATE TABLE audit.events, approval.actions, approval.requests, approval.workflow_steps, approval.workflow_versions, approval.workflow_definitions, decision.rule_traces, decision.runs, decision.requests, policy.active_policy_bindings, policy.test_cases, policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
 	s.Require().NoError(db.Statement("TRUNCATE TABLE dictionary.variable_versions, dictionary.variables"))
 	s.Require().NoError(db.Statement("UPDATE dictionary.schema_state SET current_version = 0"))
 	s.Require().NoError(seeders.SeedDemoProducts())

@@ -6,6 +6,7 @@ import (
 
 	"goravel/app/modules/approval/application"
 	"goravel/app/modules/approval/domain"
+	auditapp "goravel/app/modules/audit/application"
 	catalogapp "goravel/app/modules/catalog/application"
 	catalogdomain "goravel/app/modules/catalog/domain"
 	identitydomain "goravel/app/modules/identity/domain"
@@ -70,8 +71,35 @@ func (p *PolicyVersions) Submit(ctx context.Context, actorID, versionID string) 
 	return toSubmitted(v), nil
 }
 
-func (p *PolicyVersions) Conclude(ctx context.Context, versionID, checksum string, approved bool) error {
-	return p.service.ConcludeReview(ctx, versionID, checksum, approved)
+func (p *PolicyVersions) Reject(ctx context.Context, versionID, checksum string) error {
+	return p.service.ConcludeReview(ctx, versionID, checksum, false)
+}
+
+// ApproveAndPublish concludes the review as approved and publishes in the caller's transaction.
+func (p *PolicyVersions) ApproveAndPublish(ctx context.Context, versionID, checksum, actorID string) (application.Publication, error) {
+	if err := p.service.ConcludeReview(ctx, versionID, checksum, true); err != nil {
+		return application.Publication{}, err
+	}
+	pub, err := p.service.Publish(ctx, versionID, checksum, actorID)
+	if err != nil {
+		return application.Publication{}, err
+	}
+	return application.Publication{PackageID: pub.PackageID, ActiveVersionID: pub.ActiveVersion.ID, ArchivedVersionID: pub.ArchivedVersionID}, nil
+}
+
+// AuditLog writes approval events through the audit module.
+type AuditLog struct {
+	recorder *auditapp.Recorder
+}
+
+var _ application.AuditTrail = (*AuditLog)(nil)
+
+func NewAuditLog(recorder *auditapp.Recorder) *AuditLog { return &AuditLog{recorder: recorder} }
+
+func (a *AuditLog) Record(ctx context.Context, e application.AuditEvent) error {
+	return a.recorder.Record(ctx, auditapp.Event{
+		Action: e.Action, AggregateType: e.AggregateType, AggregateID: e.AggregateID, ActorID: e.ActorID, Data: e.Data,
+	})
 }
 
 // IdentityRoles reads the approver roles and the approval scopes from the identity module, so

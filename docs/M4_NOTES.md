@@ -75,3 +75,26 @@ Known limits:
 - `DemoActivePolicySeeder` still activates the demo version through `PolicyService.Submit` without a request; it is the development shortcut of `SYSTEM_DESIGN.md` 17 and has no endpoint.
 - A user who loses a role keeps the actions already recorded; eligibility is checked at the moment of the action.
 - Approval actions are not audit events yet (RF-022).
+
+## Atomic publishing (RF-020)
+
+Branch `feature/RF-020-atomic-publishing`, on top of RF-019. ADR `docs/adr/0021-atomic-publishing.md`. Design: `SYSTEM_DESIGN.md` 11.7.
+
+| Item | Status | Notes |
+|---|---|---|
+| One transaction | Done | The final approval stores the action, approves and publishes the version, archives the previous one, moves the binding, writes the audit event, and closes the request; any failure rolls back all of it (tested with a refused publish and a failing audit write). |
+| Explicit locking | Done | Request, version, package, binding rows `FOR UPDATE`; the package lock also covers the first publish. |
+| Concurrency tests | Done | Two final approvals of two versions at once leave exactly one `ACTIVE` version (the newer); 16 decisions during a publish each use one whole version with its checksum. Repeated three times with `-race`. |
+| Archive old | Done | `ACTIVE -> ARCHIVED`; decisions made with it stay readable and keep naming it. |
+| Audit | Done (write only) | `audit.events`, append-only, `POLICY_VERSION_PUBLISHED` with identifiers only. Search is RF-022. |
+| Compile before activation | Done | Snapshot verified, parsed, and compiled; failure is `409 POLICY_NOT_PUBLISHABLE`. |
+| Older version over a newer active one | Deviation (stricter) | `409 POLICY_VERSION_SUPERSEDED`; the request stays open and is rejected by the approver. |
+| Rollback semantics | Done | Clone the archived version into a new draft and approve it; tested. |
+| Scheduled activation | Not built | `SYSTEM_DESIGN.md` 9.2 marks it as a future, separate operation. |
+| Publish metric | Not built | RF-023. |
+
+Known limits:
+
+- A request for a superseded version stays `PENDING` until an approver rejects it; nothing closes it automatically.
+- The development seeder publishes without an approval request and without an audit event.
+- `POLICY_NOT_PUBLISHABLE` cannot be reached through the API with today's code (submit already compiles the same snapshot); it guards an evaluator change between submit and approval. It is covered by a unit test with a damaged snapshot.

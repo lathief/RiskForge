@@ -22,9 +22,10 @@ import (
 // This is the development shortcut SYSTEM_DESIGN.md section 17 allows before the approval
 // workflow exists: it runs only when APP_ENV is local or testing, and it is not part of the
 // API. It submits the demo draft through the normal policy service (so full validation and
-// the golden tests must pass), then moves the frozen version PENDING_APPROVAL -> APPROVED ->
-// ACTIVE and binds it, in one transaction. Real activation goes through approval and atomic
-// publish (RF-018 to RF-020). It never changes a package that already has an active version.
+// the golden tests must pass), then concludes the review as approved and publishes it with
+// PolicyService.Publish, in one transaction, without an approval request and without an audit
+// event. Real activation goes through the approval request, whose final approval publishes
+// (RF-019, RF-020). It never changes a package that already has an active version.
 type DemoActivePolicySeeder struct{}
 
 func (s *DemoActivePolicySeeder) Signature() string {
@@ -111,17 +112,17 @@ func SeedDemoActivePolicy() error {
 		return nil // rejected, archived, or already moved on: not for the seeder to touch
 	}
 
+	// The approval is skipped (the shortcut), but the activation itself is the real publish of
+	// RF-020, so the binding is moved by one code path only.
 	return policyDB.WithinTransaction(ctx, func(ctx context.Context) error {
-		q := policyDB.Querier(ctx)
-		for _, next := range [][2]string{{"PENDING_APPROVAL", "APPROVED"}, {"APPROVED", "ACTIVE"}} {
-			if err := q.Statement(
-				`UPDATE policy.policy_versions SET status = $1 WHERE id = $2::uuid AND status = $3`,
-				next[1], version.ID, next[0]); err != nil {
-				return err
-			}
+		v, err := service.GetVersion(ctx, version.ID)
+		if err != nil {
+			return err
 		}
-		return q.Statement(
-			`INSERT INTO policy.active_policy_bindings (package_id, policy_version_id)
-			 VALUES ($1::uuid, $2::uuid) ON CONFLICT (package_id) DO NOTHING`, version.PackageID, version.ID)
+		if err := service.ConcludeReview(ctx, v.ID, v.Checksum, true); err != nil {
+			return err
+		}
+		_, err = service.Publish(ctx, v.ID, v.Checksum, "")
+		return err
 	})
 }

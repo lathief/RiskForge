@@ -264,6 +264,38 @@ func (r *PolicyRepository) UpdateDraft(ctx context.Context, v domain.Version) (d
 	return r.FindVersion(ctx, v.ID, false)
 }
 
+// FindBinding follows the active binding of a package. forUpdate locks the binding row (and,
+// through FOR UPDATE OF b, only that row).
+func (r *PolicyRepository) FindBinding(ctx context.Context, packageID string, forUpdate bool) (domain.Version, bool, error) {
+	query := `SELECT b.policy_version_id::text FROM policy.active_policy_bindings b WHERE b.package_id = $1::uuid`
+	if forUpdate {
+		query += ` FOR UPDATE OF b`
+	}
+	var ids []string
+	if err := r.db.Querier(ctx).Select(&ids, query, packageID); err != nil {
+		return domain.Version{}, false, err
+	}
+	if len(ids) == 0 {
+		return domain.Version{}, false, nil
+	}
+	v, err := r.FindVersion(ctx, ids[0], false)
+	if err != nil {
+		return domain.Version{}, false, err
+	}
+	return v, true, nil
+}
+
+// BindActive inserts or moves the binding; the trigger checks the version is ACTIVE and of
+// this package.
+func (r *PolicyRepository) BindActive(ctx context.Context, packageID, versionID, actorID string) error {
+	return r.db.Querier(ctx).Statement(
+		`INSERT INTO policy.active_policy_bindings (package_id, policy_version_id, activated_by)
+		 VALUES ($1::uuid, $2::uuid, NULLIF($3::text, '')::uuid)
+		 ON CONFLICT (package_id) DO UPDATE
+		    SET policy_version_id = EXCLUDED.policy_version_id, activated_by = EXCLUDED.activated_by, activated_at = now()`,
+		packageID, versionID, actorID)
+}
+
 // SetStatus moves a version along the lifecycle; the trigger refuses any move SYSTEM_DESIGN.md
 // 9.2 does not allow.
 func (r *PolicyRepository) SetStatus(ctx context.Context, id string, from, to domain.Status) error {

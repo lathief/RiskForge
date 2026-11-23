@@ -233,6 +233,13 @@ Di Git Bash Windows, jalankan dengan `MSYS_NO_PATHCONV=1` dan ganti `$PWD` denga
 - Test konkurensi: `TestConcurrentApprovalsReachTheQuorumExactlyOnce`, `TestConcurrentDuplicateActionsOfOneApproverAreRecordedOnce`, `TestConcurrentSubmitsOpenOneRequest` di `tests/feature/approval_request_test.go`; jalankan dengan `-race -count=3` bila mengubah `Act` atau `Submit`.
 - Smoke Postman: `GET /approval-requests/{request_id}` memakai `approvalRequestId` placeholder dan diharapkan 404 (seeding tidak membuka request); `POST .../actions` 403 untuk auditor.
 - Keputusan: `docs/adr/0020-approval-state-machine.md`; batasan: `docs/M4_NOTES.md`.
+## Publish atomik (RF-020)
+- Approval terakhir mem-publish dalam transaksi aksinya: `RequestService.Act` -> `PolicyGateway.ApproveAndPublish` (`PolicyService.ConcludeReview` + `PolicyService.Publish`) -> `AuditTrail.Record` -> tutup request. Jangan memindahkan publish ke luar transaksi itu atau ke goroutine lain.
+- `PolicyService.Publish` (`app/modules/policy/application/publish.go`) adalah satu-satunya kode yang memindahkan `policy.active_policy_bindings`; seeder dev juga memakainya. Urutan kunci: request, versi, paket, binding; jangan mengunci dalam urutan lain (deadlock).
+- Versi lebih lama dari versi aktif ditolak (`ErrVersionSuperseded`); rollback = clone versi lama lewat approval. Jangan menambah "reactivate" untuk versi `ARCHIVED`.
+- Audit: modul `app/modules/audit` (`application.Recorder`, `infrastructure.EventRepository`), tabel `audit.events` append-only. Data event hanya identifier, kode, dan checksum; jangan pernah memasukkan input pemohon. Test yang menghitung event mengosongkan `audit.events` (sudah di `PolicyTestSuite.SetupTest`).
+- Tes: `app/modules/policy/application/publish_test.go`, `app/modules/approval/application/request_service_test.go` (rollback saat publish atau audit gagal), `tests/feature/publish_test.go` (alur, rollback, konkurensi, decision selama publish). Jalankan dengan `-race -count=3` bila mengubah `Publish` atau `Act`.
+- Keputusan: `docs/adr/0021-atomic-publishing.md`; batasan: `docs/M4_NOTES.md`.
 ## Coverage
 `./scripts/coverage.sh [rf-test-<nama>]` mengukur coverage statement (unit saja, lalu unit + integrasi) di project Compose sekali pakai dan mencetak tabel Markdown. Hasilnya dicatat di `docs/coverage.md`; perbarui file itu setelah setiap tiket.
 
