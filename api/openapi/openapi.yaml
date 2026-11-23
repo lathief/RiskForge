@@ -1,14 +1,15 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.14.0
+  version: 0.15.0
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
-    Contract for the endpoints implemented so far (RF-001 to RF-017, plus M1 hardening).
+    Contract for the endpoints implemented so far (RF-001 to RF-018, plus M1 hardening).
 
     - All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.
     - Authorization is permission-based. Each operation lists the required permission
-      in `x-required-permission`; the role-to-permission matrix lives in
+      in `x-required-permission`; when `x-alternative-permissions` is also present, holding
+      any one of those permissions grants access too. The role-to-permission matrix lives in
       `app/modules/identity/domain/permission.go`.
     - Every response produced by the application carries an `X-Request-ID` header, and JSON
       error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver
@@ -47,6 +48,8 @@ tags:
     description: Credit decisions against the active policy (RF-014).
   - name: Simulation
     description: Policy simulator. Evaluates a draft or any version and stores nothing (RF-017).
+  - name: Approval
+    description: Approval workflow configuration, versioned tiers with role, scope, and quorum (RF-018).
 
 paths:
   /health/live:
@@ -1266,6 +1269,236 @@ paths:
                       message: "the policy version cannot be evaluated as it is; policy configuration error: rule configuration error: the policy has no scorecard"
                     request_id: 5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a
         "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/approval-workflows:
+    get:
+      tags: [Approval]
+      summary: List approval workflows
+      description: |
+        One approval workflow per product and policy scope (RF-018, SYSTEM_DESIGN.md 11). Each
+        item shows its current (newest) version with its steps. Ordered by product code and
+        policy scope. Readable by the admin who manages workflows (`workflow:manage`) and by
+        approvers and auditors (`approval:read`).
+      operationId: listApprovalWorkflows
+      x-required-permission: approval:read
+      x-alternative-permissions: [workflow:manage]
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 10000, default: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: product_code
+          in: query
+          description: Only workflows of this product code.
+          schema: { type: string, maxLength: 32, example: KTA_DEMO }
+      responses:
+        "200":
+          description: One page of workflows. A page past the end returns an empty `data` array.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApprovalWorkflowList" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
+    post:
+      tags: [Approval]
+      summary: Configure the approval workflow of a product
+      description: |
+        Creates the approval workflow of a product and policy scope with its first version. A
+        version is an ordered list of **sequential steps** (tiers); the number of steps is not
+        fixed (1 to 10). Each step names the role an approver must hold, optionally an approval
+        scope that narrows it, and the number of **distinct** approvers it needs
+        (`min_approvers`, 1 to 5, default 1).
+
+        Rules: `required_role` must be a role that may approve (`approval:act`, today only
+        `RISK_APPROVER`), so configuration can never hand approval to the maker (`RISK_ANALYST`)
+        or to the admin who configures it (`not_an_approver_role`). `required_scope` is
+        `RISK_LEAD` or `HEAD_OF_RISK` (`unknown_scope`), or null for any holder of the role.
+        Step names are single-line and unique in the version, case-insensitively
+        (`duplicate_name`). The product must exist and be ACTIVE (`unknown_product`,
+        `product_inactive`); `policy_scope` defaults to `DEFAULT`. A product and policy scope
+        have one workflow (`409 APPROVAL_WORKFLOW_CONFLICT`); change it with
+        `POST /approval-workflows/{workflow_id}/versions`.
+
+        Only `workflow:manage` (the admin) may configure workflows. Configuration is
+        append-only: a workflow, a version, and its steps are never edited or deleted (database
+        triggers refuse it). Audit events arrive with RF-022; until then `created_by` records
+        who made each version.
+      operationId: createApprovalWorkflow
+      x-required-permission: workflow:manage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApprovalWorkflowCreate" }
+            example:
+              product_code: KTA_DEMO
+              policy_scope: DEFAULT
+              name: KTA_DEMO two-tier approval
+              change_note: Default demo workflow of SYSTEM_DESIGN.md 11.1.
+              steps:
+                - { name: Risk Lead Review, required_role: RISK_APPROVER, required_scope: RISK_LEAD, min_approvers: 1 }
+                - { name: Head of Risk Review, required_role: RISK_APPROVER, required_scope: HEAD_OF_RISK, min_approvers: 1 }
+      responses:
+        "201":
+          description: Created, with version 1.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+            Location:
+              schema: { type: string }
+              example: /api/v1/approval-workflows/5b4a3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApprovalWorkflowDetail" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409":
+          description: The product and policy scope already have a workflow.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error: { code: APPROVAL_WORKFLOW_CONFLICT, message: "an approval workflow already exists for this product and policy scope; add a version to it" }
+                request_id: 6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422":
+          description: The workflow is invalid. Every problem is listed.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error:
+                  code: INPUT_VALIDATION_ERROR
+                  message: invalid approval workflow
+                  details:
+                    - { field: "steps[0].required_role", issue: not_an_approver_role, message: "only a role that may approve (approval:act) can be required" }
+                    - { field: "steps[1].min_approvers", issue: out_of_range, message: "1 to 5 distinct approvers" }
+                request_id: 7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/approval-workflows/{workflow_id}:
+    parameters:
+      - name: workflow_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/ApprovalWorkflowId" }
+    get:
+      tags: [Approval]
+      summary: Get an approval workflow with all of its versions
+      description: Versions are listed newest first, each with its steps. `current_version` is the newest, the one a new submission uses.
+      operationId: getApprovalWorkflow
+      x-required-permission: approval:read
+      x-alternative-permissions: [workflow:manage]
+      responses:
+        "200":
+          description: The workflow.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApprovalWorkflowDetail" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/ApprovalWorkflowNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/approval-workflows/{workflow_id}/versions:
+    parameters:
+      - name: workflow_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/ApprovalWorkflowId" }
+    post:
+      tags: [Approval]
+      summary: Add a version to an approval workflow
+      description: |
+        Stores a new configuration as the next numbered version, which becomes the current one.
+        Earlier versions do not change, so an approval request that pinned one (RF-019) keeps
+        its tiers (SYSTEM_DESIGN.md 11.3). The step rules are those of
+        `POST /approval-workflows`. When the steps are exactly those of the current version,
+        nothing is stored and the current version is returned with `200`. Concurrent requests
+        get unique, gap-free version numbers.
+      operationId: createApprovalWorkflowVersion
+      x-required-permission: workflow:manage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApprovalWorkflowVersionCreate" }
+            example:
+              change_note: The head of risk tier needs two approvers.
+              steps:
+                - { name: Risk Lead Review, required_role: RISK_APPROVER, required_scope: RISK_LEAD, min_approvers: 1 }
+                - { name: Head of Risk Review, required_role: RISK_APPROVER, required_scope: HEAD_OF_RISK, min_approvers: 2 }
+      responses:
+        "200":
+          description: The steps are unchanged; the current version is returned and nothing was stored.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApprovalWorkflowVersion" }
+        "201":
+          description: Created.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+            Location:
+              schema: { type: string }
+              example: /api/v1/approval-workflow-versions/8e7f6a5b-4c3d-4e2f-9a1b-0c9d8e7f6a5b
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApprovalWorkflowVersion" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/ApprovalWorkflowNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/approval-workflow-versions/{workflow_version_id}:
+    parameters:
+      - name: workflow_version_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/ApprovalWorkflowVersionId" }
+    get:
+      tags: [Approval]
+      summary: Get one approval workflow version
+      description: A version with its ordered steps. A version never changes.
+      operationId: getApprovalWorkflowVersion
+      x-required-permission: approval:read
+      x-alternative-permissions: [workflow:manage]
+      responses:
+        "200":
+          description: The version.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApprovalWorkflowVersion" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: No approval workflow version has this id.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error: { code: APPROVAL_WORKFLOW_VERSION_NOT_FOUND, message: approval workflow version not found }
+                request_id: 9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
   /api/v1/decisions/evaluate:
     post:
       tags: [Decisions]
@@ -2352,6 +2585,206 @@ components:
                 decision:
                   $ref: "#/components/schemas/MatrixDecision"
             - type: "null"
+    ApprovalWorkflowId:
+      type: string
+      format: uuid
+      example: 5b4a3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d
+    ApprovalWorkflowVersionId:
+      type: string
+      format: uuid
+      example: 8e7f6a5b-4c3d-4e2f-9a1b-0c9d8e7f6a5b
+    ApprovalWorkflowStepInput:
+      type: object
+      additionalProperties: false
+      required: [name, required_role]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100, description: "Single line, unique in the version (case-insensitive)." }
+        required_role: { type: string, enum: [RISK_APPROVER], description: A role that may approve (approval:act). }
+        required_scope:
+          type: [string, "null"]
+          enum: [RISK_LEAD, HEAD_OF_RISK, null]
+          description: Narrows the role. Null or omitted means any holder of the role.
+        min_approvers: { type: integer, minimum: 1, maximum: 5, default: 1, description: Distinct approvers the step needs. }
+    ApprovalWorkflowCreate:
+      type: object
+      additionalProperties: false
+      required: [product_code, name, steps]
+      properties:
+        product_code: { type: string, maxLength: 32, example: KTA_DEMO }
+        policy_scope: { type: string, pattern: "^[A-Z][A-Z0-9_]{1,31}$", default: DEFAULT }
+        name: { type: string, minLength: 1, maxLength: 100 }
+        change_note: { type: string, maxLength: 500 }
+        steps:
+          type: array
+          minItems: 1
+          maxItems: 10
+          description: Sequential tiers, in order.
+          items: { $ref: "#/components/schemas/ApprovalWorkflowStepInput" }
+    ApprovalWorkflowVersionCreate:
+      type: object
+      additionalProperties: false
+      required: [steps]
+      properties:
+        change_note: { type: string, maxLength: 500 }
+        steps:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items: { $ref: "#/components/schemas/ApprovalWorkflowStepInput" }
+    ApprovalWorkflowStep:
+      type: object
+      required: [order, name, required_role, required_scope, min_approvers]
+      properties:
+        order: { type: integer, minimum: 1, maximum: 10 }
+        name: { type: string }
+        required_role: { type: string }
+        required_scope: { type: [string, "null"] }
+        min_approvers: { type: integer, minimum: 1, maximum: 5 }
+    ApprovalWorkflowVersion:
+      type: object
+      required: [id, workflow_id, product_code, policy_scope, version_number, change_note, total_approvals, steps, created_by, created_at]
+      example:
+        id: 8e7f6a5b-4c3d-4e2f-9a1b-0c9d8e7f6a5b
+        workflow_id: 5b4a3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d
+        product_code: KTA_DEMO
+        policy_scope: DEFAULT
+        version_number: 1
+        change_note: Default demo workflow of SYSTEM_DESIGN.md 11.1.
+        total_approvals: 2
+        steps:
+          - { order: 1, name: Risk Lead Review, required_role: RISK_APPROVER, required_scope: RISK_LEAD, min_approvers: 1 }
+          - { order: 2, name: Head of Risk Review, required_role: RISK_APPROVER, required_scope: HEAD_OF_RISK, min_approvers: 1 }
+        created_by: 1d2c3b4a-5f6e-4d7c-8b9a-0f1e2d3c4b5a
+        created_at: "2026-11-24T08:00:00Z"
+      properties:
+        id: { $ref: "#/components/schemas/ApprovalWorkflowVersionId" }
+        workflow_id: { $ref: "#/components/schemas/ApprovalWorkflowId" }
+        product_code: { type: string }
+        policy_scope: { type: string }
+        version_number: { type: integer, minimum: 1 }
+        change_note: { type: string }
+        total_approvals: { type: integer, minimum: 1, description: Sum of min_approvers over all steps. }
+        steps:
+          type: array
+          items: { $ref: "#/components/schemas/ApprovalWorkflowStep" }
+        created_by: { type: [string, "null"], format: uuid, description: "Null for a version made by the development seeder." }
+        created_at: { type: string, format: date-time }
+    ApprovalWorkflow:
+      type: object
+      required: [id, product_code, policy_scope, name, version_count, current_version, created_by, created_at]
+      example:
+        id: 5b4a3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d
+        product_code: KTA_DEMO
+        policy_scope: DEFAULT
+        name: KTA_DEMO two-tier approval
+        version_count: 1
+        current_version:
+          id: 8e7f6a5b-4c3d-4e2f-9a1b-0c9d8e7f6a5b
+          workflow_id: 5b4a3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d
+          product_code: KTA_DEMO
+          policy_scope: DEFAULT
+          version_number: 1
+          change_note: Default demo workflow of SYSTEM_DESIGN.md 11.1.
+          total_approvals: 2
+          steps:
+            - { order: 1, name: Risk Lead Review, required_role: RISK_APPROVER, required_scope: RISK_LEAD, min_approvers: 1 }
+            - { order: 2, name: Head of Risk Review, required_role: RISK_APPROVER, required_scope: HEAD_OF_RISK, min_approvers: 1 }
+          created_by: null
+          created_at: "2026-11-24T08:00:00Z"
+        created_by: null
+        created_at: "2026-11-24T08:00:00Z"
+      properties:
+        id: { $ref: "#/components/schemas/ApprovalWorkflowId" }
+        product_code: { type: string }
+        policy_scope: { type: string }
+        name: { type: string }
+        version_count: { type: integer, minimum: 1 }
+        current_version:
+          oneOf: [{ $ref: "#/components/schemas/ApprovalWorkflowVersion" }, { type: "null" }]
+          description: The newest version, the one a new submission uses.
+        created_by: { type: [string, "null"], format: uuid }
+        created_at: { type: string, format: date-time }
+    ApprovalWorkflowDetail:
+      allOf:
+        - $ref: "#/components/schemas/ApprovalWorkflow"
+        - type: object
+          required: [versions]
+          properties:
+            versions:
+              type: array
+              description: All versions, newest first.
+              items: { $ref: "#/components/schemas/ApprovalWorkflowVersion" }
+      example:
+        id: 5b4a3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d
+        product_code: KTA_DEMO
+        policy_scope: DEFAULT
+        name: KTA_DEMO two-tier approval
+        version_count: 1
+        current_version:
+          id: 8e7f6a5b-4c3d-4e2f-9a1b-0c9d8e7f6a5b
+          workflow_id: 5b4a3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d
+          product_code: KTA_DEMO
+          policy_scope: DEFAULT
+          version_number: 1
+          change_note: Default demo workflow of SYSTEM_DESIGN.md 11.1.
+          total_approvals: 2
+          steps:
+            - { order: 1, name: Risk Lead Review, required_role: RISK_APPROVER, required_scope: RISK_LEAD, min_approvers: 1 }
+            - { order: 2, name: Head of Risk Review, required_role: RISK_APPROVER, required_scope: HEAD_OF_RISK, min_approvers: 1 }
+          created_by: null
+          created_at: "2026-11-24T08:00:00Z"
+        versions:
+          - id: 8e7f6a5b-4c3d-4e2f-9a1b-0c9d8e7f6a5b
+            workflow_id: 5b4a3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d
+            product_code: KTA_DEMO
+            policy_scope: DEFAULT
+            version_number: 1
+            change_note: Default demo workflow of SYSTEM_DESIGN.md 11.1.
+            total_approvals: 2
+            steps:
+              - { order: 1, name: Risk Lead Review, required_role: RISK_APPROVER, required_scope: RISK_LEAD, min_approvers: 1 }
+              - { order: 2, name: Head of Risk Review, required_role: RISK_APPROVER, required_scope: HEAD_OF_RISK, min_approvers: 1 }
+            created_by: null
+            created_at: "2026-11-24T08:00:00Z"
+        created_by: null
+        created_at: "2026-11-24T08:00:00Z"
+    ApprovalWorkflowList:
+      type: object
+      required: [data, meta]
+      example:
+        data:
+          - id: 5b4a3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d
+            product_code: KTA_DEMO
+            policy_scope: DEFAULT
+            name: KTA_DEMO two-tier approval
+            version_count: 1
+            current_version:
+              id: 8e7f6a5b-4c3d-4e2f-9a1b-0c9d8e7f6a5b
+              workflow_id: 5b4a3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d
+              product_code: KTA_DEMO
+              policy_scope: DEFAULT
+              version_number: 1
+              change_note: Default demo workflow of SYSTEM_DESIGN.md 11.1.
+              total_approvals: 2
+              steps:
+                - { order: 1, name: Risk Lead Review, required_role: RISK_APPROVER, required_scope: RISK_LEAD, min_approvers: 1 }
+                - { order: 2, name: Head of Risk Review, required_role: RISK_APPROVER, required_scope: HEAD_OF_RISK, min_approvers: 1 }
+              created_by: null
+              created_at: "2026-11-24T08:00:00Z"
+            created_by: null
+            created_at: "2026-11-24T08:00:00Z"
+        meta: { page: 1, per_page: 20, total: 1 }
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/ApprovalWorkflow" }
+        meta:
+          type: object
+          required: [page, per_page, total]
+          properties:
+            page: { type: integer, minimum: 1 }
+            per_page: { type: integer, minimum: 1, maximum: 100 }
+            total: { type: integer, minimum: 0 }
     SimulationRequest:
       type: object
       required: [applicant]
@@ -2756,6 +3189,9 @@ components:
                 - POLICY_CONFIGURATION_ERROR
                 - EVALUATION_ERROR
                 - POLICY_NOT_EVALUABLE
+                - APPROVAL_WORKFLOW_NOT_FOUND
+                - APPROVAL_WORKFLOW_VERSION_NOT_FOUND
+                - APPROVAL_WORKFLOW_CONFLICT
                 - IDEMPOTENCY_CONFLICT
                 - DECISION_NOT_FOUND
                 - SERVICE_BUSY
@@ -2852,6 +3288,16 @@ components:
           example:
             error: { code: POLICY_VERSION_NOT_FOUND, message: policy version not found }
             request_id: 9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d
+    ApprovalWorkflowNotFound:
+      description: No approval workflow has this id.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error: { code: APPROVAL_WORKFLOW_NOT_FOUND, message: approval workflow not found }
+            request_id: 8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d
     PolicyVersionFrozen:
       description: The version is not a DRAFT, so it can no longer be edited or submitted.
       headers:

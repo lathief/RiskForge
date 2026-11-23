@@ -221,6 +221,16 @@ Run on branch `feature/RF-017-policy-simulator` (from `main` at 61e8b3d, which c
 - Found while running the full suite: `LoggingTestSuite` failed because the shared `storage/logs/activity.log` (90 MB, written by earlier projects) contained a torn line, as described in `AGENT_RUNBOOK.md`. The old `activity.log`, `error.log`, and `query.log` were moved to `*.log.pre-rf017` (not deleted) and the suite passed.
 - Not covered: simulating an `ARCHIVED` version on a live stack (no publish exists yet; the unit test reads a frozen `ACTIVE` version), any latency figure for compiling per simulation (RF-024).
 
+## M4: RF-018 (approval workflow configuration)
+
+Run on branch `feature/RF-018-approval-workflow-config` (on top of RF-017) on 23 November 2026, in the disposable project `rf-test-rf018` (PostgreSQL 18) and a live stack `rf-live018` (fresh `migrate` and `db:seed`). Both were removed with `down -v` afterwards.
+
+- `go vet ./...` clean. `go test -race -count=1 -v ./...` on a fresh database: **733 tests passed, 0 failed, 0 skipped**, 22 packages `ok` (new: `app/modules/approval/{domain,application,infrastructure}`). `ApprovalWorkflowTestSuite` covers RBAC for all six demo users, validation, conflict, versioning, the seeder, the append-only triggers, and two concurrency cases (8 concurrent versions get numbers 1 to 9 without gaps; 6 concurrent creates give one workflow and five `409`).
+- `redocly lint` reports OpenAPI 0.15.0 valid. `./scripts/generate-postman.sh --check` reports 38 requests up to date. `./scripts/smoke-postman.sh rf-live018`: 38/38 (auditor: workflow reads 200, writes 403). `/openapi.yaml` served by the stack lists the five new operations. `ContractBehaviourTestSuite` confirms `x-required-permission` plus `x-alternative-permissions` against the running code for every role.
+- **Live stack:** the seeded `KTA_DEMO` workflow had version 1 with `Risk Lead Review`/`RISK_LEAD` and `Head of Risk Review`/`HEAD_OF_RISK`, one approver each, `total_approvals` 2. The admin added version 2 (head of risk quorum 2) with `201`, `total_approvals` 3; the same steps again gave `200` and no version; `version_count` was 2.
+- **Unhappy flow on the same stack:** a step requiring `RISK_ANALYST` with `min_approvers` 9 gave `422` with `not_an_approver_role` and `out_of_range`; the analyst writing gave `403`; a second workflow for `KTA_DEMO`/`DEFAULT` gave `409 APPROVAL_WORKFLOW_CONFLICT`.
+- Not covered: `migrate:rollback` of the new migration; a workflow for a product other than `KTA_DEMO` on the live stack (covered by the `PAYROLL` scope in tests).
+
 ## Not verified yet
 
 | Item | Why | Planned in |

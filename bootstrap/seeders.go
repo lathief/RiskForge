@@ -13,5 +13,6 @@ func Seeders() []seeder.Seeder {
 		&seeders.DemoDictionarySeeder{},
 		&seeders.DemoPolicySeeder{},
 		&seeders.DemoActivePolicySeeder{},
+		&seeders.DemoWorkflowSeeder{},
 	}
 }
