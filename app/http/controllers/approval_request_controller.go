@@ -22,6 +22,8 @@ const (
 	codeSelfApproval            = "SELF_APPROVAL_FORBIDDEN"
 	codeApproverNotEligible     = "APPROVER_NOT_ELIGIBLE"
 	codeWorkflowNotConfigured   = "APPROVAL_WORKFLOW_NOT_CONFIGURED"
+	codeVersionSuperseded       = "POLICY_VERSION_SUPERSEDED"
+	codeNotPublishable          = "POLICY_NOT_PUBLISHABLE"
 )
 
 // ApprovalRequestController serves submission for approval and the approval state machine
@@ -244,6 +246,13 @@ func (c *ApprovalRequestController) fail(ctx http.Context, op string, err error)
 		return responses.Error(ctx, http.StatusForbidden, codeSelfApproval, "the submitter of a policy version cannot approve or reject it")
 	case errors.Is(err, domain.ErrNotEligible):
 		return responses.Error(ctx, http.StatusForbidden, codeApproverNotEligible, "you do not hold the role and scope the active step requires")
+	case errors.Is(err, policyapp.ErrVersionSuperseded):
+		return responses.Conflict(ctx, codeVersionSuperseded,
+			"a newer version of this policy is already active, so this one cannot be published; reject the request instead")
+	case errors.Is(err, policyapp.ErrNotPublishable):
+		logging.Default().Error(ctx.Context(), "approval request: publish refused", err)
+		return responses.Conflict(ctx, codeNotPublishable,
+			"the approved version cannot be compiled, so it was not published and the approval was not recorded")
 	default:
 		logging.Default().Error(ctx.Context(), "approval request: "+op+" failed", err)
 		return responses.Internal(ctx)

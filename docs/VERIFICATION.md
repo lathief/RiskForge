@@ -243,6 +243,15 @@ Run on branch `feature/RF-019-approval-state-machine` (on top of RF-018) on 23 N
 - During the run the first `rf-live019` API container could not download Go modules (`proxy.golang.org` connection refused, a transient network failure); restarting the container after the network recovered fixed it. No code change.
 - Not covered: `migrate:rollback` of the two new migrations; approval with real latency or load; an approved version being published (RF-020).
 
+## M4: RF-020 (atomic publishing)
+
+Run on branch `feature/RF-020-atomic-publishing` (on top of RF-019) on 23 November 2026, in the disposable project `rf-test-rf020` (PostgreSQL 18) and a live stack `rf-live020` (fresh `migrate` and `db:seed`). Both were removed with `down -v` afterwards.
+
+- `go vet ./...` clean; changed and new Go files `gofmt` clean. `go test -race -count=1 -v ./...` on a fresh database: **780 tests passed, 0 failed, 0 skipped**, 23 packages `ok` (new: `app/modules/audit/application`). The concurrency tests (`TestConcurrentFinalApprovalsLeaveExactlyOneActiveVersion`, `TestDecisionsDuringAPublishUseOneWholeVersion`, `TestAnOlderApprovedVersionCannotReplaceANewerActiveOne`) were run three more times with `-race` without a failure.
+- `redocly lint` reports OpenAPI 0.17.0 valid. `./scripts/generate-postman.sh --check`: 41 requests up to date (no new operation). `./scripts/smoke-postman.sh rf-live020`: 41/41.
+- **Live stack:** the seeded version 1 decided the example applicant `APPROVE`. A clone with `age_years >= 30` (with its own golden case) was submitted and approved by both tiers: the final action returned the request `APPROVED`; version 1 became `ARCHIVED` and version 2 `ACTIVE`; the next decision for the same applicant named version 2 and was `REJECT`. `audit.events` held one `POLICY_VERSION_PUBLISHED` event for version 2 with the request, package, checksum, workflow version, and archived version 1, and no applicant data.
+- Not covered: `POLICY_NOT_PUBLISHABLE` through the API (unreachable with today's code; unit test only); `migrate:rollback` of the audit migration; publish latency (RF-024).
+
 ## Not verified yet
 
 | Item | Why | Planned in |

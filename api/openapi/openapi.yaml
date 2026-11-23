@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.16.0
+  version: 0.17.0
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
-    Contract for the endpoints implemented so far (RF-001 to RF-019, plus M1 hardening).
+    Contract for the endpoints implemented so far (RF-001 to RF-020, plus M1 hardening).
 
     - All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.
     - Authorization is permission-based. Each operation lists the required permission
@@ -686,7 +686,8 @@ paths:
         response is the frozen version plus `approval_request`, in the shape of
         `GET /approval-requests/{request_id}`, with step 1 active. A product and scope without a
         workflow cannot be submitted: `409 APPROVAL_WORKFLOW_NOT_CONFIGURED`, and the draft stays a
-        DRAFT. Approvers act with `POST /approval-requests/{request_id}/actions`.
+        DRAFT. Approvers act with `POST /approval-requests/{request_id}/actions`; the final
+        approval publishes the version atomically (RF-020).
       operationId: submitPolicyVersion
       x-required-permission: policy:submit
       responses:
@@ -1615,10 +1616,21 @@ paths:
 
         `REJECT` (with a `comment`) closes the request as `REJECTED` and the policy version
         becomes `REJECTED`; the analyst revises by cloning it into a new draft. `APPROVE` counts
-        toward the step's quorum; when reached, the next step becomes active, and after the last
-        step the request closes `APPROVED` and the version becomes `APPROVED`, only if it still
-        has the checksum it was submitted with. Publishing the approved version (switching the
-        active policy) is RF-020; until then an approved version is not evaluated.
+        toward the step's quorum; when reached, the next step becomes active.
+
+        **The approval that completes the last step publishes (RF-020, SYSTEM_DESIGN.md 9.4).**
+        In one transaction: the action is stored, the request closes `APPROVED`, the version
+        (only if it still has the submitted checksum and its snapshot compiles) becomes
+        `APPROVED` and then `ACTIVE`, the previously active version of the policy becomes
+        `ARCHIVED`, the active binding moves to the new version, and an audit event
+        `POLICY_VERSION_PUBLISHED` is written. All of it commits or none of it does. The next
+        `POST /decisions/evaluate` uses the new version; decisions already stored keep theirs.
+        Publishes of one policy are serialized by a lock, so the policy never has two active
+        versions. If the version cannot be published, nothing of the action is kept and the
+        request stays open at the last step: `409 POLICY_VERSION_SUPERSEDED` when a newer
+        version is already active (reject the request instead; a rollback is a new version
+        cloned from the good one), or `409 POLICY_NOT_PUBLISHABLE` when the snapshot no longer
+        compiles.
 
         The request row is locked for the action, so concurrent approvals are decided one after
         the other: the quorum and each transition happen exactly once, and a unique index refuses
@@ -1661,7 +1673,10 @@ paths:
         "404": { $ref: "#/components/responses/ApprovalRequestNotFound" }
         "408": { $ref: "#/components/responses/RequestTimeout" }
         "409":
-          description: "`APPROVAL_REQUEST_CLOSED`, `APPROVAL_STEP_NOT_ACTIVE`, or `APPROVAL_ALREADY_GIVEN`."
+          description: |
+            `APPROVAL_REQUEST_CLOSED`, `APPROVAL_STEP_NOT_ACTIVE`, or `APPROVAL_ALREADY_GIVEN`; for
+            the final approval also `POLICY_VERSION_SUPERSEDED` or `POLICY_NOT_PUBLISHABLE`, in
+            which case nothing was recorded or published.
           headers:
             X-Request-ID: { $ref: "#/components/headers/XRequestID" }
           content:
@@ -1680,6 +1695,10 @@ paths:
                   value:
                     error: { code: APPROVAL_STEP_NOT_ACTIVE, message: the step is not the active step of the request; reload it }
                     request_id: 6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a
+                superseded:
+                  value:
+                    error: { code: POLICY_VERSION_SUPERSEDED, message: "a newer version of this policy is already active, so this one cannot be published; reject the request instead" }
+                    request_id: 8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c
         "413": { $ref: "#/components/responses/PayloadTooLarge" }
         "422":
           description: The action is invalid (unknown action, REJECT without comment, unknown field).
@@ -3568,6 +3587,8 @@ components:
                 - APPROVAL_ALREADY_GIVEN
                 - SELF_APPROVAL_FORBIDDEN
                 - APPROVER_NOT_ELIGIBLE
+                - POLICY_VERSION_SUPERSEDED
+                - POLICY_NOT_PUBLISHABLE
                 - IDEMPOTENCY_CONFLICT
                 - DECISION_NOT_FOUND
                 - SERVICE_BUSY

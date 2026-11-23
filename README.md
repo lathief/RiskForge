@@ -85,7 +85,7 @@ Contract: [api/openapi/openapi.yaml](api/openapi/openapi.yaml). Real requests an
 | Hardening, LOG-001, DX-001, DOC-001 | Three review rounds, structured logs, Swagger and Postman, guides | Done (branch `fix/M1-hardening`, pending merge) |
 | M2 Policy configuration | Data dictionary, versioned policy drafts, RAC, scorecard, matrix validation | Done (RF-005 to RF-010); golden tests are executed since RF-013 |
 | M3 Decision engine | Features, RAC, scorecard and matrix evaluation, idempotent decision API | Done (RF-011 to RF-016: feature builder, RAC evaluator, scorecard and matrix evaluator with golden tests, Decision API, durable decisions with idempotency, compiled policy cache; one branch per ticket, `feature/RF-011-feature-builder` to `feature/RF-016-policy-cache`, not merged to `main` yet) |
-| M4 Governance | Simulator, multi-level approval, atomic publishing | In progress (RF-017 policy simulator on `feature/RF-017-policy-simulator`; RF-018 approval workflow configuration on `feature/RF-018-approval-workflow-config`; RF-019 approval state machine on `feature/RF-019-approval-state-machine`; RF-020 and RF-021 planned) |
+| M4 Governance | Simulator, multi-level approval, atomic publishing | In progress (RF-017 policy simulator on `feature/RF-017-policy-simulator`; RF-018 approval workflow configuration on `feature/RF-018-approval-workflow-config`; RF-019 approval state machine on `feature/RF-019-approval-state-machine`; RF-020 atomic publishing on `feature/RF-020-atomic-publishing`; RF-021 planned) |
 | M5 Hardening | Audit search, metrics, CI/CD, benchmarks, demo | Planned |
 
 Ticket-level detail is in `SYSTEM_DESIGN.md` section 18.

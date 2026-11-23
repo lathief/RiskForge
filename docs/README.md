@@ -16,7 +16,7 @@
 | [SCRIPTS.md](SCRIPTS.md) | Run `scripts/*` (secrets, Postman generator and smoke test, Swagger UI update) and Artisan database commands. | Current |
 | [VERIFICATION.md](VERIFICATION.md) | See what was run to accept each ticket and what was observed. | Current |
 | [M3_NOTES.md](M3_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 3 (RF-011 to RF-016), plus its milestone audit and review fixes. | Current (M3 complete) |
-| [M4_NOTES.md](M4_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 4 (RF-017 onward). | Current (RF-017 to RF-019) |
+| [M4_NOTES.md](M4_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 4 (RF-017 onward). | Current (RF-017 to RF-020) |
 | [POST_M5_BACKLOG.md](POST_M5_BACKLOG.md) | Track the security, reliability, design, and tooling findings that are not fixed yet and are planned after milestone 5. | Current, open items |
 | [M1_NOTES.md](M1_NOTES.md) | See what milestone 1 built, as read from the code: architecture, endpoints, access control, logs, tooling, and its known limits. | Current (M1) |
 | [M2_NOTES.md](M2_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 2 (RF-005 to RF-010). | Current (M2) |
@@ -38,7 +38,7 @@ What each folder contains. Folders marked *scaffold* come from the Goravel v1.18
 | `config/` | *Scaffold* plus RiskForge settings. Each file registers one config group read from environment variables (`http.go` driver = Fiber, `database.go`, `logging.go`, `hashing.go`, `jwt.go`, `docs.go`, `demo.go`, ...). |
 | `routes/` | `api.go` registers every HTTP route and wires controllers to use cases (the composition root). `grpc.go` is an unused scaffold hook. |
 | `app/http/` | Transport layer only. `controllers/` (thin HTTP adapters), `middleware/` (request ID, activity log, authentication, permissions, module label, panic recovery), `auth/` (JWT guard wrapper), `responses/` (standard error envelope), `ctxkeys/` (request-scoped keys). |
-| `app/modules/` | Business modules, each split into `domain/` (pure Go rules, no framework imports), `application/` (use cases and the ports they need), `infrastructure/` (PostgreSQL and Goravel adapters). Implemented: `identity`, `catalog`, `dictionary`, `policy`, `decision`, `simulation` (RF-017), `approval` (workflow configuration RF-018, approval state machine RF-019). `ruleengine/` is a pure package that checks RAC expressions today (RF-007) and will evaluate policies in M3. |
+| `app/modules/` | Business modules, each split into `domain/` (pure Go rules, no framework imports), `application/` (use cases and the ports they need), `infrastructure/` (PostgreSQL and Goravel adapters). Implemented: `identity`, `catalog`, `dictionary`, `policy`, `decision`, `simulation` (RF-017), `approval` (workflow configuration RF-018, approval state machine RF-019, atomic publish RF-020), `audit` (event log, RF-020). `ruleengine/` is a pure package that checks RAC expressions today (RF-007) and will evaluate policies in M3. |
 | `app/platform/` | Cross-cutting infrastructure with no business logic: `tx/` (transaction port), `database/` (transaction manager and query logging), `logging/` (structured JSON logs). |
 | `app/support/` | Small framework-agnostic helpers, currently startup configuration validation. |
 | `app/facades/` | *Scaffold.* Typed accessors for Goravel services. Used in transport and infrastructure code only, never in `domain/` or `application/`. |

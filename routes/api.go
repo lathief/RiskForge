@@ -11,6 +11,8 @@ import (
 	"goravel/app/http/middleware"
 	approvalapp "goravel/app/modules/approval/application"
 	approvalinfra "goravel/app/modules/approval/infrastructure"
+	auditapp "goravel/app/modules/audit/application"
+	auditinfra "goravel/app/modules/audit/infrastructure"
 	catalogapp "goravel/app/modules/catalog/application"
 	cataloginfra "goravel/app/modules/catalog/infrastructure"
 	decisionapp "goravel/app/modules/decision/application"
@@ -38,6 +40,7 @@ const (
 	moduleDecision   = "decision"
 	moduleSimulation = "simulation"
 	moduleApproval   = "approval"
+	moduleAudit      = "audit"
 	moduleDocs       = "docs"
 )
 
@@ -115,7 +118,9 @@ func Api() {
 	// status of their submissions.
 	requestController := controllers.NewApprovalRequestController(approvalapp.NewRequestService(
 		approvalinfra.NewRequestRepository(approvalDB), approvalinfra.NewWorkflowRepository(approvalDB),
-		approvalinfra.NewPolicyVersions(policyService), approvalDB), policyService)
+		approvalinfra.NewPolicyVersions(policyService),
+		approvalinfra.NewAuditLog(auditapp.NewRecorder(auditinfra.NewEventRepository(dbManager.WithModule(moduleAudit)))),
+		approvalDB), policyService)
 	canActOnApprovals := middleware.NewRequirePermission(domain.PermApprovalAct)
 	canReadApprovals := middleware.NewRequireAnyPermission(domain.PermApprovalRead, domain.PermPolicySubmit)
 	canManageWorkflows := middleware.NewRequirePermission(domain.PermWorkflowManage)

@@ -13,6 +13,8 @@ import (
 	approvalapp "goravel/app/modules/approval/application"
 	approvaldomain "goravel/app/modules/approval/domain"
 	approvalinfra "goravel/app/modules/approval/infrastructure"
+	auditapp "goravel/app/modules/audit/application"
+	auditinfra "goravel/app/modules/audit/infrastructure"
 	catalogapp "goravel/app/modules/catalog/application"
 	cataloginfra "goravel/app/modules/catalog/infrastructure"
 	policyapp "goravel/app/modules/policy/application"
@@ -36,7 +38,8 @@ func (s *PolicyTestSuite) workflowService() *approvalapp.WorkflowService {
 func (s *PolicyTestSuite) requestService() *approvalapp.RequestService {
 	approvalDB := database.NewManager(facades.DB()).WithModule("approval")
 	return approvalapp.NewRequestService(approvalinfra.NewRequestRepository(approvalDB),
-		approvalinfra.NewWorkflowRepository(approvalDB), approvalinfra.NewPolicyVersions(s.service), approvalDB)
+		approvalinfra.NewWorkflowRepository(approvalDB), approvalinfra.NewPolicyVersions(s.service),
+		approvalinfra.NewAuditLog(auditapp.NewRecorder(auditinfra.NewEventRepository(approvalDB))), approvalDB)
 }
 
 // ensureWorkflow gives KTA_DEMO/<scope> the demo workflow if it has none.
@@ -206,8 +209,10 @@ func (s *PolicyTestSuite) TestTheTwoTiersApproveTheVersion() {
 	s.Equal(s.userID("demo_approver_1"), first["actor_id"])
 	s.Equal(float64(1), first["step"])
 	s.Equal("looks right", first["comment"])
-	s.Equal("APPROVED", s.getVersion(v1)["status"], "the final approval concludes the version (publish: RF-020)")
-	s.Zero(s.rows("policy.active_policy_bindings"), "approval alone does not activate")
+	s.Equal("ACTIVE", s.getVersion(v1)["status"], "the final approval publishes (RF-020)")
+	var bound []string
+	s.Require().NoError(selectStrings(&bound, `SELECT policy_version_id::text FROM policy.active_policy_bindings`))
+	s.Equal([]string{v1}, bound)
 
 	resp = s.act("demo_approver_2", id, `{"action":"REJECT","comment":"late"}`)
 	resp.AssertStatus(http.StatusConflict)
@@ -344,7 +349,8 @@ func (s *PolicyTestSuite) TestConcurrentApprovalsReachTheQuorumExactlyOnce() {
 	s.Require().NoError(err)
 	s.Equal(approvaldomain.RequestApproved, final.Status)
 	s.Len(final.Actions, 2)
-	s.Equal("APPROVED", s.getVersion(v1)["status"])
+	s.Equal("ACTIVE", s.getVersion(v1)["status"])
+	s.Equal(1, s.rows("audit.events"), "one publication, one event")
 }
 
 // The same approver sending twice at once is recorded once.

@@ -136,6 +136,11 @@ type PolicyRepository interface {
 	// SetStatus moves a version from one status to another; ErrVersionNotPending when the
 	// version is no longer in the from status.
 	SetStatus(ctx context.Context, versionID string, from, to domain.Status) error
+	// FindBinding returns the version the active binding of a package points to, with found
+	// false when the package has none. forUpdate locks the binding row.
+	FindBinding(ctx context.Context, packageID string, forUpdate bool) (domain.Version, bool, error)
+	// BindActive points the active binding of a package at a version (insert or move).
+	BindActive(ctx context.Context, packageID, versionID, actorID string) error
 }
 
 type PolicyService struct {
