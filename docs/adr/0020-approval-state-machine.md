@@ -3,6 +3,7 @@
 - Status: Accepted
 - Tanggal: 2026-11-23
 - Tiket: RF-019 (`SYSTEM_DESIGN.md` bagian 7.2, 9.3, 11.2, 11.3, 11.6, 14.1)
+- Catatan: keputusan 10 dan batasan "Versi `APPROVED` belum dievaluasi" serta "Approval belum menulis audit event" digantikan oleh [ADR 0021](0021-atomic-publishing.md): approval terakhir mem-publish versi dalam transaksi yang sama dan menulis `POLICY_VERSION_PUBLISHED` ke `audit.events`.
 
 ## Konteks
 

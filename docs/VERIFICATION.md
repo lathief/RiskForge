@@ -268,6 +268,23 @@ Run on branch `feature/RF-021-policy-diff-review` (on top of RF-020) in `rf-test
 - Two script defects found while writing `scripts/m4-e2e.sh` and fixed in the script, not in the product: a greedy `sed` picked the last `"id"` of a response, and a grep did not expect `>` encoded as `\u003e` (M4-TOOL-02).
 - Not covered: `migrate:rollback` of the M4 migrations (M4-TOOL-03); latency of review and publish (RF-024); the upgrade of a database that has `PENDING_APPROVAL` versions from before RF-019 (M4-REL-01).
 
+### Re-validation of `feature/M4-governance` at b2b9c4e (23 November 2026)
+
+Run again on the committed branch, in `rf-test-m4val`, `rf-test-m4cov`, and the live stack `rf-live-m4val` (fresh volumes, `migrate`, `db:seed`), all removed with `down -v` afterwards.
+- `go vet ./...` clean; `go test -race -count=1 -v ./...`: **794 passed, 0 failed**, every package `ok`.
+- `redocly lint` valid (0.18.0); `generate-postman.sh --check` up to date (43); routes in `routes/api.go` are the 43 operations plus the 3 docs routes. Smoke **43/43**, `scripts/m4-e2e.sh` **40/40**.
+- `./scripts/coverage.sh rf-test-m4cov`: unit **57.5%**, unit plus integration **89.9%** ([coverage.md](coverage.md)).
+- An independent read-only check of docs against code found no mismatch in the OpenAPI contract, the error codes, the M4 migrations, or the SYSTEM_DESIGN M4 sections. It found stale status text in other guides, which this change fixes:
+  - `README.md`: status, API table without the 11 M4 routes, roadmap.
+  - `ARCHITECTURE.md`: diagram and module rows still marked planned.
+  - `DOMAIN_GUIDE.md`: maker-checker, evaluation, and reason code status.
+  - `TESTING.md`: the M4 suites and concurrency tests were missing, and the smoke count was 30.
+  - `API_EXAMPLES.md`: no diff and review example; they were listed as planned.
+  - `GETTING_STARTED.md`, `SCRIPTS.md`, `docs/README.md`: counts and status text.
+  - `SYSTEM_DESIGN.md` 7.2 and 7.3: the double-vote key and the request indexes now match the migration.
+  - ADR 0020 now points to ADR 0021. ADR 0022 and `M4_NOTES.md` now give up to three compilations per review, as M4-SEC-04 does.
+  - `coverage.md`: re-measured, and a stray line of terminal output at the top of the file, present since RF-016, removed.
+
 ## Not verified yet
 
 | Item | Why | Planned in |

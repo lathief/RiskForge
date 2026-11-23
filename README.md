@@ -4,7 +4,7 @@
 
 Built as a **modular monolith** on Goravel v1.18 with the official Fiber HTTP driver and PostgreSQL 18, developed ticket by ticket with tests, ADRs, and verification evidence for every change. All data is synthetic.
 
-> **Status:** Milestone 1 (foundation, identity and RBAC, product catalog) is complete and hardened through three review rounds ([verification log](docs/VERIFICATION.md)). Milestone 2 (policy configuration) is implemented: the data dictionary (RF-005), the policy package and version model (RF-006), RAC management (RF-007), scorecard management (RF-008), decision matrix management (RF-009), and full policy validation with golden test cases (RF-010). Running the golden tests against the policy waits for the decision engine; the known limits of M2 are listed in [M2_NOTES.md](docs/M2_NOTES.md). The decision engine (M3) and governance (M4) are designed (`SYSTEM_DESIGN.md`) and come next. See [Roadmap](#roadmap).
+> **Status:** Milestone 1 (foundation, identity and RBAC, product catalog) is complete and hardened through three review rounds ([verification log](docs/VERIFICATION.md)). Milestone 2 (policy configuration) is implemented: the data dictionary (RF-005), the policy package and version model (RF-006), RAC management (RF-007), scorecard management (RF-008), decision matrix management (RF-009), and full policy validation with golden test cases (RF-010). The known limits of M2 are listed in [M2_NOTES.md](docs/M2_NOTES.md). Milestone 3 (decision engine, RF-011 to RF-016) is merged to `main`. Milestone 4 (governance, RF-017 to RF-021: simulator, approval workflows, maker-checker approval, atomic publishing with audit events, policy diff and review) is complete on `feature/M4-governance` and waits for its merge; its limits are in [M4_NOTES.md](docs/M4_NOTES.md). See [Roadmap](#roadmap).
 
 ## What this project demonstrates
 
@@ -53,7 +53,13 @@ Go 1.25 · Goravel v1.18 · Fiber v3 (via `goravel/fiber`) · PostgreSQL 18 · J
 | `GET` / `PUT` / `DELETE` | `/api/v1/policy-versions/{version_id}/decision-matrix` | `policy:read` / `policy:write` (decision matrix of a version) |
 | `GET` / `PUT` | `/api/v1/policy-versions/{version_id}/test-cases` | `policy:read` / `policy:write` (golden test cases of a version) |
 | `POST` | `/api/v1/policy-versions/{version_id}/validate` | `policy:submit` (analyst; full validation report, changes nothing) |
-| `POST` | `/api/v1/policy-versions/{version_id}/submit` | `policy:submit` (analyst; runs the full validation, then freezes) |
+| `POST` | `/api/v1/policy-versions/{version_id}/submit` | `policy:submit` (analyst; runs the full validation, freezes the draft, and opens its approval request in the same transaction) |
+| `POST` | `/api/v1/policy-versions/{version_id}/simulate` | `policy:simulate` (analyst; evaluates one application against a version and stores nothing) |
+| `GET` | `/api/v1/policy-versions/{version_id}/diff` | `policy:read` (changes against a base version, plus the decision impact on the stored test cases) |
+| `GET` | `/api/v1/approval-workflows`, `/api/v1/approval-workflows/{workflow_id}`, `/api/v1/approval-workflow-versions/{workflow_version_id}` | `workflow:manage` or `approval:read` |
+| `POST` | `/api/v1/approval-workflows`, `/api/v1/approval-workflows/{workflow_id}/versions` | `workflow:manage` (admin; workflow versions are append-only) |
+| `GET` | `/api/v1/approval-requests`, `/api/v1/approval-requests/{request_id}`, `/api/v1/approval-requests/{request_id}/review` | `approval:read` or `policy:submit` (the review adds the diff for approvers) |
+| `POST` | `/api/v1/approval-requests/{request_id}/actions` | `approval:act` (approver holding the scope of the active step; the last approval publishes the version atomically) |
 | `POST` | `/api/v1/decisions/evaluate` | `decision:evaluate` (API consumer; evaluates an application against the active policy and stores the decision once per `Idempotency-Key`) |
 | `GET` | `/api/v1/decisions/{decision_id}` | `decision:read` (a consumer reads its own decisions, an auditor reads all) |
 
@@ -82,10 +88,10 @@ Contract: [api/openapi/openapi.yaml](api/openapi/openapi.yaml). Real requests an
 | Milestone | Scope | Status |
 |---|---|---|
 | M1 Foundation | Bootstrap, PostgreSQL, identity and RBAC, product catalog | Done |
-| Hardening, LOG-001, DX-001, DOC-001 | Three review rounds, structured logs, Swagger and Postman, guides | Done (branch `fix/M1-hardening`, pending merge) |
+| Hardening, LOG-001, DX-001, DOC-001 | Three review rounds, structured logs, Swagger and Postman, guides | Done (merged to `main`) |
 | M2 Policy configuration | Data dictionary, versioned policy drafts, RAC, scorecard, matrix validation | Done (RF-005 to RF-010); golden tests are executed since RF-013 |
-| M3 Decision engine | Features, RAC, scorecard and matrix evaluation, idempotent decision API | Done (RF-011 to RF-016: feature builder, RAC evaluator, scorecard and matrix evaluator with golden tests, Decision API, durable decisions with idempotency, compiled policy cache; one branch per ticket, `feature/RF-011-feature-builder` to `feature/RF-016-policy-cache`, not merged to `main` yet) |
-| M4 Governance | Simulator, multi-level approval, atomic publishing | In progress (RF-017 policy simulator on `feature/RF-017-policy-simulator`; RF-018 approval workflow configuration on `feature/RF-018-approval-workflow-config`; RF-019 approval state machine on `feature/RF-019-approval-state-machine`; RF-020 atomic publishing on `feature/RF-020-atomic-publishing`; RF-021 planned) |
+| M3 Decision engine | Features, RAC, scorecard and matrix evaluation, idempotent decision API | Done (RF-011 to RF-016: feature builder, RAC evaluator, scorecard and matrix evaluator with golden tests, Decision API, durable decisions with idempotency, compiled policy cache; one branch per ticket, `feature/RF-011-feature-builder` to `feature/RF-016-policy-cache`, merged to `main` through `feature/M3-decision-engine`) |
+| M4 Governance | Simulator, multi-level approval, atomic publishing | Done (RF-017 to RF-021: policy simulator, approval workflow configuration, approval state machine, atomic publishing, policy diff and review; one branch per ticket, collected in `feature/M4-governance`, not merged to `main` yet) |
 | M5 Hardening | Audit search, metrics, CI/CD, benchmarks, demo | Planned |
 
 Ticket-level detail is in `SYSTEM_DESIGN.md` section 18.

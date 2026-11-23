@@ -622,14 +622,14 @@ Gunakan **satu database PostgreSQL** dengan schema logis melalui driver resmi `g
 - Unique `(policy_version_id, rule_code)`.
 - Unique `(policy_version_id, characteristic_code, bin_order)`.
 - Validasi overlap/gap score bins di application layer dengan pengujian eksplisit; gunakan DB constraints jika representasi range mendukung.
-- Unique `(approval_request_id, step_id, actor_id)` untuk mencegah double-vote; actor yang sama tetap tidak boleh dihitung dua kali pada tier yang sama.
+- Unique `(request_id, actor_id)` untuk mencegah double-vote: satu orang hanya satu aksi per request, lebih ketat dari per step (implementasi RF-019, Bagian 11.6 dan ADR 0020).
 - Unique `(api_client_id, idempotency_key)`.
 - `decision.runs` harus mereferensikan `policy_version_id`, `policy_checksum`, dan normalized input snapshot.
 
 ### 7.3 Indexing awal
 
 - Product code, package/product foreign keys, active policy bindings.
-- Approval request: `status`, `current_step`, `created_at`.
+- Approval request: `(status, submitted_at DESC)`, `current_step`, `(product_code, submitted_at DESC)`; approval action: `(request_id, created_at)`.
 - Decision history: `(application_id, created_at DESC)`, `(policy_version_id, created_at DESC)`.
 - Audit events: `(aggregate_type, aggregate_id, occurred_at)`.
 

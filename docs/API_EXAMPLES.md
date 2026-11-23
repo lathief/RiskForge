@@ -670,6 +670,30 @@ Refusals, all without writing anything:
 
 `{"action":"REJECT","comment":"..."}` closes the request as `REJECTED` and the version becomes `REJECTED`; revise by cloning it.
 
+## Policy diff and review
+Diff (`policy:read`): analyst, approver, auditor. Review (`approval:read` or `policy:submit`): approver, auditor, analyst. The admin and the API consumer get `403`. Neither call writes anything.
+
+`GET /api/v1/policy-versions/{version_id}/diff` compares any version with a base version of the same policy. Without `?base_version_id=` the base is the active version; when the version is itself active, or nothing is active, the base is the version it was cloned from, and a first version is compared with nothing (`base_reason: NONE`). `GET /api/v1/approval-requests/{request_id}/review` returns the request plus the same comparison for its version, so an approver sees what changes before acting.
+```sh
+curl -s $B/api/v1/approval-requests/$REQ/review -H "Authorization: Bearer $APPROVER1"
+```
+Response from the e2e flow, where version 2 raised the minimum age from 21 to 30 (shortened; `...` marks cut arrays):
+```json
+{"approval_request":{"id":"9fcff5b6-3d7a-4177-8327-f5a3d374bb68","status":"APPROVED","current_step":null,"policy_version":{"id":"c4ef3050-b232-4c90-b290-9e753eb881e8","number":2,"product_code":"KTA_DEMO","scope":"DEFAULT","checksum":"3f00761757aad3c8b259e71737fd217a7deea1080572011cde82bd45908da035"},"steps":[...],"actions":[...]},
+ "comparison":{"target":{"id":"c4ef3050-b232-4c90-b290-9e753eb881e8","version_number":2,"status":"ARCHIVED","checksum":"3f00761757aad3c8b259e71737fd217a7deea1080572011cde82bd45908da035"},
+  "base":{"id":"bffe8899-bc40-4628-b41c-2a2a9fba2623","version_number":3,"status":"ACTIVE","checksum":"1a22aa8beec16ca3972b4d720752ee26acf6fbca5bf014411b5ea70d2544a2ff"},
+  "base_reason":"ACTIVE_VERSION","changed":true,
+  "summary":{"rac_rules":{"added":0,"removed":0,"modified":3},"scorecard_characteristics":{"added":0,"removed":0,"modified":0},"decision_matrix_rows":{"added":0,"removed":0,"modified":0},"dictionary_variables":{"added":0,"removed":0,"modified":0},"test_cases":{"added":1,"removed":6,"modified":0},"base_score_changed":false,"dictionary_schema_changed":false},
+  "change_summary":["RAC rule RAC_MIN_AGE: expression `age_years \u003e= 21` -\u003e `age_years \u003e= 30`","RAC rule RAC_MIN_AGE: description `Applicant must be at least 21 years old.` -\u003e (none)","...","Test case GOLDEN_AGE_29_REJECTED added"],
+  "changes":{"rac_rules":[{"key":"RAC_MIN_AGE","change":"MODIFIED","fields":[{"field":"expression","before":"age_years \u003e= 21","after":"age_years \u003e= 30"},{"field":"description","before":"Applicant must be at least 21 years old.","after":null}]},...],"scorecard":{"base_score":null,"characteristics":[]},"decision_matrix":[],"dictionary":{"schema_version":null,"variables":[]},"test_cases":[...]},
+  "validation":{"valid":true,"issues":[],"golden_tests":{"executed":1,"passed":1,"failed":0,"results":[...]},"pending_checks":[]},
+  "impact":{"available":true,"reason":null,"base_evaluated":true,"cases":1,"changed":1,"results":[{"case_code":"GOLDEN_AGE_29_REJECTED","required":true,
+    "base":{"outcome":"DECISION","decision":"APPROVE","grade":"A","total_score":"685.00","reason_codes":[],"message":null},
+    "target":{"outcome":"DECISION","decision":"REJECT","grade":null,"total_score":null,"reason_codes":["AGE_BELOW_MINIMUM"],"message":null},"changed":true}]}}}
+```
+The request was approved earlier and version 3 (a rollback copy of version 1) is active now, so the base is version 3. `impact` runs the stored test cases of the target version against both versions, and `changed` counts the cases whose result differs. For a draft that cannot be evaluated yet, `impact.available` is `false` with a `reason`, and the diff is still returned. Go encodes `>` as `\u003e` in JSON strings.
+
+Errors: an unknown version or request is `404 POLICY_VERSION_NOT_FOUND` or `404 APPROVAL_REQUEST_NOT_FOUND`, and a `base_version_id` of another policy is `422 INPUT_VALIDATION_ERROR` (`base_version_id: not_in_policy`).
 ## Planned endpoints
 
-Not live yet; see `SYSTEM_DESIGN.md` 13.1 for the target contract: the diff and change summary for reviewers (RF-021) and audit search (RF-022). Each will be added to the OpenAPI contract, Swagger UI, and the Postman collection in the same change.
+Not live yet; see `SYSTEM_DESIGN.md` 13.1 for the target contract: audit search (RF-022). Each will be added to the OpenAPI contract, Swagger UI, and the Postman collection in the same change.
