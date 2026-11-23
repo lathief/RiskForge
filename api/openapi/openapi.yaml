@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.15.0
+  version: 0.16.0
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
-    Contract for the endpoints implemented so far (RF-001 to RF-018, plus M1 hardening).
+    Contract for the endpoints implemented so far (RF-001 to RF-019, plus M1 hardening).
 
     - All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.
     - Authorization is permission-based. Each operation lists the required permission
@@ -49,7 +49,7 @@ tags:
   - name: Simulation
     description: Policy simulator. Evaluates a draft or any version and stores nothing (RF-017).
   - name: Approval
-    description: Approval workflow configuration, versioned tiers with role, scope, and quorum (RF-018).
+    description: Approval workflow configuration, versioned tiers with role, scope, and quorum (RF-018), and approval requests with the approval state machine (RF-019).
 
 paths:
   /health/live:
@@ -157,6 +157,7 @@ paths:
                 username: demo_analyst
                 roles: [RISK_ANALYST]
                 permissions: [product:read, dictionary:read, dictionary:write, policy:read, policy:write, policy:simulate, policy:submit]
+                approval_scopes: []
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "408": { $ref: "#/components/responses/RequestTimeout" }
         "500": { $ref: "#/components/responses/InternalError" }
@@ -677,22 +678,47 @@ paths:
         codes differ from the actual result is a validation issue
         (`decision_mismatch`, `grade_mismatch`, `reason_codes_mismatch`, `input_rejected`,
         `validation_error_not_raised`, `evaluation_failed`) and the submit is refused. Optional
-        cases that fail do not block. Approving or rejecting a pending version arrives with M4.
+        cases that fail do not block.
+
+        **Approval request (RF-019).** In the same transaction the submit opens an approval
+        request that pins the policy version, its checksum, and the **current version of the
+        approval workflow** of the product and policy scope (`GET /approval-workflows`). The
+        response is the frozen version plus `approval_request`, in the shape of
+        `GET /approval-requests/{request_id}`, with step 1 active. A product and scope without a
+        workflow cannot be submitted: `409 APPROVAL_WORKFLOW_NOT_CONFIGURED`, and the draft stays a
+        DRAFT. Approvers act with `POST /approval-requests/{request_id}/actions`.
       operationId: submitPolicyVersion
       x-required-permission: policy:submit
       responses:
         "200":
-          description: The frozen version with its snapshot and checksum.
+          description: The frozen version with its snapshot and checksum, and the approval request it opened.
           headers:
             X-Request-ID: { $ref: "#/components/headers/XRequestID" }
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/PolicyVersion" }
+              schema: { $ref: "#/components/schemas/SubmittedPolicyVersion" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
         "408": { $ref: "#/components/responses/RequestTimeout" }
-        "409": { $ref: "#/components/responses/PolicyVersionFrozen" }
+        "409":
+          description: |
+            `POLICY_VERSION_FROZEN`: the version is not a DRAFT (also a second or concurrent submit).
+            `APPROVAL_WORKFLOW_NOT_CONFIGURED`: the product and policy scope have no approval workflow.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              examples:
+                frozen:
+                  value:
+                    error: { code: POLICY_VERSION_FROZEN, message: only a DRAFT version can be changed or submitted }
+                    request_id: 0d9c8b7a6e5f4a3b2c1d0e9f8a7b6c5d
+                noWorkflow:
+                  value:
+                    error: { code: APPROVAL_WORKFLOW_NOT_CONFIGURED, message: "no approval workflow is configured for this product and policy scope; the draft was not submitted" }
+                    request_id: 1e0d9c8b7a6f5e4d3c2b1a0f9e8d7c6b
         "422": { $ref: "#/components/responses/PolicyInvalid" }
         "500": { $ref: "#/components/responses/InternalError" }
   /api/v1/policy-versions/{version_id}/rac-rules:
@@ -1499,6 +1525,177 @@ paths:
                 request_id: 9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c
         "408": { $ref: "#/components/responses/RequestTimeout" }
         "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/approval-requests:
+    get:
+      tags: [Approval]
+      summary: List approval requests
+      description: |
+        Approval requests opened by submit (RF-019), newest first, each with its pinned steps
+        and actions. Filter with `status` (`PENDING` for the approvers' queue) and
+        `product_code`. Readable by approvers and auditors (`approval:read`) and by analysts
+        (`policy:submit`), who follow their submissions.
+      operationId: listApprovalRequests
+      x-required-permission: approval:read
+      x-alternative-permissions: [policy:submit]
+      parameters:
+        - name: status
+          in: query
+          description: Only requests in this status. `PENDING` is the approvers' queue.
+          schema: { type: string, enum: [PENDING, APPROVED, REJECTED], example: PENDING }
+        - name: product_code
+          in: query
+          schema: { type: string, maxLength: 32, example: KTA_DEMO }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 10000, default: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: One page of requests.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApprovalRequestList" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/approval-requests/{request_id}:
+    parameters:
+      - name: request_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/ApprovalRequestId" }
+    get:
+      tags: [Approval]
+      summary: Get an approval request
+      description: The request with the steps of its pinned workflow version, the state and approval count of each step, and every action. Diff against the active version arrives with RF-021.
+      operationId: getApprovalRequest
+      x-required-permission: approval:read
+      x-alternative-permissions: [policy:submit]
+      responses:
+        "200":
+          description: The request.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApprovalRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/ApprovalRequestNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/approval-requests/{request_id}/actions:
+    parameters:
+      - name: request_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/ApprovalRequestId" }
+    post:
+      tags: [Approval]
+      summary: Approve or reject the active step
+      description: |
+        The approval state machine (SYSTEM_DESIGN.md 11.2, 11.3). Only the **active step** of an
+        open request accepts actions. The approver's roles and approval scopes are read
+        server-side from the identity module; the body cannot claim a role. Checks, in order:
+
+        - the request is open (`409 APPROVAL_REQUEST_CLOSED`);
+        - `step`, if sent, is the active step (`409 APPROVAL_STEP_NOT_ACTIVE`);
+        - the caller is not the submitter (`403 SELF_APPROVAL_FORBIDDEN`), even with every role;
+        - the caller has not acted on this request before (`409 APPROVAL_ALREADY_GIVEN`): one
+          person acts once per request, so one approver never satisfies two tiers and a quorum
+          always counts distinct people;
+        - the caller holds the step's role and, if it names one, its scope
+          (`403 APPROVER_NOT_ELIGIBLE`).
+
+        `REJECT` (with a `comment`) closes the request as `REJECTED` and the policy version
+        becomes `REJECTED`; the analyst revises by cloning it into a new draft. `APPROVE` counts
+        toward the step's quorum; when reached, the next step becomes active, and after the last
+        step the request closes `APPROVED` and the version becomes `APPROVED`, only if it still
+        has the checksum it was submitted with. Publishing the approved version (switching the
+        active policy) is RF-020; until then an approved version is not evaluated.
+
+        The request row is locked for the action, so concurrent approvals are decided one after
+        the other: the quorum and each transition happen exactly once, and a unique index refuses
+        a second action of one approver even when two arrive at once. The response is the
+        request after the action.
+      operationId: actOnApprovalRequest
+      x-required-permission: approval:act
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApprovalAction" }
+            example: { action: APPROVE, comment: looks right, step: 1 }
+      responses:
+        "200":
+          description: The request after the action.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApprovalRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403":
+          description: |
+            `FORBIDDEN` (no `approval:act`), `SELF_APPROVAL_FORBIDDEN`, or `APPROVER_NOT_ELIGIBLE`.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              examples:
+                selfApproval:
+                  value:
+                    error: { code: SELF_APPROVAL_FORBIDDEN, message: the submitter of a policy version cannot approve or reject it }
+                    request_id: 2f1e0d9c8b7a6f5e4d3c2b1a0f9e8d7c
+                notEligible:
+                  value:
+                    error: { code: APPROVER_NOT_ELIGIBLE, message: you do not hold the role and scope the active step requires }
+                    request_id: 3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e8d
+        "404": { $ref: "#/components/responses/ApprovalRequestNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "409":
+          description: "`APPROVAL_REQUEST_CLOSED`, `APPROVAL_STEP_NOT_ACTIVE`, or `APPROVAL_ALREADY_GIVEN`."
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              examples:
+                closed:
+                  value:
+                    error: { code: APPROVAL_REQUEST_CLOSED, message: the approval request is already closed }
+                    request_id: 4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e
+                alreadyGiven:
+                  value:
+                    error: { code: APPROVAL_ALREADY_GIVEN, message: you already acted on this approval request }
+                    request_id: 5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f
+                stepNotActive:
+                  value:
+                    error: { code: APPROVAL_STEP_NOT_ACTIVE, message: the step is not the active step of the request; reload it }
+                    request_id: 6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422":
+          description: The action is invalid (unknown action, REJECT without comment, unknown field).
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error:
+                  code: INPUT_VALIDATION_ERROR
+                  message: invalid approval action
+                  details:
+                    - { field: comment, issue: required, message: a rejection needs a reason }
+                request_id: 7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b
+        "500": { $ref: "#/components/responses/InternalError" }
   /api/v1/decisions/evaluate:
     post:
       tags: [Decisions]
@@ -1744,7 +1941,7 @@ components:
 
     Me:
       type: object
-      required: [user_id, username, roles, permissions]
+      required: [user_id, username, roles, permissions, approval_scopes]
       properties:
         user_id: { type: string, format: uuid }
         username: { type: string }
@@ -1754,6 +1951,10 @@ components:
         permissions:
           type: array
           items: { type: string }
+        approval_scopes:
+          type: array
+          description: Approval scopes held by the user (RF-019), read server-side. A workflow step that names a scope accepts only approvers who hold it.
+          items: { type: string, enum: [RISK_LEAD, HEAD_OF_RISK] }
 
     ProductCode:
       type: string
@@ -2108,6 +2309,174 @@ components:
           scorecard: null
           test_cases: []
           version_number: 1
+    SubmittedPolicyVersion:
+      allOf:
+        - $ref: "#/components/schemas/PolicyVersion"
+        - type: object
+          required: [approval_request]
+          properties:
+            approval_request: { $ref: "#/components/schemas/ApprovalRequest" }
+      example:
+        id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+        policy_id: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11
+        product_code: KTA_DEMO
+        scope: DEFAULT
+        version_number: 1
+        status: PENDING_APPROVAL
+        description: Initial draft of the KTA_DEMO policy.
+        based_on_version_id: null
+        dictionary_schema_version: 8
+        checksum: 5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592
+        submitted_by: 2e4ebb31-3fbc-480f-a602-302b6766efa1
+        submitted_at: "2026-11-21T08:05:00Z"
+        created_by: 2e4ebb31-3fbc-480f-a602-302b6766efa1
+        created_at: "2026-11-21T08:00:00Z"
+        updated_at: "2026-11-21T08:05:00Z"
+        snapshot:
+          dictionary:
+            schema_version: 8
+            variables: []
+          decision_matrix: []
+          evaluator_version: "1"
+          format: 2
+          package: { product_code: KTA_DEMO, scope: DEFAULT }
+          rac_rules: []
+          scorecard: null
+          test_cases: []
+          version_number: 1
+        approval_request:
+          id: 4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a
+          status: PENDING
+          current_step: 1
+          policy_version: { id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d, number: 1, product_code: KTA_DEMO, scope: DEFAULT, checksum: 5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592 }
+          workflow_version: { id: 8e7f6a5b-4c3d-4e2f-9a1b-0c9d8e7f6a5b, number: 1 }
+          submitted_by: 2e4ebb31-3fbc-480f-a602-302b6766efa1
+          submitted_at: "2026-11-21T08:05:00Z"
+          closed_at: null
+          steps:
+            - { order: 1, name: Risk Lead Review, required_role: RISK_APPROVER, required_scope: RISK_LEAD, min_approvers: 1, approvals: 0, state: ACTIVE }
+            - { order: 2, name: Head of Risk Review, required_role: RISK_APPROVER, required_scope: HEAD_OF_RISK, min_approvers: 1, approvals: 0, state: WAITING }
+          actions: []
+    ApprovalRequestId:
+      type: string
+      format: uuid
+      example: 4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a
+    ApprovalRequest:
+      type: object
+      required: [id, status, current_step, policy_version, workflow_version, submitted_by, submitted_at, closed_at, steps, actions]
+      example:
+        id: 4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a
+        status: PENDING
+        current_step: 2
+        policy_version: { id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d, number: 1, product_code: KTA_DEMO, scope: DEFAULT, checksum: 5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592 }
+        workflow_version: { id: 8e7f6a5b-4c3d-4e2f-9a1b-0c9d8e7f6a5b, number: 1 }
+        submitted_by: 2e4ebb31-3fbc-480f-a602-302b6766efa1
+        submitted_at: "2026-11-21T08:05:00Z"
+        closed_at: null
+        steps:
+          - { order: 1, name: Risk Lead Review, required_role: RISK_APPROVER, required_scope: RISK_LEAD, min_approvers: 1, approvals: 1, state: APPROVED }
+          - { order: 2, name: Head of Risk Review, required_role: RISK_APPROVER, required_scope: HEAD_OF_RISK, min_approvers: 1, approvals: 0, state: ACTIVE }
+        actions:
+          - { id: 6b5a4c3d-2e1f-4a0b-9c8d-7e6f5a4b3c2d, step: 1, actor_id: 7c6b5a4d-3e2f-4b1a-8d9c-0e1f2a3b4c5d, action: APPROVE, comment: looks right, created_at: "2026-11-21T09:00:00Z" }
+      properties:
+        id: { $ref: "#/components/schemas/ApprovalRequestId" }
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED]
+          description: PENDING until the last step reaches its quorum (APPROVED) or an approver rejects (REJECTED). A request closes once and never reopens.
+        current_step:
+          type: [integer, "null"]
+          minimum: 1
+          description: The order of the step that accepts actions. Null once closed.
+        policy_version:
+          type: object
+          description: The version under approval, with the checksum it was submitted with. Approval is valid only for this content.
+          required: [id, number, product_code, scope, checksum]
+          properties:
+            id: { $ref: "#/components/schemas/PolicyVersionId" }
+            number: { type: integer, minimum: 1 }
+            product_code: { type: string }
+            scope: { type: string }
+            checksum: { type: string, pattern: "^[0-9a-f]{64}$" }
+        workflow_version:
+          type: object
+          description: The workflow version pinned at submit. A later workflow version does not change this request.
+          required: [id, number]
+          properties:
+            id: { $ref: "#/components/schemas/ApprovalWorkflowVersionId" }
+            number: { type: integer, minimum: 1 }
+        submitted_by: { type: string, format: uuid, description: The maker. They can never act on this request. }
+        submitted_at: { type: string, format: date-time }
+        closed_at: { type: [string, "null"], format: date-time }
+        steps:
+          type: array
+          items:
+            type: object
+            required: [order, name, required_role, required_scope, min_approvers, approvals, state]
+            properties:
+              order: { type: integer, minimum: 1 }
+              name: { type: string }
+              required_role: { type: string }
+              required_scope: { type: [string, "null"] }
+              min_approvers: { type: integer, minimum: 1 }
+              approvals: { type: integer, minimum: 0, description: Distinct approvers who approved this step. }
+              state:
+                type: string
+                enum: [WAITING, ACTIVE, APPROVED, REJECTED, NOT_REACHED]
+        actions:
+          type: array
+          description: Every action in the order it was recorded. Append-only.
+          items:
+            type: object
+            required: [id, step, actor_id, action, comment, created_at]
+            properties:
+              id: { type: string, format: uuid }
+              step: { type: integer, minimum: 1 }
+              actor_id: { type: string, format: uuid }
+              action: { type: string, enum: [APPROVE, REJECT] }
+              comment: { type: string }
+              created_at: { type: string, format: date-time }
+    ApprovalRequestList:
+      type: object
+      required: [data, meta]
+      example:
+        data:
+          - id: 4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a
+            status: PENDING
+            current_step: 1
+            policy_version: { id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d, number: 1, product_code: KTA_DEMO, scope: DEFAULT, checksum: 5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592 }
+            workflow_version: { id: 8e7f6a5b-4c3d-4e2f-9a1b-0c9d8e7f6a5b, number: 1 }
+            submitted_by: 2e4ebb31-3fbc-480f-a602-302b6766efa1
+            submitted_at: "2026-11-21T08:05:00Z"
+            closed_at: null
+            steps:
+              - { order: 1, name: Risk Lead Review, required_role: RISK_APPROVER, required_scope: RISK_LEAD, min_approvers: 1, approvals: 0, state: ACTIVE }
+              - { order: 2, name: Head of Risk Review, required_role: RISK_APPROVER, required_scope: HEAD_OF_RISK, min_approvers: 1, approvals: 0, state: WAITING }
+            actions: []
+        meta: { page: 1, per_page: 20, total: 1 }
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/ApprovalRequest" }
+        meta:
+          type: object
+          required: [page, per_page, total]
+          properties:
+            page: { type: integer, minimum: 1 }
+            per_page: { type: integer, minimum: 1, maximum: 100 }
+            total: { type: integer, minimum: 0 }
+    ApprovalAction:
+      type: object
+      additionalProperties: false
+      required: [action]
+      properties:
+        action: { type: string, enum: [APPROVE, REJECT] }
+        comment: { type: string, maxLength: 1000, description: "Required for REJECT, so the maker knows what to revise." }
+        step:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: The step the approver believes is active. When given and not the active step, the action is refused with 409 APPROVAL_STEP_NOT_ACTIVE.
     PolicyCreate:
       type: object
       additionalProperties: false
@@ -3192,6 +3561,13 @@ components:
                 - APPROVAL_WORKFLOW_NOT_FOUND
                 - APPROVAL_WORKFLOW_VERSION_NOT_FOUND
                 - APPROVAL_WORKFLOW_CONFLICT
+                - APPROVAL_WORKFLOW_NOT_CONFIGURED
+                - APPROVAL_REQUEST_NOT_FOUND
+                - APPROVAL_REQUEST_CLOSED
+                - APPROVAL_STEP_NOT_ACTIVE
+                - APPROVAL_ALREADY_GIVEN
+                - SELF_APPROVAL_FORBIDDEN
+                - APPROVER_NOT_ELIGIBLE
                 - IDEMPOTENCY_CONFLICT
                 - DECISION_NOT_FOUND
                 - SERVICE_BUSY
@@ -3288,6 +3664,16 @@ components:
           example:
             error: { code: POLICY_VERSION_NOT_FOUND, message: policy version not found }
             request_id: 9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d
+    ApprovalRequestNotFound:
+      description: No approval request has this id.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error: { code: APPROVAL_REQUEST_NOT_FOUND, message: approval request not found }
+            request_id: 9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e
     ApprovalWorkflowNotFound:
       description: No approval workflow has this id.
       headers:

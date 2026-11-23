@@ -9,6 +9,8 @@ import (
 	catalogapp "goravel/app/modules/catalog/application"
 	catalogdomain "goravel/app/modules/catalog/domain"
 	identitydomain "goravel/app/modules/identity/domain"
+	policyapp "goravel/app/modules/policy/application"
+	policydomain "goravel/app/modules/policy/domain"
 )
 
 // CatalogProducts answers product lookups through the catalog module's use case.
@@ -31,6 +33,45 @@ func (c *CatalogProducts) Lookup(ctx context.Context, code string) (application.
 		return application.ProductRef{}, err
 	}
 	return application.ProductRef{ID: p.ID, Code: p.Code, Active: p.Status == catalogdomain.StatusActive}, nil
+}
+
+// PolicyVersions reaches the policy module through PolicyService. Its errors are returned
+// unchanged, so the transport maps "not found", "frozen", and "invalid" as for policy routes.
+type PolicyVersions struct {
+	service *policyapp.PolicyService
+}
+
+var _ application.PolicyGateway = (*PolicyVersions)(nil)
+
+func NewPolicyVersions(service *policyapp.PolicyService) *PolicyVersions {
+	return &PolicyVersions{service: service}
+}
+
+func toSubmitted(v policydomain.Version) application.SubmittedPolicy {
+	return application.SubmittedPolicy{
+		VersionID: v.ID, ProductCode: v.ProductCode, PolicyScope: v.Scope, Number: v.Number,
+		Status: string(v.Status), Checksum: v.Checksum, SubmittedBy: v.SubmittedBy,
+	}
+}
+
+func (p *PolicyVersions) Find(ctx context.Context, versionID string) (application.SubmittedPolicy, error) {
+	v, err := p.service.GetVersion(ctx, versionID)
+	if err != nil {
+		return application.SubmittedPolicy{}, err
+	}
+	return toSubmitted(v), nil
+}
+
+func (p *PolicyVersions) Submit(ctx context.Context, actorID, versionID string) (application.SubmittedPolicy, error) {
+	v, err := p.service.Submit(ctx, actorID, versionID)
+	if err != nil {
+		return application.SubmittedPolicy{}, err
+	}
+	return toSubmitted(v), nil
+}
+
+func (p *PolicyVersions) Conclude(ctx context.Context, versionID, checksum string, approved bool) error {
+	return p.service.ConcludeReview(ctx, versionID, checksum, approved)
 }
 
 // IdentityRoles reads the approver roles and the approval scopes from the identity module, so

@@ -57,7 +57,7 @@ docker run --rm --network "$NETWORK" --read-only --tmpfs /tmp \
     NODE_PATH=/tools/node_modules /tools/node_modules/.bin/newman run /postman/RiskForge.postman_collection.json \
       --env-var baseUrl=http://api:3000 --env-var accessToken="$token" --env-var productCode=KTA_DEMO --env-var variableCode=age_years \
       --env-var policyId="$1" --env-var versionId="$2" --env-var workflowId="$3" --env-var workflowVersionId="$4" \
-      --env-var decisionId=00000000-0000-4000-8000-000000000000 \
+      --env-var decisionId=00000000-0000-4000-8000-000000000000 --env-var approvalRequestId=00000000-0000-4000-8000-000000000000 \
       --reporters json --reporter-json-export /tmp/run.json --silent || true
     NODE_PATH=/tools/node_modules node /src/smoke-check.js /tmp/run.json
   '

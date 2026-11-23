@@ -198,6 +198,19 @@ func (f *fakeRepo) UpdateDraft(_ context.Context, nv domain.Version) (domain.Ver
 	return domain.Version{}, ErrVersionNotFound
 }
 
+func (f *fakeRepo) SetStatus(_ context.Context, id string, from, to domain.Status) error {
+	for i, v := range f.versions {
+		if v.ID == id {
+			if v.Status != from {
+				return ErrVersionNotPending
+			}
+			f.versions[i].Status = to
+			return nil
+		}
+	}
+	return ErrVersionNotFound
+}
+
 func (f *fakeRepo) Freeze(_ context.Context, id string, snapshot []byte, checksum, actor string) (domain.Version, error) {
 	for i, v := range f.versions {
 		if v.ID == id {

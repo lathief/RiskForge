@@ -231,6 +231,18 @@ Run on branch `feature/RF-018-approval-workflow-config` (on top of RF-017) on 23
 - **Unhappy flow on the same stack:** a step requiring `RISK_ANALYST` with `min_approvers` 9 gave `422` with `not_an_approver_role` and `out_of_range`; the analyst writing gave `403`; a second workflow for `KTA_DEMO`/`DEFAULT` gave `409 APPROVAL_WORKFLOW_CONFLICT`.
 - Not covered: `migrate:rollback` of the new migration; a workflow for a product other than `KTA_DEMO` on the live stack (covered by the `PAYROLL` scope in tests).
 
+## M4: RF-019 (approval state machine)
+
+Run on branch `feature/RF-019-approval-state-machine` (on top of RF-018) on 23 November 2026, in the disposable project `rf-test-rf019` (PostgreSQL 18) and a live stack `rf-live019` (fresh `migrate` and `db:seed`). Both were removed with `down -v` afterwards.
+
+- `go vet ./...` clean; changed and new Go files `gofmt` clean. `go test -race -count=1 -v ./...` on a fresh database: **765 tests passed, 0 failed, 0 skipped**, 22 packages `ok`. The approval and submit feature tests were also run three times in a row with `-race` (`-count=3`) without a failure.
+- Concurrency evidence: four approvers acting at once on a quorum-2 step gave exactly two actions, an `APPROVED` request, an `APPROVED` version, and two `APPROVAL_REQUEST_CLOSED`; six identical actions of one approver at once gave one action; six concurrent submits of one draft opened one request.
+- `redocly lint` reports OpenAPI 0.16.0 valid. `./scripts/generate-postman.sh --check` reports 41 requests up to date, three times in a row (a `status` query enum without an example first made the generator pick a random value; an `example` fixed it). `./scripts/smoke-postman.sh rf-live019`: 41/41. `/openapi.yaml` served by the stack contains the three new operations.
+- **Live stack, happy flow:** `/auth/me` of `demo_approver_1` showed `approval_scopes: ["RISK_LEAD"]`. A clone of the demo policy submitted by the analyst opened a request at step 1 pinned to workflow version 1 and the version checksum. The risk lead approved step 1 (`current_step` 2), the head of risk approved step 2: request `APPROVED` with `closed_at`, both actions listed, version `APPROVED`.
+- **Live stack, unhappy flow:** head of risk on step 1 `403 APPROVER_NOT_ELIGIBLE`; analyst `403 FORBIDDEN`; `REJECT` without comment `422`; the risk lead a second time `409 APPROVAL_ALREADY_GIVEN`; an action after closing `409 APPROVAL_REQUEST_CLOSED`.
+- During the run the first `rf-live019` API container could not download Go modules (`proxy.golang.org` connection refused, a transient network failure); restarting the container after the network recovered fixed it. No code change.
+- Not covered: `migrate:rollback` of the two new migrations; approval with real latency or load; an approved version being published (RF-020).
+
 ## Not verified yet
 
 | Item | Why | Planned in |

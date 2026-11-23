@@ -856,7 +856,7 @@
                   "value": ""
                 }
               ],
-              "body": "{\n  \"user_id\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"username\": \"demo_analyst\",\n  \"roles\": [\n    \"RISK_ANALYST\"\n  ],\n  \"permissions\": [\n    \"product:read\",\n    \"dictionary:read\",\n    \"dictionary:write\",\n    \"policy:read\",\n    \"policy:write\",\n    \"policy:simulate\",\n    \"policy:submit\"\n  ]\n}",
+              "body": "{\n  \"user_id\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"username\": \"demo_analyst\",\n  \"roles\": [\n    \"RISK_ANALYST\"\n  ],\n  \"permissions\": [\n    \"product:read\",\n    \"dictionary:read\",\n    \"dictionary:write\",\n    \"policy:read\",\n    \"policy:write\",\n    \"policy:simulate\",\n    \"policy:submit\"\n  ],\n  \"approval_scopes\": []\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -9188,7 +9188,7 @@
           "request": {
             "name": "Freeze a draft for approval",
             "description": {
-              "content": "Captures the canonical snapshot of the draft, including the data dictionary definitions\nit was written against, stores its SHA-256 checksum, and moves the version to\n`PENDING_APPROVAL`. After this nothing about the version changes: edits and a second\nsubmit are 409 `POLICY_VERSION_FROZEN`. No request body.\nBefore freezing, the full policy validation of `POST .../validate` runs (SYSTEM_DESIGN.md\n9.3): completeness (a scorecard, a decision matrix, and at least one required test case),\nthe RAC rules, the scorecard, the decision matrix against the scorecard range, and the test\ncases, all against the dictionary version the draft is pinned to. If any check fails, the\nanswer is a 422 `POLICY_VALIDATION_FAILED` listing every problem (paths start with\n`scorecard.` or `decision_matrix.` for those sections) and the draft stays a DRAFT.\nWhen those checks pass, every test case is also **executed** through the decision\npipeline (RF-013): a required case whose decision, grade (when it names one), or reason\ncodes differ from the actual result is a validation issue\n(`decision_mismatch`, `grade_mismatch`, `reason_codes_mismatch`, `input_rejected`,\n`validation_error_not_raised`, `evaluation_failed`) and the submit is refused. Optional\ncases that fail do not block. Approving or rejecting a pending version arrives with M4.\n",
+              "content": "Captures the canonical snapshot of the draft, including the data dictionary definitions\nit was written against, stores its SHA-256 checksum, and moves the version to\n`PENDING_APPROVAL`. After this nothing about the version changes: edits and a second\nsubmit are 409 `POLICY_VERSION_FROZEN`. No request body.\nBefore freezing, the full policy validation of `POST .../validate` runs (SYSTEM_DESIGN.md\n9.3): completeness (a scorecard, a decision matrix, and at least one required test case),\nthe RAC rules, the scorecard, the decision matrix against the scorecard range, and the test\ncases, all against the dictionary version the draft is pinned to. If any check fails, the\nanswer is a 422 `POLICY_VALIDATION_FAILED` listing every problem (paths start with\n`scorecard.` or `decision_matrix.` for those sections) and the draft stays a DRAFT.\nWhen those checks pass, every test case is also **executed** through the decision\npipeline (RF-013): a required case whose decision, grade (when it names one), or reason\ncodes differ from the actual result is a validation issue\n(`decision_mismatch`, `grade_mismatch`, `reason_codes_mismatch`, `input_rejected`,\n`validation_error_not_raised`, `evaluation_failed`) and the submit is refused. Optional\ncases that fail do not block.\n\n**Approval request (RF-019).** In the same transaction the submit opens an approval\nrequest that pins the policy version, its checksum, and the **current version of the\napproval workflow** of the product and policy scope (`GET /approval-workflows`). The\nresponse is the frozen version plus `approval_request`, in the shape of\n`GET /approval-requests/{request_id}`, with step 1 active. A product and scope without a\nworkflow cannot be submitted: `409 APPROVAL_WORKFLOW_NOT_CONFIGURED`, and the draft stays a\nDRAFT. Approvers act with `POST /approval-requests/{request_id}/actions`.\n",
               "type": "text/plain"
             },
             "url": {
@@ -9238,7 +9238,7 @@
           },
           "response": [
             {
-              "name": "The frozen version with its snapshot and checksum.",
+              "name": "The frozen version with its snapshot and checksum, and the approval request it opened.",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -9300,7 +9300,7 @@
                   "value": ""
                 }
               ],
-              "body": "{\n  \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"policy_id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"version_number\": 1,\n  \"status\": \"PENDING_APPROVAL\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\",\n  \"based_on_version_id\": null,\n  \"dictionary_schema_version\": 8,\n  \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\",\n  \"submitted_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"submitted_at\": \"2026-11-21T08:05:00Z\",\n  \"created_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"created_at\": \"2026-11-21T08:00:00Z\",\n  \"updated_at\": \"2026-11-21T08:05:00Z\",\n  \"snapshot\": {\n    \"dictionary\": {\n      \"schema_version\": 8,\n      \"variables\": []\n    },\n    \"decision_matrix\": [],\n    \"evaluator_version\": \"1\",\n    \"format\": 2,\n    \"package\": {\n      \"product_code\": \"KTA_DEMO\",\n      \"scope\": \"DEFAULT\"\n    },\n    \"rac_rules\": [],\n    \"scorecard\": null,\n    \"test_cases\": [],\n    \"version_number\": 1\n  }\n}",
+              "body": "{\n  \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n  \"policy_id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n  \"product_code\": \"KTA_DEMO\",\n  \"scope\": \"DEFAULT\",\n  \"version_number\": 1,\n  \"status\": \"PENDING_APPROVAL\",\n  \"description\": \"Initial draft of the KTA_DEMO policy.\",\n  \"based_on_version_id\": null,\n  \"dictionary_schema_version\": 8,\n  \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\",\n  \"submitted_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"submitted_at\": \"2026-11-21T08:05:00Z\",\n  \"created_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"created_at\": \"2026-11-21T08:00:00Z\",\n  \"updated_at\": \"2026-11-21T08:05:00Z\",\n  \"snapshot\": {\n    \"dictionary\": {\n      \"schema_version\": 8,\n      \"variables\": []\n    },\n    \"decision_matrix\": [],\n    \"evaluator_version\": \"1\",\n    \"format\": 2,\n    \"package\": {\n      \"product_code\": \"KTA_DEMO\",\n      \"scope\": \"DEFAULT\"\n    },\n    \"rac_rules\": [],\n    \"scorecard\": null,\n    \"test_cases\": [],\n    \"version_number\": 1\n  },\n  \"approval_request\": {\n    \"id\": \"4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a\",\n    \"status\": \"PENDING\",\n    \"current_step\": 1,\n    \"policy_version\": {\n      \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n      \"number\": 1,\n      \"product_code\": \"KTA_DEMO\",\n      \"scope\": \"DEFAULT\",\n      \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\"\n    },\n    \"workflow_version\": {\n      \"id\": \"8e7f6a5b-4c3d-4e2f-9a1b-0c9d8e7f6a5b\",\n      \"number\": 1\n    },\n    \"submitted_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n    \"submitted_at\": \"2026-11-21T08:05:00Z\",\n    \"closed_at\": null,\n    \"steps\": [\n      {\n        \"order\": 1,\n        \"name\": \"Risk Lead Review\",\n        \"required_role\": \"RISK_APPROVER\",\n        \"required_scope\": \"RISK_LEAD\",\n        \"min_approvers\": 1,\n        \"approvals\": 0,\n        \"state\": \"ACTIVE\"\n      },\n      {\n        \"order\": 2,\n        \"name\": \"Head of Risk Review\",\n        \"required_role\": \"RISK_APPROVER\",\n        \"required_scope\": \"HEAD_OF_RISK\",\n        \"min_approvers\": 1,\n        \"approvals\": 0,\n        \"state\": \"WAITING\"\n      }\n    ],\n    \"actions\": []\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -9564,7 +9564,7 @@
               "_postman_previewlanguage": "text"
             },
             {
-              "name": "The version is not a DRAFT, so it can no longer be edited or submitted.",
+              "name": "`POLICY_VERSION_FROZEN`: the version is not a DRAFT (also a second or concurrent submit).\n`APPROVAL_WORKFLOW_NOT_CONFIGURED`: the product and policy scope have no approval workflow.",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -18068,7 +18068,7 @@
     },
     {
       "name": "Approval",
-      "description": "Approval workflow configuration, versioned tiers with role, scope, and quorum (RF-018).",
+      "description": "Approval workflow configuration, versioned tiers with role, scope, and quorum (RF-018), and approval requests with the approval state machine (RF-019).",
       "item": [
         {
           "name": "List approval workflows",
@@ -20890,6 +20890,1848 @@
           "protocolProfileBehavior": {
             "disableBodyPruning": true
           }
+        },
+        {
+          "name": "List approval requests",
+          "request": {
+            "name": "List approval requests",
+            "description": {
+              "content": "Approval requests opened by submit (RF-019), newest first, each with its pinned steps\nand actions. Filter with `status` (`PENDING` for the approvers' queue) and\n`product_code`. Readable by approvers and auditors (`approval:read`) and by analysts\n(`policy:submit`), who follow their submissions.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "approval-requests"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "Only requests in this status. `PENDING` is the approvers' queue. (This can only be one of PENDING,APPROVED,REJECTED)",
+                    "type": "text/plain"
+                  },
+                  "key": "status",
+                  "value": "PENDING"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "product_code",
+                  "value": "KTA_DEMO"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "per_page",
+                  "value": "20"
+                }
+              ],
+              "variable": [],
+              "raw": "{{baseUrl}}/api/v1/approval-requests"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "One page of requests.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only requests in this status. `PENDING` is the approvers' queue. (This can only be one of PENDING,APPROVED,REJECTED)",
+                        "type": "text/plain"
+                      },
+                      "key": "status",
+                      "value": "PENDING"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "product_code",
+                      "value": "KTA_DEMO"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a\",\n      \"status\": \"PENDING\",\n      \"current_step\": 1,\n      \"policy_version\": {\n        \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n        \"number\": 1,\n        \"product_code\": \"KTA_DEMO\",\n        \"scope\": \"DEFAULT\",\n        \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\"\n      },\n      \"workflow_version\": {\n        \"id\": \"8e7f6a5b-4c3d-4e2f-9a1b-0c9d8e7f6a5b\",\n        \"number\": 1\n      },\n      \"submitted_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n      \"submitted_at\": \"2026-11-21T08:05:00Z\",\n      \"closed_at\": null,\n      \"steps\": [\n        {\n          \"order\": 1,\n          \"name\": \"Risk Lead Review\",\n          \"required_role\": \"RISK_APPROVER\",\n          \"required_scope\": \"RISK_LEAD\",\n          \"min_approvers\": 1,\n          \"approvals\": 0,\n          \"state\": \"ACTIVE\"\n        },\n        {\n          \"order\": 2,\n          \"name\": \"Head of Risk Review\",\n          \"required_role\": \"RISK_APPROVER\",\n          \"required_scope\": \"HEAD_OF_RISK\",\n          \"min_approvers\": 1,\n          \"approvals\": 0,\n          \"state\": \"WAITING\"\n        }\n      ],\n      \"actions\": []\n    }\n  ],\n  \"meta\": {\n    \"page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only requests in this status. `PENDING` is the approvers' queue. (This can only be one of PENDING,APPROVED,REJECTED)",
+                        "type": "text/plain"
+                      },
+                      "key": "status",
+                      "value": "PENDING"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "product_code",
+                      "value": "KTA_DEMO"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only requests in this status. `PENDING` is the approvers' queue. (This can only be one of PENDING,APPROVED,REJECTED)",
+                        "type": "text/plain"
+                      },
+                      "key": "status",
+                      "value": "PENDING"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "product_code",
+                      "value": "KTA_DEMO"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only requests in this status. `PENDING` is the approvers' queue. (This can only be one of PENDING,APPROVED,REJECTED)",
+                        "type": "text/plain"
+                      },
+                      "key": "status",
+                      "value": "PENDING"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "product_code",
+                      "value": "KTA_DEMO"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The request is well-formed HTTP but semantically invalid.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only requests in this status. `PENDING` is the approvers' queue. (This can only be one of PENDING,APPROVED,REJECTED)",
+                        "type": "text/plain"
+                      },
+                      "key": "status",
+                      "value": "PENDING"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "product_code",
+                      "value": "KTA_DEMO"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INPUT_VALIDATION_ERROR\",\n    \"message\": \"invalid product\",\n    \"details\": [\n      {\n        \"field\": \"code\",\n        \"issue\": \"invalid_format\"\n      },\n      {\n        \"field\": \"name\",\n        \"issue\": \"required\"\n      }\n    ]\n  },\n  \"request_id\": \"1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only requests in this status. `PENDING` is the approvers' queue. (This can only be one of PENDING,APPROVED,REJECTED)",
+                        "type": "text/plain"
+                      },
+                      "key": "status",
+                      "value": "PENDING"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "product_code",
+                      "value": "KTA_DEMO"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "name": "Get an approval request",
+          "request": {
+            "name": "Get an approval request",
+            "description": {
+              "content": "The request with the steps of its pinned workflow version, the state and approval count of each step, and every action. Diff against the active version arrives with RF-021.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "approval-requests",
+                ":request_id"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{approvalRequestId}}",
+                  "key": "request_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The request.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"id\": \"4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a\",\n  \"status\": \"PENDING\",\n  \"current_step\": 2,\n  \"policy_version\": {\n    \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n    \"number\": 1,\n    \"product_code\": \"KTA_DEMO\",\n    \"scope\": \"DEFAULT\",\n    \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\"\n  },\n  \"workflow_version\": {\n    \"id\": \"8e7f6a5b-4c3d-4e2f-9a1b-0c9d8e7f6a5b\",\n    \"number\": 1\n  },\n  \"submitted_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"submitted_at\": \"2026-11-21T08:05:00Z\",\n  \"closed_at\": null,\n  \"steps\": [\n    {\n      \"order\": 1,\n      \"name\": \"Risk Lead Review\",\n      \"required_role\": \"RISK_APPROVER\",\n      \"required_scope\": \"RISK_LEAD\",\n      \"min_approvers\": 1,\n      \"approvals\": 1,\n      \"state\": \"APPROVED\"\n    },\n    {\n      \"order\": 2,\n      \"name\": \"Head of Risk Review\",\n      \"required_role\": \"RISK_APPROVER\",\n      \"required_scope\": \"HEAD_OF_RISK\",\n      \"min_approvers\": 1,\n      \"approvals\": 0,\n      \"state\": \"ACTIVE\"\n    }\n  ],\n  \"actions\": [\n    {\n      \"id\": \"6b5a4c3d-2e1f-4a0b-9c8d-7e6f5a4b3c2d\",\n      \"step\": 1,\n      \"actor_id\": \"7c6b5a4d-3e2f-4b1a-8d9c-0e1f2a3b4c5d\",\n      \"action\": \"APPROVE\",\n      \"comment\": \"looks right\",\n      \"created_at\": \"2026-11-21T09:00:00Z\"\n    }\n  ]\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No approval request has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"APPROVAL_REQUEST_NOT_FOUND\",\n    \"message\": \"approval request not found\"\n  },\n  \"request_id\": \"9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "name": "Approve or reject the active step",
+          "request": {
+            "name": "Approve or reject the active step",
+            "description": {
+              "content": "The approval state machine (SYSTEM_DESIGN.md 11.2, 11.3). Only the **active step** of an\nopen request accepts actions. The approver's roles and approval scopes are read\nserver-side from the identity module; the body cannot claim a role. Checks, in order:\n\n- the request is open (`409 APPROVAL_REQUEST_CLOSED`);\n- `step`, if sent, is the active step (`409 APPROVAL_STEP_NOT_ACTIVE`);\n- the caller is not the submitter (`403 SELF_APPROVAL_FORBIDDEN`), even with every role;\n- the caller has not acted on this request before (`409 APPROVAL_ALREADY_GIVEN`): one\n  person acts once per request, so one approver never satisfies two tiers and a quorum\n  always counts distinct people;\n- the caller holds the step's role and, if it names one, its scope\n  (`403 APPROVER_NOT_ELIGIBLE`).\n\n`REJECT` (with a `comment`) closes the request as `REJECTED` and the policy version\nbecomes `REJECTED`; the analyst revises by cloning it into a new draft. `APPROVE` counts\ntoward the step's quorum; when reached, the next step becomes active, and after the last\nstep the request closes `APPROVED` and the version becomes `APPROVED`, only if it still\nhas the checksum it was submitted with. Publishing the approved version (switching the\nactive policy) is RF-020; until then an approved version is not evaluated.\n\nThe request row is locked for the action, so concurrent approvals are decided one after\nthe other: the quorum and each transition happen exactly once, and a unique index refuses\na second action of one approver even when two arrive at once. The response is the\nrequest after the action.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "approval-requests",
+                ":request_id",
+                "actions"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{approvalRequestId}}",
+                  "key": "request_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id/actions"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"APPROVE\",\n  \"comment\": \"looks right\",\n  \"step\": 1\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The request after the action.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id",
+                    "actions"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id/actions"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"action\": \"APPROVE\",\n  \"comment\": \"looks right\",\n  \"step\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"id\": \"4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a\",\n  \"status\": \"PENDING\",\n  \"current_step\": 2,\n  \"policy_version\": {\n    \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n    \"number\": 1,\n    \"product_code\": \"KTA_DEMO\",\n    \"scope\": \"DEFAULT\",\n    \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\"\n  },\n  \"workflow_version\": {\n    \"id\": \"8e7f6a5b-4c3d-4e2f-9a1b-0c9d8e7f6a5b\",\n    \"number\": 1\n  },\n  \"submitted_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n  \"submitted_at\": \"2026-11-21T08:05:00Z\",\n  \"closed_at\": null,\n  \"steps\": [\n    {\n      \"order\": 1,\n      \"name\": \"Risk Lead Review\",\n      \"required_role\": \"RISK_APPROVER\",\n      \"required_scope\": \"RISK_LEAD\",\n      \"min_approvers\": 1,\n      \"approvals\": 1,\n      \"state\": \"APPROVED\"\n    },\n    {\n      \"order\": 2,\n      \"name\": \"Head of Risk Review\",\n      \"required_role\": \"RISK_APPROVER\",\n      \"required_scope\": \"HEAD_OF_RISK\",\n      \"min_approvers\": 1,\n      \"approvals\": 0,\n      \"state\": \"ACTIVE\"\n    }\n  ],\n  \"actions\": [\n    {\n      \"id\": \"6b5a4c3d-2e1f-4a0b-9c8d-7e6f5a4b3c2d\",\n      \"step\": 1,\n      \"actor_id\": \"7c6b5a4d-3e2f-4b1a-8d9c-0e1f2a3b4c5d\",\n      \"action\": \"APPROVE\",\n      \"comment\": \"looks right\",\n      \"created_at\": \"2026-11-21T09:00:00Z\"\n    }\n  ]\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id",
+                    "actions"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id/actions"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"action\": \"APPROVE\",\n  \"comment\": \"looks right\",\n  \"step\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "`FORBIDDEN` (no `approval:act`), `SELF_APPROVAL_FORBIDDEN`, or `APPROVER_NOT_ELIGIBLE`.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id",
+                    "actions"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id/actions"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"action\": \"APPROVE\",\n  \"comment\": \"looks right\",\n  \"step\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"SELF_APPROVAL_FORBIDDEN\",\n    \"message\": \"the submitter of a policy version cannot approve or reject it\"\n  },\n  \"request_id\": \"2f1e0d9c8b7a6f5e4d3c2b1a0f9e8d7c\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No approval request has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id",
+                    "actions"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id/actions"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"action\": \"APPROVE\",\n  \"comment\": \"looks right\",\n  \"step\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"APPROVAL_REQUEST_NOT_FOUND\",\n    \"message\": \"approval request not found\"\n  },\n  \"request_id\": \"9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id",
+                    "actions"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id/actions"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"action\": \"APPROVE\",\n  \"comment\": \"looks right\",\n  \"step\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "`APPROVAL_REQUEST_CLOSED`, `APPROVAL_STEP_NOT_ACTIVE`, or `APPROVAL_ALREADY_GIVEN`.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id",
+                    "actions"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id/actions"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"action\": \"APPROVE\",\n  \"comment\": \"looks right\",\n  \"step\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"APPROVAL_REQUEST_CLOSED\",\n    \"message\": \"the approval request is already closed\"\n  },\n  \"request_id\": \"4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request body exceeds 64 KiB. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id",
+                    "actions"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id/actions"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"action\": \"APPROVE\",\n  \"comment\": \"looks right\",\n  \"step\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Entity Too Large",
+              "code": 413,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Entity Too Large",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The action is invalid (unknown action, REJECT without comment, unknown field).",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id",
+                    "actions"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id/actions"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"action\": \"APPROVE\",\n  \"comment\": \"looks right\",\n  \"step\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INPUT_VALIDATION_ERROR\",\n    \"message\": \"invalid approval action\",\n    \"details\": [\n      {\n        \"field\": \"comment\",\n        \"issue\": \"required\",\n        \"message\": \"a rejection needs a reason\"\n      }\n    ]\n  },\n  \"request_id\": \"7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id",
+                    "actions"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id/actions"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"action\": \"APPROVE\",\n  \"comment\": \"looks right\",\n  \"step\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
         }
       ]
     }
@@ -20916,7 +22758,7 @@
     "name": "RiskForge API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": {
-      "content": "Contract for the endpoints implemented so far (RF-001 to RF-018, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; when `x-alternative-permissions` is also present, holding\n  any one of those permissions grants access too. The role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
+      "content": "Contract for the endpoints implemented so far (RF-001 to RF-019, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; when `x-alternative-permissions` is also present, holding\n  any one of those permissions grants access too. The role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
       "type": "text/plain"
     },
     "_postman_id": "4b6e2f0a-9c3d-4e51-8a7b-1f2e3d4c5b6a"

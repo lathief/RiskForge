@@ -265,6 +265,7 @@ func (s *PolicyTestSuite) TestSubmitFreezesTheRulesIntoTheVerifiableSnapshot() {
 
 	// The version without rules has another checksum.
 	policyID, _ := s.createPolicy(`{"product_code":"KTA_DEMO","scope":"RETAIL"}`)
+	s.ensureWorkflow("RETAIL") // since RF-019 a submit needs the scope's approval workflow
 	detail := s.json(s.send("demo_auditor", "GET", policiesPath+"/"+policyID, "").AssertOk())
 	emptyID := detail["versions"].([]any)[0].(map[string]any)["id"].(string)
 	empty := s.json(s.submit(emptyID).AssertOk())
@@ -359,7 +360,7 @@ func (s *PolicyTestSuite) TestConcurrentReplacesLeaveExactlyOneWholeList() {
 
 func (s *PolicyTestSuite) TestSubmitRacingWithAReplaceNeverLeavesTheSnapshotAndTheRulesApart() {
 	for round := 0; round < 6; round++ {
-		s.Require().NoError(facades.DB().Statement("TRUNCATE TABLE decision.rule_traces, decision.runs, decision.requests, policy.active_policy_bindings, policy.test_cases, policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
+		s.Require().NoError(facades.DB().Statement("TRUNCATE TABLE approval.actions, approval.requests, decision.rule_traces, decision.runs, decision.requests, policy.active_policy_bindings, policy.test_cases, policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
 		_, v1 := s.createPolicy(`{"product_code":"KTA_DEMO"}`)
 		s.putRules("demo_analyst", v1, `{"rules":[{"rule_code":"RAC_OLD","reason_code":"OLD_REASON","action":"REJECT","expression":"age_years >= 18"}]}`).AssertOk()
 		s.complete(v1)
