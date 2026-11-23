@@ -187,6 +187,26 @@ func (c *ApprovalRequestController) Show(ctx http.Context) http.Response {
 	return ctx.Response().Json(http.StatusOK, toApprovalRequest(r))
 }
 
+type reviewResponse struct {
+	ApprovalRequest approvalRequestResponse `json:"approval_request"`
+	Comparison      comparisonResponse      `json:"comparison"`
+}
+
+// Review returns what an approver needs to decide (RF-021, SYSTEM_DESIGN.md 11.4): the request,
+// and the submitted version compared with the policy's active version, with the change
+// summary, the golden test results, and the impact on the stored test cases. It only reads.
+func (c *ApprovalRequestController) Review(ctx http.Context) http.Response {
+	r, err := c.service.Get(ctx.Context(), ctx.Request().Route("request_id"))
+	if err != nil {
+		return c.fail(ctx, "review", err)
+	}
+	cmp, err := c.policies.Compare(ctx.Context(), r.PolicyVersionID, "")
+	if err != nil {
+		return c.fail(ctx, "review", err)
+	}
+	return ctx.Response().Json(http.StatusOK, reviewResponse{ApprovalRequest: toApprovalRequest(r), Comparison: toComparison(cmp)})
+}
+
 // Act records an approve or reject on the active step: {"action", "comment"?, "step"?}. The
 // approver's roles and scopes come from the server-side principal, never from the body.
 func (c *ApprovalRequestController) Act(ctx http.Context) http.Response {

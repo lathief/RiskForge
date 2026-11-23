@@ -1087,6 +1087,8 @@ Sistem menyediakan `change_summary` dan perbedaan terhadap active policy:
 - Perubahan input dictionary/derived formula.
 - Hasil regression tests (pass/fail) dan ringkasan dampak simulasi.
 
+*(Terimplementasi di RF-021, Bagian 11.8.)*
+
 ### 11.5 Implementasi konfigurasi approval workflow (RF-018)
 
 Status: terimplementasi pada branch `feature/RF-018-approval-workflow-config`, di atas RF-017. Keputusan lengkap: `docs/adr/0019-approval-workflow-configuration.md`.
@@ -1137,7 +1139,19 @@ Status: terimplementasi pada branch `feature/RF-020-atomic-publishing`, di atas 
 
 **Jalan pintas pengembangan.** `DemoActivePolicySeeder` kini memakai `ConcludeReview` dan `Publish` yang sama (tanpa approval request dan tanpa audit event), sehingga binding hanya dipindahkan oleh satu kode.
 
-**Belum ada (disengaja).** Aktivasi terjadwal (Bagian 9.2, butuh operasi terpisah dengan retry); pencarian audit (RF-022); audit untuk aksi approval selain publish (RF-022); diff untuk reviewer (RF-021); metrik `policy_publish_total` (RF-023).
+**Belum ada (disengaja).** Aktivasi terjadwal (Bagian 9.2, butuh operasi terpisah dengan retry); pencarian audit (RF-022); audit untuk aksi approval selain publish (RF-022); metrik `policy_publish_total` (RF-023). Diff untuk reviewer ditambahkan di RF-021 (Bagian 11.8).
+
+### 11.8 Implementasi policy diff dan approval review (RF-021)
+
+Status: terimplementasi pada branch `feature/RF-021-policy-diff-review`, di atas RF-020. Keputusan lengkap: `docs/adr/0022-policy-diff-and-review.md`. Menjalankan Bagian 11.4.
+
+**Diff murni.** `policy/domain.CompareVersions(base, target)` membandingkan isi dua versi per bagian: aturan RAC (kunci `rule_code`: urutan, ekspresi, aksi, reason code, deskripsi), scorecard (base score; karakteristik per kode: variabel, `missing_points`, deskripsi, urutan; bin per urutan: batas, poin, label), baris decision matrix (per urutan: batas, grade, keputusan, label), variabel data dictionary (per kode: asal, tipe, unit, wajib, nullable, skala, rentang, versi definisi; dan schema version), serta test case (per kode: wajib, input kanonik, ekspektasi, deskripsi). Setiap nilai berupa teks persis seperti tersimpan. Hasilnya `ADDED`/`REMOVED`/`MODIFIED` per item dengan field sebelum/sesudah, hitungan per bagian, dan `change_summary` satu baris per perubahan. Rumus fitur turunan ada di kode (Bagian 8.2) sehingga tidak pernah menjadi item diff.
+
+**Perbandingan** (`PolicyService.Compare(target, base)`, hanya membaca). Versi apa pun dapat dibandingkan dengan versi lain dari paket yang sama. Tanpa base: versi aktif; bila target adalah versi aktif atau tidak ada yang aktif, versi asal clone-nya (`based_on_version_id`); bila tidak ada keduanya, tidak ada base (`NONE`, semua `ADDED`). Respons menambah laporan validasi penuh target dengan hasil golden test (sama dengan `validate`) dan **dampak simulasi**: setiap test case target dijalankan dengan base dan target memakai inti evaluasi yang sama (`CompilePolicy`, `RunTestCases`), dan case yang keputusan, grade, atau reason code-nya berbeda ditandai `changed`. Draft yang belum dapat dievaluasi tetap mendapat diff, dengan `impact.available: false` dan alasannya.
+
+**Endpoint** (Bagian 13.1): `GET /policy-versions/{version_id}/diff?base_version_id=` (izin `policy:read`; base dari paket lain `422 not_in_policy`) dan `GET /approval-requests/{request_id}/review` (izin `approval:read` atau `policy:submit`): request beserta perbandingan versi yang diajukan dengan versi aktif saat panggilan. Keduanya tidak menulis apa pun.
+
+**Belum ada (disengaja).** Dampak simulasi atas data historis atau sampel besar (v1.1, Bagian 21); diff tekstual per baris ekspresi; penyimpanan ringkasan review bersama request; komentar per item.
 
 ---
 
@@ -1287,13 +1301,19 @@ Operasi ini tidak ada di tabel rencana; Bagian 11.3 meminta konfigurasi workflow
 
 `POST /policy-versions/{version_id}/submit` kini juga membuka approval request dalam transaksi yang sama: respons menambah `approval_request`, dan produk + scope tanpa workflow ditolak `409 APPROVAL_WORKFLOW_NOT_CONFIGURED`. `GET /auth/me` menambah `approval_scopes`.
 
+**Telah terimplementasi (Milestone 4, RF-021, branch `feature/RF-021-policy-diff-review`):** dua operasi baca. Total OpenAPI 0.18.0, Swagger UI, dan Postman Collection menjadi 43 operasi. Rancangan di Bagian 11.8. Diff tidak dimasukkan ke `GET /approval-requests/{id}` seperti tabel rencana, karena memuat dan mengevaluasi dua versi; ia diletakkan di operasi review tersendiri.
+| Method | Absolute path | Auth / Permission |
+|---|---|---|
+| `GET` | `/api/v1/policy-versions/{version_id}/diff` | Bearer + `policy:read`; `?base_version_id=` opsional (versi paket yang sama) |
+| `GET` | `/api/v1/approval-requests/{request_id}/review` | Bearer + `approval:read` atau `policy:submit`; request + perbandingan dengan versi aktif |
+
 **Perubahan kontrak pada Milestone 4 (RF-020, branch `feature/RF-020-atomic-publishing`):** tidak ada operasi baru (tetap 41). Approval terakhir lewat `POST /approval-requests/{request_id}/actions` kini mem-publish versi secara atomik (Bagian 11.7) dan dapat ditolak `409 POLICY_VERSION_SUPERSEDED` atau `409 POLICY_NOT_PUBLISHABLE`. OpenAPI 0.17.0, Postman diregenerasi.
 
 **Target berikutnya (planned, bukan otomatis sudah live):** tabel di bawah memakai path relatif `/api/v1` kecuali health. Operasi planned ditambahkan ke `openapi.yaml` **hanya pada tiket implementasi terkait**.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| `GET` | `/approval-requests/{id}` (diff) | Approver / Auditor | Diff terhadap versi aktif dan ringkasan perubahan di respons request (RF-021). Request dan aksinya sudah live sejak RF-019 (di atas). |
+| `GET` | `/audit/...` | Auditor | Pencarian audit event, riwayat hasil dan approval (RF-022). |
 
 Untuk setiap operasi, wajib memperbarui **OpenAPI 3.1 → Swagger UI → Postman Collection** dalam PR yang sama. Dokumen OpenAPI mencakup pagination, security per permission, standard error shape, `X-Request-ID`, `Idempotency-Key` bila berlaku, serta validation messages; Postman dibuat dengan generator di Bagian 5.6. Jangan mencampur endpoint rencana dengan endpoint yang sudah live.
 
@@ -1638,7 +1658,7 @@ Temuan yang tidak diperbaiki sekarang dicatat sebagai pekerjaan setelah M5 di `d
 - [x] **RF-018 Approval workflow config.** Versioned tiers, role/scope, quorum, default demo workflow. **Selesai pada branch `feature/RF-018-approval-workflow-config`** (di atas RF-017, belum di-merge): schema `approval` (`workflow_definitions`, `workflow_versions`, `workflow_steps`, append-only dengan trigger), satu workflow per produk + policy scope dengan versi bernomor berisi step sekuensial (role approver, scope `RISK_LEAD`/`HEAD_OF_RISK`, quorum 1..5), lima endpoint (`workflow:manage` menulis; `approval:read` atau `workflow:manage` membaca), `DemoWorkflowSeeder` untuk `KTA_DEMO` sesuai Bagian 11.1, tes konkurensi penomoran dan pembuatan ganda. OpenAPI 0.15.0 dengan 38 operasi, Postman diregenerasi dan `--check` lulus, smoke 38/38. Bagian 11.5, ADR 0019, `docs/M4_NOTES.md`.
 - [x] **RF-019 Approval state machine.** Submission lock, action validation, self-approval prevention, unique votes. **Selesai pada branch `feature/RF-019-approval-state-machine`** (di atas RF-018, belum di-merge): submit membekukan draft dan membuka approval request yang mem-pin checksum dan versi workflow dalam satu transaksi; `approval/domain.Decide` (step aktif, self-approval, satu aksi per orang per request, role + scope server-side, quorum approver berbeda, reject wajib komentar); aksi mengunci baris request; versi menjadi `APPROVED`/`REJECTED`; tabel `approval.requests`, `approval.actions`, `identity.user_approval_scopes` dengan trigger penjaga; tes konkurensi quorum, aksi ganda, dan submit ganda. OpenAPI 0.16.0 dengan 41 operasi, Postman diregenerasi dan `--check` lulus, smoke 41/41. Bagian 11.6, ADR 0020, `docs/M4_NOTES.md`.
 - [x] **RF-020 Atomic publishing.** Gunakan satu Goravel DB transaction untuk switch active binding, archive old, dan audit; eksplisit locking + concurrency tests. **Selesai pada branch `feature/RF-020-atomic-publishing`** (di atas RF-019, belum di-merge): approval terakhir menjalankan `PolicyService.Publish` dalam transaksi aksinya (kunci versi, paket, binding; cek checksum dan compile; arsip versi lama; aktifkan versi baru; pindahkan binding) dan menulis `audit.events` `POLICY_VERSION_PUBLISHED`; versi lebih lama ditolak `409 POLICY_VERSION_SUPERSEDED`; rollback = clone versi lama lewat approval; tes konkurensi dua publish bersamaan dan decision selama publish. OpenAPI 0.17.0 (41 operasi), Postman diregenerasi dan `--check` lulus, smoke 41/41. Bagian 11.7, ADR 0021, `docs/M4_NOTES.md`.
-- [ ] **RF-021 Policy diff & approval review.** Compare against active version; readable change summary and test results.
+- [x] **RF-021 Policy diff & approval review.** Compare against active version; readable change summary and test results. **Selesai pada branch `feature/RF-021-policy-diff-review`** (di atas RF-020): `policy/domain.CompareVersions` (RAC, scorecard sampai bin dan poin, matrix, dictionary, test case; `change_summary`), `PolicyService.Compare` dengan laporan validasi, hasil golden test, dan dampak simulasi pada test case tersimpan; `GET /policy-versions/{version_id}/diff` dan `GET /approval-requests/{request_id}/review`. OpenAPI 0.18.0 dengan 43 operasi, Postman diregenerasi dan `--check` lulus. Bagian 11.8, ADR 0022.
 
 ### M5 — Portfolio Hardening
 

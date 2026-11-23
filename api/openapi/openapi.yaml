@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.17.0
+  version: 0.18.0
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
-    Contract for the endpoints implemented so far (RF-001 to RF-020, plus M1 hardening).
+    Contract for the endpoints implemented so far (RF-001 to RF-021, plus M1 hardening).
 
     - All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.
     - Authorization is permission-based. Each operation lists the required permission
@@ -1715,6 +1715,94 @@ paths:
                     - { field: comment, issue: required, message: a rejection needs a reason }
                 request_id: 7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b
         "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/approval-requests/{request_id}/review:
+    parameters:
+      - name: request_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/ApprovalRequestId" }
+    get:
+      tags: [Approval]
+      summary: Review an approval request against the active policy
+      description: |
+        What an approver needs to decide (RF-021, SYSTEM_DESIGN.md 11.4): the request, and the
+        submitted version compared with the **active version** of the policy at the moment of
+        the call (`comparison`, the same shape as `GET /policy-versions/{version_id}/diff`):
+        added, removed, and modified RAC rules; scorecard base score, characteristics, bins,
+        and points; decision matrix boundaries, grades, and decisions; data dictionary
+        variables; test cases; a readable `change_summary`; the full validation report with the
+        golden test results; and the **impact** of the change on the stored test cases, each
+        evaluated with the active version and with the submitted one by the evaluation core of
+        the Decision API. Derived formulas live in code, so they are never part of a diff.
+        Nothing is written. Readable by approvers and auditors (`approval:read`) and analysts
+        (`policy:submit`).
+      operationId: reviewApprovalRequest
+      x-required-permission: approval:read
+      x-alternative-permissions: [policy:submit]
+      responses:
+        "200":
+          description: The request and its comparison.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApprovalReview" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/ApprovalRequestNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policy-versions/{version_id}/diff:
+    parameters:
+      - name: version_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyVersionId" }
+    get:
+      tags: [Policies]
+      summary: Compare a policy version with a base version
+      description: |
+        Compares any version (draft or frozen) with a base version of the **same policy**
+        (RF-021). Without `base_version_id` the base is the active version; when the version is
+        itself active, or nothing is active, the base is the version it was cloned from, and a
+        first version is compared with nothing (`base_reason: NONE`, everything `ADDED`).
+        Returns the diff by section, the `change_summary`, the validation report of the version
+        with its golden test results, and the impact on its stored test cases. For a draft that
+        cannot be evaluated yet, `impact.available` is false with the reason. Nothing is written.
+      operationId: diffPolicyVersion
+      x-required-permission: policy:read
+      parameters:
+        - name: base_version_id
+          in: query
+          description: A version of the same policy to compare against. Defaults as described above.
+          schema: { $ref: "#/components/schemas/PolicyVersionId" }
+      responses:
+        "200":
+          description: The comparison.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolicyComparison" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "422":
+          description: "`base_version_id` is not a version of the same policy (`not_in_policy`)."
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              example:
+                error:
+                  code: INPUT_VALIDATION_ERROR
+                  message: invalid base version
+                  details:
+                    - { field: base_version_id, issue: not_in_policy, message: the base must be a version of the same policy }
+                request_id: 1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c
+        "500": { $ref: "#/components/responses/InternalError" }
   /api/v1/decisions/evaluate:
     post:
       tags: [Decisions]
@@ -2484,6 +2572,227 @@ components:
             page: { type: integer, minimum: 1 }
             per_page: { type: integer, minimum: 1, maximum: 100 }
             total: { type: integer, minimum: 0 }
+    FieldChange:
+      type: object
+      required: [field, before, after]
+      properties:
+        field: { type: string }
+        before: { type: [string, "null"], description: Null when the field had no value or the item was added. }
+        after: { type: [string, "null"], description: Null when the field has no value now or the item was removed. }
+    ItemChange:
+      type: object
+      required: [key, change, fields]
+      properties:
+        key: { type: string, description: "Rule code, matrix row order, variable code, test case code, or bin order." }
+        change: { type: string, enum: [ADDED, REMOVED, MODIFIED] }
+        fields:
+          type: array
+          description: The fields that differ; for an added or removed item, all its fields.
+          items: { $ref: "#/components/schemas/FieldChange" }
+    ChangeCounts:
+      type: object
+      required: [added, removed, modified]
+      properties:
+        added: { type: integer, minimum: 0 }
+        removed: { type: integer, minimum: 0 }
+        modified: { type: integer, minimum: 0 }
+    ComparedVersion:
+      type: object
+      required: [id, version_number, status, checksum]
+      properties:
+        id: { $ref: "#/components/schemas/PolicyVersionId" }
+        version_number: { type: integer, minimum: 1 }
+        status: { $ref: "#/components/schemas/PolicyStatus" }
+        checksum: { type: [string, "null"], description: Null for a DRAFT. }
+    CaseOutcome:
+      type: object
+      required: [outcome, decision, grade, total_score, reason_codes, message]
+      properties:
+        outcome: { type: string, enum: [DECISION, INPUT_VALIDATION_ERROR, EVALUATION_ERROR, POLICY_CONFIGURATION_ERROR] }
+        decision: { type: [string, "null"], enum: [APPROVE, REFER, REJECT, null] }
+        grade: { type: [string, "null"] }
+        total_score: { type: [string, "null"] }
+        reason_codes: { type: array, items: { type: string } }
+        message: { type: [string, "null"] }
+    PolicyComparison:
+      type: object
+      required: [target, base, base_reason, changed, summary, change_summary, changes, validation, impact]
+      example:
+        target: { id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d, version_number: 2, status: PENDING_APPROVAL, checksum: 3f00761757aad3c8b259e71737fd217a7deea1080572011cde82bd45908da035 }
+        base: { id: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11, version_number: 1, status: ACTIVE, checksum: 5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592 }
+        base_reason: ACTIVE_VERSION
+        changed: true
+        summary:
+          rac_rules: { added: 0, removed: 0, modified: 1 }
+          scorecard_characteristics: { added: 0, removed: 0, modified: 0 }
+          decision_matrix_rows: { added: 0, removed: 0, modified: 0 }
+          dictionary_variables: { added: 0, removed: 0, modified: 0 }
+          test_cases: { added: 1, removed: 6, modified: 0 }
+          base_score_changed: false
+          dictionary_schema_changed: false
+        change_summary:
+          - "RAC rule RAC_MIN_AGE: expression `age_years >= 21` -> `age_years >= 30`"
+          - Test case GOLDEN_AGE_29_REJECTED added
+        changes:
+          rac_rules:
+            - { key: RAC_MIN_AGE, change: MODIFIED, fields: [{ field: expression, before: age_years >= 21, after: age_years >= 30 }] }
+          scorecard: { base_score: null, characteristics: [] }
+          decision_matrix: []
+          dictionary: { schema_version: null, variables: [] }
+          test_cases:
+            - { key: GOLDEN_AGE_29_REJECTED, change: ADDED, fields: [{ field: expected_outcome, before: null, after: DECISION }] }
+        validation:
+          valid: true
+          issues: []
+          golden_tests: { executed: 1, passed: 1, failed: 0, results: [] }
+          pending_checks: []
+        impact:
+          available: true
+          reason: null
+          base_evaluated: true
+          cases: 1
+          changed: 1
+          results:
+            - case_code: GOLDEN_AGE_29_REJECTED
+              required: true
+              base: { outcome: DECISION, decision: APPROVE, grade: A, total_score: "685.00", reason_codes: [], message: null }
+              target: { outcome: DECISION, decision: REJECT, grade: null, total_score: null, reason_codes: [AGE_BELOW_MINIMUM], message: null }
+              changed: true
+      properties:
+        target: { $ref: "#/components/schemas/ComparedVersion" }
+        base:
+          oneOf: [{ $ref: "#/components/schemas/ComparedVersion" }, { type: "null" }]
+          description: Null when there is nothing to compare against.
+        base_reason:
+          type: string
+          enum: [REQUESTED, ACTIVE_VERSION, BASED_ON_VERSION, NONE]
+        changed: { type: boolean }
+        summary:
+          type: object
+          required: [rac_rules, scorecard_characteristics, decision_matrix_rows, dictionary_variables, test_cases, base_score_changed, dictionary_schema_changed]
+          properties:
+            rac_rules: { $ref: "#/components/schemas/ChangeCounts" }
+            scorecard_characteristics: { $ref: "#/components/schemas/ChangeCounts" }
+            decision_matrix_rows: { $ref: "#/components/schemas/ChangeCounts" }
+            dictionary_variables: { $ref: "#/components/schemas/ChangeCounts" }
+            test_cases: { $ref: "#/components/schemas/ChangeCounts" }
+            base_score_changed: { type: boolean }
+            dictionary_schema_changed: { type: boolean }
+        change_summary:
+          type: array
+          description: One readable line per change, in section order.
+          items: { type: string }
+        changes:
+          type: object
+          required: [rac_rules, scorecard, decision_matrix, dictionary, test_cases]
+          properties:
+            rac_rules: { type: array, items: { $ref: "#/components/schemas/ItemChange" } }
+            scorecard:
+              type: object
+              required: [base_score, characteristics]
+              properties:
+                base_score:
+                  oneOf: [{ $ref: "#/components/schemas/FieldChange" }, { type: "null" }]
+                characteristics:
+                  type: array
+                  items:
+                    allOf:
+                      - $ref: "#/components/schemas/ItemChange"
+                      - type: object
+                        required: [bins]
+                        properties:
+                          bins: { type: array, items: { $ref: "#/components/schemas/ItemChange" } }
+            decision_matrix: { type: array, items: { $ref: "#/components/schemas/ItemChange" } }
+            dictionary:
+              type: object
+              required: [schema_version, variables]
+              properties:
+                schema_version:
+                  oneOf: [{ $ref: "#/components/schemas/FieldChange" }, { type: "null" }]
+                variables: { type: array, items: { $ref: "#/components/schemas/ItemChange" } }
+            test_cases: { type: array, items: { $ref: "#/components/schemas/ItemChange" } }
+        validation:
+          type: object
+          description: The full validation report of the target, as `POST /policy-versions/{version_id}/validate` returns it.
+          required: [valid, issues, golden_tests, pending_checks]
+          properties:
+            valid: { type: boolean }
+            issues:
+              type: array
+              items:
+                type: object
+                required: [field, issue]
+                properties:
+                  field: { type: string }
+                  issue: { type: string }
+                  message: { type: string }
+            golden_tests: { type: object }
+            pending_checks: { type: array, items: { type: object } }
+        impact:
+          type: object
+          description: The target's stored test cases, each evaluated with the base and with the target.
+          required: [available, reason, base_evaluated, cases, changed, results]
+          properties:
+            available: { type: boolean, description: False when the target cannot be evaluated yet. }
+            reason: { type: [string, "null"] }
+            base_evaluated: { type: boolean }
+            cases: { type: integer, minimum: 0 }
+            changed: { type: integer, minimum: 0 }
+            results:
+              type: array
+              items:
+                type: object
+                required: [case_code, required, base, target, changed]
+                properties:
+                  case_code: { type: string }
+                  required: { type: boolean }
+                  base:
+                    oneOf: [{ $ref: "#/components/schemas/CaseOutcome" }, { type: "null" }]
+                  target: { $ref: "#/components/schemas/CaseOutcome" }
+                  changed: { type: boolean }
+    ApprovalReview:
+      type: object
+      required: [approval_request, comparison]
+      example:
+        approval_request:
+          id: 4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a
+          status: PENDING
+          current_step: 1
+          policy_version: { id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d, number: 2, product_code: KTA_DEMO, scope: DEFAULT, checksum: 3f00761757aad3c8b259e71737fd217a7deea1080572011cde82bd45908da035 }
+          workflow_version: { id: 8e7f6a5b-4c3d-4e2f-9a1b-0c9d8e7f6a5b, number: 1 }
+          submitted_by: 2e4ebb31-3fbc-480f-a602-302b6766efa1
+          submitted_at: "2026-11-21T08:05:00Z"
+          closed_at: null
+          steps:
+            - { order: 1, name: Risk Lead Review, required_role: RISK_APPROVER, required_scope: RISK_LEAD, min_approvers: 1, approvals: 0, state: ACTIVE }
+            - { order: 2, name: Head of Risk Review, required_role: RISK_APPROVER, required_scope: HEAD_OF_RISK, min_approvers: 1, approvals: 0, state: WAITING }
+          actions: []
+        comparison:
+          target: { id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d, version_number: 2, status: PENDING_APPROVAL, checksum: 3f00761757aad3c8b259e71737fd217a7deea1080572011cde82bd45908da035 }
+          base: { id: 3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11, version_number: 1, status: ACTIVE, checksum: 5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592 }
+          base_reason: ACTIVE_VERSION
+          changed: true
+          summary:
+            rac_rules: { added: 0, removed: 0, modified: 1 }
+            scorecard_characteristics: { added: 0, removed: 0, modified: 0 }
+            decision_matrix_rows: { added: 0, removed: 0, modified: 0 }
+            dictionary_variables: { added: 0, removed: 0, modified: 0 }
+            test_cases: { added: 0, removed: 0, modified: 0 }
+            base_score_changed: false
+            dictionary_schema_changed: false
+          change_summary: ["RAC rule RAC_MIN_AGE: expression `age_years >= 21` -> `age_years >= 30`"]
+          changes:
+            rac_rules:
+              - { key: RAC_MIN_AGE, change: MODIFIED, fields: [{ field: expression, before: age_years >= 21, after: age_years >= 30 }] }
+            scorecard: { base_score: null, characteristics: [] }
+            decision_matrix: []
+            dictionary: { schema_version: null, variables: [] }
+            test_cases: []
+          validation: { valid: true, issues: [], golden_tests: { executed: 0, passed: 0, failed: 0, results: [] }, pending_checks: [] }
+          impact: { available: true, reason: null, base_evaluated: true, cases: 0, changed: 0, results: [] }
+      properties:
+        approval_request: { $ref: "#/components/schemas/ApprovalRequest" }
+        comparison: { $ref: "#/components/schemas/PolicyComparison" }
     ApprovalAction:
       type: object
       additionalProperties: false
