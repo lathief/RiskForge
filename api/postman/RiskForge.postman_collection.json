@@ -16156,6 +16156,606 @@
           "protocolProfileBehavior": {
             "disableBodyPruning": true
           }
+        },
+        {
+          "name": "Compare a policy version with a base version",
+          "request": {
+            "name": "Compare a policy version with a base version",
+            "description": {
+              "content": "Compares any version (draft or frozen) with a base version of the **same policy**\n(RF-021). Without `base_version_id` the base is the active version; when the version is\nitself active, or nothing is active, the base is the version it was cloned from, and a\nfirst version is compared with nothing (`base_reason: NONE`, everything `ADDED`).\nReturns the diff by section, the `change_summary`, the validation report of the version\nwith its golden test results, and the impact on its stored test cases. For a draft that\ncannot be evaluated yet, `impact.available` is false with the reason. Nothing is written.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policy-versions",
+                ":version_id",
+                "diff"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "A version of the same policy to compare against. Defaults as described above.",
+                    "type": "text/plain"
+                  },
+                  "key": "base_version_id",
+                  "value": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"
+                }
+              ],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{versionId}}",
+                  "key": "version_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/diff"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The comparison.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "diff"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "A version of the same policy to compare against. Defaults as described above.",
+                        "type": "text/plain"
+                      },
+                      "key": "base_version_id",
+                      "value": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"
+                    }
+                  ],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/diff"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"target\": {\n    \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n    \"version_number\": 2,\n    \"status\": \"PENDING_APPROVAL\",\n    \"checksum\": \"3f00761757aad3c8b259e71737fd217a7deea1080572011cde82bd45908da035\"\n  },\n  \"base\": {\n    \"id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n    \"version_number\": 1,\n    \"status\": \"ACTIVE\",\n    \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\"\n  },\n  \"base_reason\": \"ACTIVE_VERSION\",\n  \"changed\": true,\n  \"summary\": {\n    \"rac_rules\": {\n      \"added\": 0,\n      \"removed\": 0,\n      \"modified\": 1\n    },\n    \"scorecard_characteristics\": {\n      \"added\": 0,\n      \"removed\": 0,\n      \"modified\": 0\n    },\n    \"decision_matrix_rows\": {\n      \"added\": 0,\n      \"removed\": 0,\n      \"modified\": 0\n    },\n    \"dictionary_variables\": {\n      \"added\": 0,\n      \"removed\": 0,\n      \"modified\": 0\n    },\n    \"test_cases\": {\n      \"added\": 1,\n      \"removed\": 6,\n      \"modified\": 0\n    },\n    \"base_score_changed\": false,\n    \"dictionary_schema_changed\": false\n  },\n  \"change_summary\": [\n    \"RAC rule RAC_MIN_AGE: expression `age_years >= 21` -> `age_years >= 30`\",\n    \"Test case GOLDEN_AGE_29_REJECTED added\"\n  ],\n  \"changes\": {\n    \"rac_rules\": [\n      {\n        \"key\": \"RAC_MIN_AGE\",\n        \"change\": \"MODIFIED\",\n        \"fields\": [\n          {\n            \"field\": \"expression\",\n            \"before\": \"age_years >= 21\",\n            \"after\": \"age_years >= 30\"\n          }\n        ]\n      }\n    ],\n    \"scorecard\": {\n      \"base_score\": null,\n      \"characteristics\": []\n    },\n    \"decision_matrix\": [],\n    \"dictionary\": {\n      \"schema_version\": null,\n      \"variables\": []\n    },\n    \"test_cases\": [\n      {\n        \"key\": \"GOLDEN_AGE_29_REJECTED\",\n        \"change\": \"ADDED\",\n        \"fields\": [\n          {\n            \"field\": \"expected_outcome\",\n            \"before\": null,\n            \"after\": \"DECISION\"\n          }\n        ]\n      }\n    ]\n  },\n  \"validation\": {\n    \"valid\": true,\n    \"issues\": [],\n    \"golden_tests\": {\n      \"executed\": 1,\n      \"passed\": 1,\n      \"failed\": 0,\n      \"results\": []\n    },\n    \"pending_checks\": []\n  },\n  \"impact\": {\n    \"available\": true,\n    \"reason\": null,\n    \"base_evaluated\": true,\n    \"cases\": 1,\n    \"changed\": 1,\n    \"results\": [\n      {\n        \"case_code\": \"GOLDEN_AGE_29_REJECTED\",\n        \"required\": true,\n        \"base\": {\n          \"outcome\": \"DECISION\",\n          \"decision\": \"APPROVE\",\n          \"grade\": \"A\",\n          \"total_score\": \"685.00\",\n          \"reason_codes\": [],\n          \"message\": null\n        },\n        \"target\": {\n          \"outcome\": \"DECISION\",\n          \"decision\": \"REJECT\",\n          \"grade\": null,\n          \"total_score\": null,\n          \"reason_codes\": [\n            \"AGE_BELOW_MINIMUM\"\n          ],\n          \"message\": null\n        },\n        \"changed\": true\n      }\n    ]\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "diff"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "A version of the same policy to compare against. Defaults as described above.",
+                        "type": "text/plain"
+                      },
+                      "key": "base_version_id",
+                      "value": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"
+                    }
+                  ],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/diff"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "diff"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "A version of the same policy to compare against. Defaults as described above.",
+                        "type": "text/plain"
+                      },
+                      "key": "base_version_id",
+                      "value": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"
+                    }
+                  ],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/diff"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No policy version has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "diff"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "A version of the same policy to compare against. Defaults as described above.",
+                        "type": "text/plain"
+                      },
+                      "key": "base_version_id",
+                      "value": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"
+                    }
+                  ],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/diff"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_NOT_FOUND\",\n    \"message\": \"policy version not found\"\n  },\n  \"request_id\": \"9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "diff"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "A version of the same policy to compare against. Defaults as described above.",
+                        "type": "text/plain"
+                      },
+                      "key": "base_version_id",
+                      "value": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"
+                    }
+                  ],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/diff"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "`base_version_id` is not a version of the same policy (`not_in_policy`).",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "diff"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "A version of the same policy to compare against. Defaults as described above.",
+                        "type": "text/plain"
+                      },
+                      "key": "base_version_id",
+                      "value": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"
+                    }
+                  ],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/diff"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INPUT_VALIDATION_ERROR\",\n    \"message\": \"invalid base version\",\n    \"details\": [\n      {\n        \"field\": \"base_version_id\",\n        \"issue\": \"not_in_policy\",\n        \"message\": \"the base must be a version of the same policy\"\n      }\n    ]\n  },\n  \"request_id\": \"1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "diff"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "A version of the same policy to compare against. Defaults as described above.",
+                        "type": "text/plain"
+                      },
+                      "key": "base_version_id",
+                      "value": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"
+                    }
+                  ],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/diff"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
         }
       ]
     },
@@ -22732,6 +23332,459 @@
           "protocolProfileBehavior": {
             "disableBodyPruning": true
           }
+        },
+        {
+          "name": "Review an approval request against the active policy",
+          "request": {
+            "name": "Review an approval request against the active policy",
+            "description": {
+              "content": "What an approver needs to decide (RF-021, SYSTEM_DESIGN.md 11.4): the request, and the\nsubmitted version compared with the **active version** of the policy at the moment of\nthe call (`comparison`, the same shape as `GET /policy-versions/{version_id}/diff`):\nadded, removed, and modified RAC rules; scorecard base score, characteristics, bins,\nand points; decision matrix boundaries, grades, and decisions; data dictionary\nvariables; test cases; a readable `change_summary`; the full validation report with the\ngolden test results; and the **impact** of the change on the stored test cases, each\nevaluated with the active version and with the submitted one by the evaluation core of\nthe Decision API. Derived formulas live in code, so they are never part of a diff.\nNothing is written. Readable by approvers and auditors (`approval:read`) and analysts\n(`policy:submit`).\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "approval-requests",
+                ":request_id",
+                "review"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{approvalRequestId}}",
+                  "key": "request_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id/review"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The request and its comparison.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id",
+                    "review"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id/review"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"approval_request\": {\n    \"id\": \"4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a\",\n    \"status\": \"PENDING\",\n    \"current_step\": 1,\n    \"policy_version\": {\n      \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n      \"number\": 2,\n      \"product_code\": \"KTA_DEMO\",\n      \"scope\": \"DEFAULT\",\n      \"checksum\": \"3f00761757aad3c8b259e71737fd217a7deea1080572011cde82bd45908da035\"\n    },\n    \"workflow_version\": {\n      \"id\": \"8e7f6a5b-4c3d-4e2f-9a1b-0c9d8e7f6a5b\",\n      \"number\": 1\n    },\n    \"submitted_by\": \"2e4ebb31-3fbc-480f-a602-302b6766efa1\",\n    \"submitted_at\": \"2026-11-21T08:05:00Z\",\n    \"closed_at\": null,\n    \"steps\": [\n      {\n        \"order\": 1,\n        \"name\": \"Risk Lead Review\",\n        \"required_role\": \"RISK_APPROVER\",\n        \"required_scope\": \"RISK_LEAD\",\n        \"min_approvers\": 1,\n        \"approvals\": 0,\n        \"state\": \"ACTIVE\"\n      },\n      {\n        \"order\": 2,\n        \"name\": \"Head of Risk Review\",\n        \"required_role\": \"RISK_APPROVER\",\n        \"required_scope\": \"HEAD_OF_RISK\",\n        \"min_approvers\": 1,\n        \"approvals\": 0,\n        \"state\": \"WAITING\"\n      }\n    ],\n    \"actions\": []\n  },\n  \"comparison\": {\n    \"target\": {\n      \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n      \"version_number\": 2,\n      \"status\": \"PENDING_APPROVAL\",\n      \"checksum\": \"3f00761757aad3c8b259e71737fd217a7deea1080572011cde82bd45908da035\"\n    },\n    \"base\": {\n      \"id\": \"3f6c1c52-0d0b-4f0e-9a52-6b0f6a1c7d11\",\n      \"version_number\": 1,\n      \"status\": \"ACTIVE\",\n      \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\"\n    },\n    \"base_reason\": \"ACTIVE_VERSION\",\n    \"changed\": true,\n    \"summary\": {\n      \"rac_rules\": {\n        \"added\": 0,\n        \"removed\": 0,\n        \"modified\": 1\n      },\n      \"scorecard_characteristics\": {\n        \"added\": 0,\n        \"removed\": 0,\n        \"modified\": 0\n      },\n      \"decision_matrix_rows\": {\n        \"added\": 0,\n        \"removed\": 0,\n        \"modified\": 0\n      },\n      \"dictionary_variables\": {\n        \"added\": 0,\n        \"removed\": 0,\n        \"modified\": 0\n      },\n      \"test_cases\": {\n        \"added\": 0,\n        \"removed\": 0,\n        \"modified\": 0\n      },\n      \"base_score_changed\": false,\n      \"dictionary_schema_changed\": false\n    },\n    \"change_summary\": [\n      \"RAC rule RAC_MIN_AGE: expression `age_years >= 21` -> `age_years >= 30`\"\n    ],\n    \"changes\": {\n      \"rac_rules\": [\n        {\n          \"key\": \"RAC_MIN_AGE\",\n          \"change\": \"MODIFIED\",\n          \"fields\": [\n            {\n              \"field\": \"expression\",\n              \"before\": \"age_years >= 21\",\n              \"after\": \"age_years >= 30\"\n            }\n          ]\n        }\n      ],\n      \"scorecard\": {\n        \"base_score\": null,\n        \"characteristics\": []\n      },\n      \"decision_matrix\": [],\n      \"dictionary\": {\n        \"schema_version\": null,\n        \"variables\": []\n      },\n      \"test_cases\": []\n    },\n    \"validation\": {\n      \"valid\": true,\n      \"issues\": [],\n      \"golden_tests\": {\n        \"executed\": 0,\n        \"passed\": 0,\n        \"failed\": 0,\n        \"results\": []\n      },\n      \"pending_checks\": []\n    },\n    \"impact\": {\n      \"available\": true,\n      \"reason\": null,\n      \"base_evaluated\": true,\n      \"cases\": 0,\n      \"changed\": 0,\n      \"results\": []\n    }\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id",
+                    "review"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id/review"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id",
+                    "review"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id/review"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No approval request has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id",
+                    "review"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id/review"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"APPROVAL_REQUEST_NOT_FOUND\",\n    \"message\": \"approval request not found\"\n  },\n  \"request_id\": \"9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id",
+                    "review"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id/review"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id",
+                    "review"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id/review"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
         }
       ]
     }
@@ -22758,7 +23811,7 @@
     "name": "RiskForge API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": {
-      "content": "Contract for the endpoints implemented so far (RF-001 to RF-020, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; when `x-alternative-permissions` is also present, holding\n  any one of those permissions grants access too. The role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
+      "content": "Contract for the endpoints implemented so far (RF-001 to RF-021, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; when `x-alternative-permissions` is also present, holding\n  any one of those permissions grants access too. The role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
       "type": "text/plain"
     },
     "_postman_id": "4b6e2f0a-9c3d-4e51-8a7b-1f2e3d4c5b6a"

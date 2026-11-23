@@ -181,6 +181,8 @@ func Api() {
 		router.Middleware(approval, authenticate, canReadApprovals).Get("/approval-requests", requestController.Index)
 		router.Middleware(approval, authenticate, canReadApprovals).Get("/approval-requests/{request_id}", requestController.Show)
 		router.Middleware(approval, authenticate, canActOnApprovals).Post("/approval-requests/{request_id}/actions", requestController.Act)
+		router.Middleware(approval, authenticate, canReadApprovals).Get("/approval-requests/{request_id}/review", requestController.Review)
+		router.Middleware(policy, authenticate, canReadPolicies).Get("/policy-versions/{version_id}/diff", policyController.Diff)
 		router.Middleware(decision, authenticate, canEvaluateDecisions).Post("/decisions/evaluate", decisionController.Evaluate)
 		router.Middleware(decision, authenticate, canReadDecisions).Get("/decisions/{decision_id}", decisionController.Show)
 	})
