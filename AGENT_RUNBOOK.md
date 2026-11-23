@@ -223,6 +223,16 @@ Di Git Bash Windows, jalankan dengan `MSYS_NO_PATHCONV=1` dan ganti `$PWD` denga
 - `./artisan db:seed` menjalankan `DemoWorkflowSeeder` (workflow `KTA_DEMO`/`DEFAULT` versi 1, Bagian 11.1); workflow yang sudah ada tidak disentuh.
 - Postman: path param `{workflow_id}` dan `{workflow_version_id}` menjadi `{{workflowId}}` dan `{{workflowVersionId}}`; `scripts/postman/resolve-ids.js` mengambilnya dari stack ter-seed untuk smoke run.
 - Tes: `app/modules/approval/domain/workflow_test.go`, `application/workflow_service_test.go`, `infrastructure/adapters_test.go`, `app/modules/identity/domain/approval_scope_test.go`, `tests/feature/approval_workflow_test.go` (HTTP, RBAC, trigger, konkurensi). Keputusan: `docs/adr/0019-approval-workflow-configuration.md`; batasan: `docs/M4_NOTES.md`.
+## Approval state machine (RF-019)
+- Endpoint: `POST /api/v1/policy-versions/{version_id}/submit` (kini membuka approval request), `GET /api/v1/approval-requests`, `GET /api/v1/approval-requests/{request_id}` (izin `approval:read` atau `policy:submit`), `POST /api/v1/approval-requests/{request_id}/actions` (izin `approval:act`). Contoh nyata: `docs/API_EXAMPLES.md` bagian "Approval requests".
+- Submit lewat HTTP selalu lewat `approval/application.RequestService.Submit` (freeze + request dalam satu transaksi). Jangan menambah route yang memanggil `PolicyService.Submit` langsung; hanya `DemoActivePolicySeeder` (jalan pintas dev) yang boleh.
+- Logika keputusan ada di `approval/domain.Decide`; ubah urutan pemeriksaan hanya bersama `request_test.go`. `RequestService.Act` mengunci baris request dulu; jangan membaca request tanpa `forUpdate` sebelum memutuskan.
+- Hasil akhir mengubah versi policy lewat `PolicyService.ConcludeReview` (port `PolicyGateway`), hanya untuk checksum yang disubmit. Modul policy tidak mengimpor modul approval.
+- Scope approver: tabel `identity.user_approval_scopes`; `SeedDemoUsers` memberi `demo_approver_1` `RISK_LEAD` dan `demo_approver_2` `HEAD_OF_RISK` (juga untuk user demo lama). Untuk login ulang setelah mengubah scope tidak perlu token baru: principal dibaca ulang tiap request.
+- Test yang meng-`TRUNCATE` tabel policy harus mendahulukan `approval.actions, approval.requests`; `PolicyTestSuite.SetupTest` juga mengosongkan tabel workflow dan memanggil `SeedDemoWorkflow()`, karena submit butuh workflow. Scope lain dari `DEFAULT` butuh `s.ensureWorkflow(scope)`.
+- Test konkurensi: `TestConcurrentApprovalsReachTheQuorumExactlyOnce`, `TestConcurrentDuplicateActionsOfOneApproverAreRecordedOnce`, `TestConcurrentSubmitsOpenOneRequest` di `tests/feature/approval_request_test.go`; jalankan dengan `-race -count=3` bila mengubah `Act` atau `Submit`.
+- Smoke Postman: `GET /approval-requests/{request_id}` memakai `approvalRequestId` placeholder dan diharapkan 404 (seeding tidak membuka request); `POST .../actions` 403 untuk auditor.
+- Keputusan: `docs/adr/0020-approval-state-machine.md`; batasan: `docs/M4_NOTES.md`.
 ## Coverage
 `./scripts/coverage.sh [rf-test-<nama>]` mengukur coverage statement (unit saja, lalu unit + integrasi) di project Compose sekali pakai dan mencetak tabel Markdown. Hasilnya dicatat di `docs/coverage.md`; perbarui file itu setelah setiap tiket.
 

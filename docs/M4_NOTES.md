@@ -48,4 +48,30 @@ Known limits:
 
 - The approval scope vocabulary is fixed in code (`identitydomain.AllApprovalScopes`); adding a scope is a code change, like adding a role.
 - A workflow's `name` cannot be changed (append-only definition).
-- Two steps may require the same role and scope. Whether one person may approve both tiers is decided by the state machine (RF-019).
+- Two steps may require the same role and scope. Since RF-019 one person acts once per request, so they can never approve both tiers.
+
+## Approval state machine (RF-019)
+
+Branch `feature/RF-019-approval-state-machine`, on top of RF-018. ADR `docs/adr/0020-approval-state-machine.md`. Design: `SYSTEM_DESIGN.md` 11.6.
+
+| Item | Status | Notes |
+|---|---|---|
+| Submission lock | Done | Submit freezes the draft and opens one request per version in one transaction; a frozen version cannot change (policy triggers); concurrent submits open one request. |
+| Action validation | Done | `APPROVE`/`REJECT`, `REJECT` needs a comment, optional `step` must be the active step, unknown fields refused. |
+| Self-approval prevention | Done | Submitter refused in the state machine and by a database trigger, even with the approver role and every scope. |
+| Unique votes | Done | One action per actor per request (stricter than per step, see ADR 0020); unique index plus request row lock; quorum counts distinct people. |
+| Role and scope server-side | Done | `identity.user_approval_scopes`; roles and scopes read from the database on every request; `/auth/me` shows `approval_scopes`. |
+| Workflow version snapshot | Done | The request pins `workflow_version_id`; tested by changing the workflow after submit. |
+| Checksum check | Done | The outcome is applied only if the version still has the submitted checksum. |
+| Submit contract change | Deviation | Response adds `approval_request`; new `409 APPROVAL_WORKFLOW_NOT_CONFIGURED`. Additive for clients that read the version fields. |
+| Publish on final approval | Not built | RF-020. An approved version is `APPROVED` and not evaluated until then. |
+| Diff for reviewers | Not built | RF-021. |
+| Withdraw by the maker | Not built | Not in the design; a pending version can be cloned meanwhile. |
+| One open request per policy package | Not built | Not required by the design; see ADR 0020. |
+| Assigning scopes through the API | Not built | Seeder and SQL only. |
+
+Known limits:
+
+- `DemoActivePolicySeeder` still activates the demo version through `PolicyService.Submit` without a request; it is the development shortcut of `SYSTEM_DESIGN.md` 17 and has no endpoint.
+- A user who loses a role keeps the actions already recorded; eligibility is checked at the moment of the action.
+- Approval actions are not audit events yet (RF-022).

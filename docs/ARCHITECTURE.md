@@ -17,7 +17,7 @@ flowchart TD
         API --> CATALOG[catalog module]
         API -.-> POLICY[policy module - planned M2]
         API -.-> ENGINE[decision + ruleengine - planned M3]
-        API -.-> APPROVAL[approval module - workflow config RF-018, requests planned]
+        API -.-> APPROVAL[approval module - workflow config RF-018, requests RF-019, publish planned]
         ENGINE -.-> AUDIT[audit module - planned M5]
         PLATFORM[platform: transactions, structured logging]
     end
@@ -43,7 +43,7 @@ Solid lines exist today. Dashed lines are planned and described in `SYSTEM_DESIG
 | `ruleengine` | Pure compile/validate/evaluate. Today: `Analyze` checks RAC expressions (syntax, allowed subset of the `expr` language, known variables, boolean result) | Checking (RF-007) and RAC evaluation (RF-012) implemented; scorecard and matrix evaluation planned (RF-013) | `app/modules/ruleengine` |
 | `decision` | Decision API: resolves the active policy, evaluates an application, returns the decision with its trace | `POST /decisions/evaluate` (RF-014) with durable runs, traces, and idempotency, and `GET /decisions/{id}` (RF-015) implemented, with the compiled policy cache (RF-016) | `app/modules/decision` |
 | `simulation` | Policy simulator: evaluates one applicant against any version with the Decision API's evaluation core (`decision/infrastructure.NewEvaluablePolicy`) and stores nothing. No tables. | `POST /policy-versions/{version_id}/simulate` implemented (RF-017) | `app/modules/simulation` |
-| `approval` | Approval workflow configuration: one workflow per product and policy scope, append-only numbered versions of sequential steps (role, scope, quorum). Approval requests, state machine, and atomic publish follow. | Workflow configuration implemented (RF-018, schema `approval`: `workflow_definitions`, `workflow_versions`, `workflow_steps`); RF-019..RF-021 planned | `app/modules/approval` |
+| `approval` | Approval workflow configuration (one workflow per product and policy scope, append-only versions of sequential steps with role, scope, quorum) and approval requests: submit opens a request pinned to the policy checksum and workflow version; the state machine records approver actions on the active step. Calls the policy module through a port. | Workflow configuration (RF-018) and state machine (RF-019) implemented, schema `approval`: `workflow_definitions`, `workflow_versions`, `workflow_steps`, `requests`, `actions`; atomic publish (RF-020) and diff (RF-021) planned | `app/modules/approval` |
 | `audit` | Append-only history and audit search | Planned (RF-022) | |
 | `platform` | Transaction manager, query logging, structured logs | Implemented | `app/platform` |
 

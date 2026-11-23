@@ -72,7 +72,7 @@ func (s *ApprovalWorkflowTestSuite) SetupSuite() {
 // SetupTest empties the workflow tables. TRUNCATE does not fire the append-only row triggers.
 func (s *ApprovalWorkflowTestSuite) SetupTest() {
 	db := facades.DB()
-	s.Require().NoError(db.Statement("TRUNCATE TABLE approval.workflow_steps, approval.workflow_versions, approval.workflow_definitions"))
+	s.Require().NoError(db.Statement("TRUNCATE TABLE approval.actions, approval.requests, approval.workflow_steps, approval.workflow_versions, approval.workflow_definitions"))
 	s.Require().NoError(seeders.SeedDemoProducts())
 	s.Require().NoError(db.Statement(
 		`INSERT INTO catalog.products (code, name, status) VALUES ('OLD_PROD', 'Retired product', 'INACTIVE') ON CONFLICT (code) DO NOTHING`))

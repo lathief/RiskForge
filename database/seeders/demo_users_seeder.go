@@ -17,15 +17,18 @@ const MinDemoPasswordLength = 12
 type DemoUser struct {
 	Username string
 	Roles    []domain.Role
+	// Scopes are the approval scopes of an approver: demo_approver_1 is the risk lead and
+	// demo_approver_2 the head of risk, matching the demo workflow (SYSTEM_DESIGN.md 11.1).
+	Scopes []domain.ApprovalScope
 }
 
 var DemoUsers = []DemoUser{
-	{"demo_admin", []domain.Role{domain.RoleAdmin}},
-	{"demo_analyst", []domain.Role{domain.RoleRiskAnalyst}},
-	{"demo_approver_1", []domain.Role{domain.RoleRiskApprover}},
-	{"demo_approver_2", []domain.Role{domain.RoleRiskApprover}},
-	{"demo_auditor", []domain.Role{domain.RoleAuditor}},
-	{"demo_loan_application", []domain.Role{domain.RoleAPIConsumer}},
+	{"demo_admin", []domain.Role{domain.RoleAdmin}, nil},
+	{"demo_analyst", []domain.Role{domain.RoleRiskAnalyst}, nil},
+	{"demo_approver_1", []domain.Role{domain.RoleRiskApprover}, []domain.ApprovalScope{domain.ScopeRiskLead}},
+	{"demo_approver_2", []domain.Role{domain.RoleRiskApprover}, []domain.ApprovalScope{domain.ScopeHeadOfRisk}},
+	{"demo_auditor", []domain.Role{domain.RoleAuditor}, nil},
+	{"demo_loan_application", []domain.Role{domain.RoleAPIConsumer}, nil},
 }
 
 // DemoUsersSeeder creates the demo accounts. It refuses to run outside local/testing and
@@ -64,6 +67,17 @@ func SeedDemoUsers(password string) error {
 				 ON CONFLICT (lower(username)) DO NOTHING`, u.Username, hash)
 			if err != nil {
 				return err
+			}
+			// Approval scopes arrived with RF-019, after the demo users of older databases were
+			// created, so they are added to an existing demo user too. Nothing else is changed.
+			for _, scope := range u.Scopes {
+				if _, err := q.Insert(
+					`INSERT INTO identity.user_approval_scopes (user_id, scope_code)
+					 SELECT id, $2 FROM identity.users WHERE lower(username) = lower($1)
+					 ON CONFLICT DO NOTHING`,
+					u.Username, string(scope)); err != nil {
+					return err
+				}
 			}
 			if res.RowsAffected == 0 {
 				continue // already exists

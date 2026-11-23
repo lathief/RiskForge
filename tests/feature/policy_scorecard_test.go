@@ -370,7 +370,7 @@ func (s *PolicyTestSuite) TestConcurrentScorecardReplacesLeaveOneWholeScorecard(
 
 func (s *PolicyTestSuite) TestSubmitRacingWithAScorecardReplaceKeepsTheSnapshotAndTablesTogether() {
 	for round := 0; round < 5; round++ {
-		s.Require().NoError(facades.DB().Statement("TRUNCATE TABLE decision.rule_traces, decision.runs, decision.requests, policy.active_policy_bindings, policy.test_cases, policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
+		s.Require().NoError(facades.DB().Statement("TRUNCATE TABLE approval.actions, approval.requests, decision.rule_traces, decision.runs, decision.requests, policy.active_policy_bindings, policy.test_cases, policy.decision_matrix_rows, policy.scorecard_bins, policy.scorecard_characteristics, policy.scorecards, policy.rac_rules, policy.policy_versions, policy.policy_packages"))
 		_, v1 := s.createPolicy(`{"product_code":"KTA_DEMO"}`)
 		s.putScorecard(v1, demoScorecardBody).AssertOk()
 		s.complete(v1)

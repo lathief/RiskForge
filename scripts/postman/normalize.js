@@ -10,7 +10,8 @@
 // - Operations with `security: []` get auth "noauth"; all others get bearer {{accessToken}}.
 // - Path variables: {code} -> {{productCode}}, {variable_code} -> {{variableCode}},
 //   {policy_id} -> {{policyId}}, {version_id} -> {{versionId}}, {decision_id} -> {{decisionId}},
-//   {workflow_id} -> {{workflowId}}, {workflow_version_id} -> {{workflowVersionId}}.
+//   {workflow_id} -> {{workflowId}}, {workflow_version_id} -> {{workflowVersionId}},
+//   {request_id} -> {{approvalRequestId}}.
 // - Fails if the collection and the spec disagree on the set of (METHOD, path).
 "use strict";
 
@@ -33,6 +34,7 @@ const PATH_VARIABLES = {
   decision_id: "{{decisionId}}",
   workflow_id: "{{workflowId}}",
   workflow_version_id: "{{workflowVersionId}}",
+  request_id: "{{approvalRequestId}}",
 };
 const METHODS = ["get", "put", "post", "delete", "patch", "head", "options", "trace"];
 

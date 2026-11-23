@@ -111,6 +111,13 @@ func Api() {
 	workflowController := controllers.NewApprovalWorkflowController(approvalapp.NewWorkflowService(
 		approvalinfra.NewWorkflowRepository(approvalDB), approvalinfra.NewCatalogProducts(catalogService),
 		approvalinfra.IdentityRoles{}, approvalDB))
+	// Approval state machine (RF-019): approvers act on the active step; analysts see the
+	// status of their submissions.
+	requestController := controllers.NewApprovalRequestController(approvalapp.NewRequestService(
+		approvalinfra.NewRequestRepository(approvalDB), approvalinfra.NewWorkflowRepository(approvalDB),
+		approvalinfra.NewPolicyVersions(policyService), approvalDB), policyService)
+	canActOnApprovals := middleware.NewRequirePermission(domain.PermApprovalAct)
+	canReadApprovals := middleware.NewRequireAnyPermission(domain.PermApprovalRead, domain.PermPolicySubmit)
 	canManageWorkflows := middleware.NewRequirePermission(domain.PermWorkflowManage)
 	canReadWorkflows := middleware.NewRequireAnyPermission(domain.PermWorkflowManage, domain.PermApprovalRead)
 	canEvaluateDecisions := middleware.NewRequirePermission(domain.PermDecisionEval)
@@ -158,13 +165,17 @@ func Api() {
 		router.Middleware(policy, authenticate, canReadPolicies).Get("/policy-versions/{version_id}/test-cases", policyController.ShowTestCases)
 		router.Middleware(policy, authenticate, canWritePolicies).Put("/policy-versions/{version_id}/test-cases", policyController.ReplaceTestCases)
 		router.Middleware(policy, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/validate", policyController.ValidateVersion)
-		router.Middleware(policy, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/submit", policyController.SubmitVersion)
+		// Submit freezes the draft and opens its approval request in one transaction (RF-019).
+		router.Middleware(approval, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/submit", requestController.Submit)
 		router.Middleware(simulation, authenticate, canSimulatePolicies).Post("/policy-versions/{version_id}/simulate", simulationController.Simulate)
 		router.Middleware(approval, authenticate, canReadWorkflows).Get("/approval-workflows", workflowController.Index)
 		router.Middleware(approval, authenticate, canManageWorkflows).Post("/approval-workflows", workflowController.Store)
 		router.Middleware(approval, authenticate, canReadWorkflows).Get("/approval-workflows/{workflow_id}", workflowController.Show)
 		router.Middleware(approval, authenticate, canManageWorkflows).Post("/approval-workflows/{workflow_id}/versions", workflowController.StoreVersion)
 		router.Middleware(approval, authenticate, canReadWorkflows).Get("/approval-workflow-versions/{workflow_version_id}", workflowController.ShowVersion)
+		router.Middleware(approval, authenticate, canReadApprovals).Get("/approval-requests", requestController.Index)
+		router.Middleware(approval, authenticate, canReadApprovals).Get("/approval-requests/{request_id}", requestController.Show)
+		router.Middleware(approval, authenticate, canActOnApprovals).Post("/approval-requests/{request_id}/actions", requestController.Act)
 		router.Middleware(decision, authenticate, canEvaluateDecisions).Post("/decisions/evaluate", decisionController.Evaluate)
 		router.Middleware(decision, authenticate, canReadDecisions).Get("/decisions/{decision_id}", decisionController.Show)
 	})

@@ -84,10 +84,11 @@ func (c *AuthController) Me(ctx http.Context) http.Response {
 		return responses.Unauthenticated(ctx)
 	}
 	return ctx.Response().Json(http.StatusOK, http.Json{
-		"user_id":     principal.UserID,
-		"username":    principal.Username,
-		"roles":       roleCodes(principal.Roles),
-		"permissions": permissionCodes(principal.Permissions()),
+		"user_id":         principal.UserID,
+		"username":        principal.Username,
+		"roles":           roleCodes(principal.Roles),
+		"permissions":     permissionCodes(principal.Permissions()),
+		"approval_scopes": scopeCodes(principal.ApprovalScopes),
 	})
 }
 
@@ -112,6 +113,14 @@ func roleCodes(roles []domain.Role) []string {
 	out := make([]string, 0, len(roles))
 	for _, r := range roles {
 		out = append(out, string(r))
+	}
+	return out
+}
+
+func scopeCodes(scopes []domain.ApprovalScope) []string {
+	out := make([]string, 0, len(scopes))
+	for _, s := range scopes {
+		out = append(out, string(s))
 	}
 	return out
 }

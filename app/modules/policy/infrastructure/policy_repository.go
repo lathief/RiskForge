@@ -199,7 +199,6 @@ func (r *PolicyRepository) FindVersion(ctx context.Context, id string, forUpdate
 	return rows[0].toDomain(), nil
 }
 
-
 type activeRefRow struct {
 	VersionID     string `db:"version_id"`
 	VersionNumber int    `db:"version_number"`
@@ -263,6 +262,22 @@ func (r *PolicyRepository) UpdateDraft(ctx context.Context, v domain.Version) (d
 		return domain.Version{}, application.ErrVersionFrozen
 	}
 	return r.FindVersion(ctx, v.ID, false)
+}
+
+// SetStatus moves a version along the lifecycle; the trigger refuses any move SYSTEM_DESIGN.md
+// 9.2 does not allow.
+func (r *PolicyRepository) SetStatus(ctx context.Context, id string, from, to domain.Status) error {
+	var ids []string
+	if err := r.db.Querier(ctx).Select(&ids,
+		`UPDATE policy.policy_versions SET status = $3, updated_at = now()
+		  WHERE id = $1::uuid AND status = $2
+		 RETURNING id::text`, id, string(from), string(to)); err != nil {
+		return err
+	}
+	if len(ids) == 0 {
+		return application.ErrVersionNotPending
+	}
+	return nil
 }
 
 func (r *PolicyRepository) Freeze(ctx context.Context, id string, snapshot []byte, checksum, actorID string) (domain.Version, error) {

@@ -7,13 +7,28 @@ type User struct {
 	PasswordHash string
 	Active       bool
 	Roles        []Role
+	// ApprovalScopes narrow the approver role (SYSTEM_DESIGN.md 11.1, RF-019).
+	ApprovalScopes []ApprovalScope
 }
 
 // Principal is the authenticated caller attached to a request. It carries no credentials.
+// Roles and approval scopes are read from the database on every request, never from the
+// token or the client (SYSTEM_DESIGN.md 11.3).
 type Principal struct {
-	UserID   string
-	Username string
-	Roles    []Role
+	UserID         string
+	Username       string
+	Roles          []Role
+	ApprovalScopes []ApprovalScope
+}
+
+// HasApprovalScope reports whether the principal holds the approval scope.
+func (p Principal) HasApprovalScope(scope ApprovalScope) bool {
+	for _, s := range p.ApprovalScopes {
+		if s == scope {
+			return true
+		}
+	}
+	return false
 }
 
 // Can reports whether any of the principal's roles grants the permission.
@@ -45,5 +60,7 @@ func (p Principal) HasRole(role Role) bool {
 func (u User) Principal() Principal {
 	roles := make([]Role, len(u.Roles))
 	copy(roles, u.Roles)
-	return Principal{UserID: u.ID, Username: u.Username, Roles: roles}
+	scopes := make([]ApprovalScope, len(u.ApprovalScopes))
+	copy(scopes, u.ApprovalScopes)
+	return Principal{UserID: u.ID, Username: u.Username, Roles: roles, ApprovalScopes: scopes}
 }
