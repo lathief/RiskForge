@@ -33,8 +33,8 @@ LOANAPP=$(token demo_loan_application)
 | 401 | `UNAUTHENTICATED` | Missing, malformed, tampered, or expired token, or disabled user. |
 | 401 | `INVALID_CREDENTIALS` | Login failed (same body for unknown user, wrong password, disabled account). |
 | 403 | `FORBIDDEN` | Authenticated but missing the permission. |
-| 404 | `PRODUCT_NOT_FOUND`, `VARIABLE_NOT_FOUND`, `POLICY_NOT_FOUND`, `POLICY_VERSION_NOT_FOUND`, `ROUTE_NOT_FOUND` | Unknown product code / dictionary variable / policy / policy version / route. |
-| 409 | `PRODUCT_CODE_CONFLICT`, `VARIABLE_CODE_CONFLICT`, `POLICY_CONFLICT`, `POLICY_VERSION_FROZEN` | Product, variable, or policy already exists / an edit or submit of a version that is no longer a draft. |
+| 404 | `PRODUCT_NOT_FOUND`, `VARIABLE_NOT_FOUND`, `POLICY_NOT_FOUND`, `POLICY_VERSION_NOT_FOUND`, `APPROVAL_WORKFLOW_NOT_FOUND`, `APPROVAL_WORKFLOW_VERSION_NOT_FOUND`, `ROUTE_NOT_FOUND` | Unknown product code / dictionary variable / policy / policy version / approval workflow / workflow version / route. |
+| 409 | `PRODUCT_CODE_CONFLICT`, `VARIABLE_CODE_CONFLICT`, `POLICY_CONFLICT`, `POLICY_VERSION_FROZEN`, `APPROVAL_WORKFLOW_CONFLICT` | Product, variable, policy, or approval workflow already exists / an edit or submit of a version that is no longer a draft. |
 | 422 | `INPUT_VALIDATION_ERROR`, `POLICY_VALIDATION_FAILED`, `POLICY_NOT_EVALUABLE` | Invalid JSON, field, query parameter, or a field that cannot be set / a draft that is incomplete or whose content (RAC expressions, scorecard, decision matrix, test cases) does not validate at submit / a version the simulator cannot evaluate yet (RF-017). |
 | 503 | `SERVICE_BUSY` | Login capacity saturated; honour `Retry-After`. |
 | 500 | `INTERNAL_ERROR` | Unexpected failure; the cause is only in `error.log`. |
@@ -572,6 +572,39 @@ A draft that cannot be evaluated yet (here after `DELETE .../scorecard`) is `422
 ```
 
 Invalid applicant data against an evaluable version is `422 INPUT_VALIDATION_ERROR` with the same issues as a decision (`applicant.monthly_income: invalid_type` for a JSON number, and so on). An unknown version is `404 POLICY_VERSION_NOT_FOUND`. Request and response bodies of this route are never written to `activity.log`.
+
+## Approval workflows
+
+Configure (`workflow:manage`): `ADMIN` only. Read (`approval:read` or `workflow:manage`): `ADMIN`, `RISK_APPROVER`, `AUDITOR`. The analyst and the Loan Application get `403`.
+
+An approval workflow belongs to one product and policy scope and has numbered, immutable versions of sequential steps. Each step names the approver role, an optional scope (`RISK_LEAD`, `HEAD_OF_RISK`), and the number of distinct approvers it needs. `./artisan db:seed` creates the demo workflow of `SYSTEM_DESIGN.md` 11.1 (output from a live stack):
+
+```sh
+curl -s $B/api/v1/approval-workflows -H "Authorization: Bearer $APPROVER"
+```
+```json
+{"data":[{"id":"57e0f93c-e50e-4639-8e32-59470861be4e","product_code":"KTA_DEMO","policy_scope":"DEFAULT","name":"KTA_DEMO two-tier approval","version_count":1,"current_version":{"id":"854a0b70-b4f7-4188-9a9c-7757ee9a9ee6","workflow_id":"57e0f93c-e50e-4639-8e32-59470861be4e","product_code":"KTA_DEMO","policy_scope":"DEFAULT","version_number":1,"change_note":"Default demo workflow of SYSTEM_DESIGN.md 11.1.","total_approvals":2,"steps":[{"order":1,"name":"Risk Lead Review","required_role":"RISK_APPROVER","required_scope":"RISK_LEAD","min_approvers":1},{"order":2,"name":"Head of Risk Review","required_role":"RISK_APPROVER","required_scope":"HEAD_OF_RISK","min_approvers":1}],"created_by":null,"created_at":"2026-11-23T07:03:56Z"},"created_by":null,"created_at":"2026-11-23T07:03:56Z"}],"meta":{"page":1,"per_page":20,"total":1}}
+```
+
+Change the workflow by adding a version (`201`); version 1 stays as it was, so an approval request that pinned it keeps its tiers:
+
+```sh
+curl -s -X POST $B/api/v1/approval-workflows/$WORKFLOW/versions -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' -d '{
+  "change_note":"The head of risk tier needs two approvers.",
+  "steps":[{"name":"Risk Lead Review","required_role":"RISK_APPROVER","required_scope":"RISK_LEAD"},
+           {"name":"Head of Risk Review","required_role":"RISK_APPROVER","required_scope":"HEAD_OF_RISK","min_approvers":2}]}'
+```
+```json
+{"id":"7fe2631d-4751-4606-8d96-733c90c66abe","workflow_id":"57e0f93c-e50e-4639-8e32-59470861be4e","product_code":"KTA_DEMO","policy_scope":"DEFAULT","version_number":2,"change_note":"The head of risk tier needs two approvers.","total_approvals":3,"steps":[{"order":1,"name":"Risk Lead Review","required_role":"RISK_APPROVER","required_scope":"RISK_LEAD","min_approvers":1},{"order":2,"name":"Head of Risk Review","required_role":"RISK_APPROVER","required_scope":"HEAD_OF_RISK","min_approvers":2}],"created_by":"b3a8a111-75f8-4977-af2c-2d48f84b92aa","created_at":"2026-11-23T07:04:03Z"}
+```
+
+Sending the same steps again stores nothing and returns the current version with `200`. A step can never be given to the maker or the admin, and every problem is listed at once:
+
+```json
+{"error":{"code":"INPUT_VALIDATION_ERROR","message":"invalid approval workflow","details":[{"field":"steps[0].required_role","issue":"not_an_approver_role","message":"only a role that may approve (approval:act) can be required"},{"field":"steps[0].min_approvers","issue":"out_of_range","message":"1 to 5 distinct approvers"}]},"request_id":"d5237d418a7fa838dd42d581291fc641"}
+```
+
+Other issues: `steps` (`required`, `must_be_array`, `no_steps`, `too_many` above 10), `steps[i].name` (`required`, `too_long`, `invalid_characters`, `duplicate_name`), `steps[i].required_scope:unknown_scope`, `steps[i].min_approvers:must_be_integer`, `product_code` (`unknown_product`, `product_inactive`), `policy_scope:invalid_format`. A second workflow for the same product and policy scope is `409 APPROVAL_WORKFLOW_CONFLICT`. `GET /approval-workflows/{workflow_id}` lists all versions newest first; `GET /approval-workflow-versions/{workflow_version_id}` returns one. Unknown ids are `404 APPROVAL_WORKFLOW_NOT_FOUND` and `404 APPROVAL_WORKFLOW_VERSION_NOT_FOUND`.
 
 ## Planned endpoints
 

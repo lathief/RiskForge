@@ -36,7 +36,9 @@ type specOperationDetail struct {
 	OperationID string                 `yaml:"operationId"`
 	Security    *[]map[string][]string `yaml:"security"`
 	Permission  string                 `yaml:"x-required-permission"`
-	Parameters  []specParam            `yaml:"parameters"`
+	// Alternatives also grant access: the caller needs the required permission or any of these.
+	Alternatives []string    `yaml:"x-alternative-permissions"`
+	Parameters   []specParam `yaml:"parameters"`
 }
 
 type operationDetail struct {
@@ -45,7 +47,9 @@ type operationDetail struct {
 	path       string
 	secured    bool
 	permission string
-	params     []string // "in:name", sorted
+	// alternatives grant access as well as permission (x-alternative-permissions).
+	alternatives []string
+	params       []string // "in:name", sorted
 }
 
 func loadOperationDetails(t testing.TB) map[string]operationDetail {
@@ -85,7 +89,7 @@ func loadOperationDetails(t testing.TB) map[string]operationDetail {
 			key := strings.ToUpper(method) + " " + path
 			out[key] = operationDetail{
 				key: key, method: strings.ToUpper(method), path: path,
-				secured: secured, permission: op.Permission, params: params,
+				secured: secured, permission: op.Permission, alternatives: op.Alternatives, params: params,
 			}
 		}
 	}
@@ -173,6 +177,10 @@ func (s *ContractParityTestSuite) TestRequiredPermissionsAreKnown() {
 			s.True(known[op.permission], "%s: unknown x-required-permission %q", key, op.permission)
 			s.True(op.secured, "%s: has x-required-permission but no security", key)
 		}
+		for _, alt := range op.alternatives {
+			s.True(known[alt], "%s: unknown x-alternative-permissions %q", key, alt)
+			s.NotEmpty(op.permission, "%s: x-alternative-permissions without x-required-permission", key)
+		}
 	}
 }
 
@@ -216,6 +224,8 @@ func (s *ContractBehaviourTestSuite) call(op operationDetail, token string) stri
 	// An id that exists nowhere: write endpoints answer 404 or 422 and never change data.
 	path = strings.ReplaceAll(path, "{policy_id}", unknownID)
 	path = strings.ReplaceAll(path, "{version_id}", unknownID)
+	path = strings.ReplaceAll(path, "{workflow_id}", unknownID)
+	path = strings.ReplaceAll(path, "{workflow_version_id}", unknownID)
 	req := s.Http(s.T()).WithHeader("Content-Type", "application/json")
 	if token != "" {
 		req = req.WithToken(token)
@@ -266,7 +276,11 @@ func (s *ContractBehaviourTestSuite) TestRequiredPermissionMatchesBehaviourForEv
 			continue
 		}
 		for _, u := range seeders.DemoUsers {
-			allowed := domain.Principal{Roles: u.Roles}.Can(domain.Permission(op.permission))
+			principal := domain.Principal{Roles: u.Roles}
+			allowed := principal.Can(domain.Permission(op.permission))
+			for _, alt := range op.alternatives {
+				allowed = allowed || principal.Can(domain.Permission(alt))
+			}
 			code := s.call(op, s.tokens[u.Username])
 			if allowed {
 				s.NotEqual("FORBIDDEN", code, "%s: %s holds %s but was forbidden", key, u.Username, op.permission)

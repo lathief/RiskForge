@@ -9,6 +9,8 @@ import (
 	"goravel/app/facades"
 	"goravel/app/http/controllers"
 	"goravel/app/http/middleware"
+	approvalapp "goravel/app/modules/approval/application"
+	approvalinfra "goravel/app/modules/approval/infrastructure"
 	catalogapp "goravel/app/modules/catalog/application"
 	cataloginfra "goravel/app/modules/catalog/infrastructure"
 	decisionapp "goravel/app/modules/decision/application"
@@ -35,6 +37,7 @@ const (
 	modulePolicy     = "policy"
 	moduleDecision   = "decision"
 	moduleSimulation = "simulation"
+	moduleApproval   = "approval"
 	moduleDocs       = "docs"
 )
 
@@ -102,6 +105,14 @@ func Api() {
 	simulationController := controllers.NewSimulationController(
 		simulationapp.NewService(simulationinfra.NewPolicySource(policyService)))
 	canSimulatePolicies := middleware.NewRequirePermission(domain.PermPolicySimulate)
+	// Approval workflow configuration (RF-018): the admin manages it (workflow:manage); the
+	// admin, approvers, and auditors read it.
+	approvalDB := dbManager.WithModule(moduleApproval)
+	workflowController := controllers.NewApprovalWorkflowController(approvalapp.NewWorkflowService(
+		approvalinfra.NewWorkflowRepository(approvalDB), approvalinfra.NewCatalogProducts(catalogService),
+		approvalinfra.IdentityRoles{}, approvalDB))
+	canManageWorkflows := middleware.NewRequirePermission(domain.PermWorkflowManage)
+	canReadWorkflows := middleware.NewRequireAnyPermission(domain.PermWorkflowManage, domain.PermApprovalRead)
 	canEvaluateDecisions := middleware.NewRequirePermission(domain.PermDecisionEval)
 	canReadDecisions := middleware.NewRequirePermission(domain.PermDecisionRead)
 	canReadPolicies := middleware.NewRequirePermission(domain.PermPolicyRead)
@@ -116,6 +127,7 @@ func Api() {
 	policy := middleware.NewModule(modulePolicy)
 	decision := middleware.NewModule(moduleDecision)
 	simulation := middleware.NewModule(moduleSimulation)
+	approval := middleware.NewModule(moduleApproval)
 
 	facades.Route().Prefix("/api/v1").Group(func(router route.Router) {
 		router.Middleware(identity).Post("/auth/login", authController.Login)
@@ -148,6 +160,11 @@ func Api() {
 		router.Middleware(policy, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/validate", policyController.ValidateVersion)
 		router.Middleware(policy, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/submit", policyController.SubmitVersion)
 		router.Middleware(simulation, authenticate, canSimulatePolicies).Post("/policy-versions/{version_id}/simulate", simulationController.Simulate)
+		router.Middleware(approval, authenticate, canReadWorkflows).Get("/approval-workflows", workflowController.Index)
+		router.Middleware(approval, authenticate, canManageWorkflows).Post("/approval-workflows", workflowController.Store)
+		router.Middleware(approval, authenticate, canReadWorkflows).Get("/approval-workflows/{workflow_id}", workflowController.Show)
+		router.Middleware(approval, authenticate, canManageWorkflows).Post("/approval-workflows/{workflow_id}/versions", workflowController.StoreVersion)
+		router.Middleware(approval, authenticate, canReadWorkflows).Get("/approval-workflow-versions/{workflow_version_id}", workflowController.ShowVersion)
 		router.Middleware(decision, authenticate, canEvaluateDecisions).Post("/decisions/evaluate", decisionController.Evaluate)
 		router.Middleware(decision, authenticate, canReadDecisions).Get("/decisions/{decision_id}", decisionController.Show)
 	})
