@@ -242,15 +242,6 @@ func (c *PolicyController) UpdateVersion(ctx http.Context) http.Response {
 	return c.versionJSON(ctx, http.StatusOK, v, "")
 }
 
-// SubmitVersion freezes a draft and moves it to PENDING_APPROVAL.
-func (c *PolicyController) SubmitVersion(ctx http.Context) http.Response {
-	v, err := c.service.Submit(ctx.Context(), actorID(ctx), ctx.Request().Route("version_id"))
-	if err != nil {
-		return c.serviceError(ctx, "submit", err)
-	}
-	return c.versionJSON(ctx, http.StatusOK, v, "")
-}
-
 func (c *PolicyController) versionJSON(ctx http.Context, status int, v domain.Version, location string) http.Response {
 	out, err := toVersionResponse(v)
 	if err != nil {
@@ -264,6 +255,12 @@ func (c *PolicyController) versionJSON(ctx http.Context, status int, v domain.Ve
 }
 
 func (c *PolicyController) serviceError(ctx http.Context, op string, err error) http.Response {
+	return policyServiceError(ctx, op, err)
+}
+
+// policyServiceError maps an error of the policy use cases to the standard envelope. The
+// approval submit route uses it too, because submit runs the policy validation and freeze.
+func policyServiceError(ctx http.Context, op string, err error) http.Response {
 	var (
 		verr    *domain.ValidationError
 		invalid *application.InvalidPolicyError

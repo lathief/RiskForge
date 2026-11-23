@@ -23,6 +23,9 @@ var (
 	ErrSourceNotInPolicy = errors.New("source version does not belong to this policy")
 	// ErrNoActivePolicy means the product has no active policy version for the scope (SYSTEM_DESIGN.md 13.4: 409).
 	ErrNoActivePolicy = errors.New("no active policy version")
+	// ErrVersionNotPending means an approval outcome was recorded for a version that is not
+	// PENDING_APPROVAL, or whose checksum is not the one that was approved.
+	ErrVersionNotPending = errors.New("policy version is not pending approval with this checksum")
 )
 
 const (
@@ -130,6 +133,14 @@ type PolicyRepository interface {
 	FindActiveReference(ctx context.Context, productCode, scope string) (ActiveRef, error)
 	// TouchDraft records that a DRAFT changed, by moving its updated_at.
 	TouchDraft(ctx context.Context, versionID string) error
+	// SetStatus moves a version from one status to another; ErrVersionNotPending when the
+	// version is no longer in the from status.
+	SetStatus(ctx context.Context, versionID string, from, to domain.Status) error
+	// FindBinding returns the version the active binding of a package points to, with found
+	// false when the package has none. forUpdate locks the binding row.
+	FindBinding(ctx context.Context, packageID string, forUpdate bool) (domain.Version, bool, error)
+	// BindActive points the active binding of a package at a version (insert or move).
+	BindActive(ctx context.Context, packageID, versionID, actorID string) error
 }
 
 type PolicyService struct {

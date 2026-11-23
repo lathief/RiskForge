@@ -43,7 +43,7 @@ How it works:
 
 1. **Install** (network): `npm ci` from `scripts/postman/package-lock.json` into the Docker volume `riskforge-postman-tools`. npm verifies every package against the lockfile. The step is skipped while the lockfile is unchanged.
 2. **Convert** (no network): `openapi-to-postmanv2` converts the spec in a container started with `--network none` and a read-only filesystem. Only `api/openapi` (read-only), `scripts/postman` (read-only), the tools volume (read-only), and `api/postman` (writable) are mounted; `.env.agent` never is.
-3. **Normalize:** `scripts/postman/normalize.js` removes random ids, sets `{{baseUrl}}`, `{{accessToken}}`, `{{productCode}}`, `{{variableCode}}`, `{{policyId}}`, `{{versionId}}`, `{{decisionId}}`, and sets auth per request from the spec (`noauth` for `security: []`, bearer otherwise). It fails if the collection and the spec disagree on any `(METHOD, path)`.
+3. **Normalize:** `scripts/postman/normalize.js` removes random ids, sets `{{baseUrl}}`, `{{accessToken}}`, `{{productCode}}`, `{{variableCode}}`, `{{policyId}}`, `{{versionId}}`, `{{decisionId}}`, `{{workflowId}}`, `{{workflowVersionId}}`, `{{approvalRequestId}}`, and sets auth per request from the spec (`noauth` for `security: []`, bearer otherwise). It fails if the collection and the spec disagree on any `(METHOD, path)`.
 
 The output is byte-identical between runs. If `--check` fails right after you regenerated, a schema in the spec is probably missing an `example` (the converter then invents random values); add one.
 
@@ -110,7 +110,13 @@ postman smoke: 32/32 requests as expected
 
 The stack must be up, migrated, and seeded with the current `DEMO_USER_PASSWORD`. A test project whose users were created by the Go test suite has a different password, so login fails there.
 
-`GET /decisions/{decision_id}` runs with a placeholder `decisionId` (the read-only auditor cannot create a decision) and is expected to answer `404 DECISION_NOT_FOUND`, which still proves the route and the permission. Policy ids are not fixed, so before running Newman the script asks the API for the first policy (`scripts/postman/resolve-ids.js`, `GET /api/v1/policies?per_page=1`) and passes its id and its latest version id as `policyId` and `versionId`. A stack without a policy fails early with "seed the stack first".
+`GET /decisions/{decision_id}` runs with a placeholder `decisionId` (the read-only auditor cannot create a decision) and is expected to answer `404 DECISION_NOT_FOUND`, which still proves the route and the permission. Policy and workflow ids are not fixed, so before running Newman the script asks the API for the first policy and the first approval workflow (`scripts/postman/resolve-ids.js`, `GET /api/v1/policies?per_page=1` and `GET /api/v1/approval-workflows?per_page=1`) and passes their ids and latest version ids as `policyId`, `versionId`, `workflowId`, and `workflowVersionId`. A stack without a policy or a workflow fails early with "seed the stack first". The auditor holds `approval:read`, so the workflow reads answer 200 and the workflow writes 403. `GET /approval-requests/{request_id}` runs with a placeholder `approvalRequestId` (seeding opens no approval request and the auditor cannot submit) and is expected to answer `404 APPROVAL_REQUEST_NOT_FOUND`.
+## m4-e2e.sh
+```sh
+./scripts/m4-e2e.sh                          # stack at http://127.0.0.1:3000
+API=http://127.0.0.1:3001 ./scripts/m4-e2e.sh  # another address
+```
+Runs the Milestone 4 governance flow end to end against a live, migrated, and seeded stack (logins use `DEMO_USER_PASSWORD` from `.env.agent`): clone and edit a draft, simulate it, read the diff and impact against the active version, submit it, approve both tiers (the last approval publishes it), check that the next decision uses the new version while a replay keeps the old one, then roll back by cloning version 1 and approving it again. The unhappy paths include a maker configured as approver, invalid simulation data, a second submit, the wrong role or tier, reject without a comment, a double action, a stale step, actions on a closed request, and read permissions. It prints one line per check, ends with `m4 e2e: 40 checks passed`, and exits 1 on the first failed check. The script creates policies, versions, workflows, and approval requests, so run it only on a disposable Compose project (for example `rf-live-m4`) and remove that project afterwards with `down -v` on its explicit name.
 ## coverage.sh
 ```sh
 ./scripts/coverage.sh                 # project rf-test-coverage

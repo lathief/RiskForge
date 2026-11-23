@@ -3,6 +3,7 @@
 //   public requests (noauth)        -> 200
 //   protected GET                   -> 200
 //   GET /api/v1/decisions/{id}      -> 404 (placeholder id; proves routing and authorization)
+//   GET /api/v1/approval-requests/{id} -> 404 (placeholder id, same reason)
 //   protected POST/PUT/PATCH/DELETE -> 403 (no write permission, so nothing is changed)
 //   POST /api/v1/auth/login         -> 401 (the saved example uses a placeholder password)
 // Any other status, or a transport error, fails the run.
@@ -34,6 +35,9 @@ for (const ex of executions) {
   // GET /decisions/{decision_id} runs with a placeholder id (the run is read-only, so it never
   // creates a decision): the auditor is allowed, and the answer is 404 DECISION_NOT_FOUND.
   else if (!isWrite && path.startsWith("/api/v1/decisions/")) expected = 404;
+  // GET /approval-requests/{request_id} runs with a placeholder id too: seeding opens no
+  // approval request, and the read-only auditor cannot submit one (RF-019).
+  else if (!isWrite && path.startsWith("/api/v1/approval-requests/")) expected = 404;
   else if (isWrite) expected = 403;
   else expected = 200;
 

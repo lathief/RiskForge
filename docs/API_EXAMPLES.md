@@ -32,10 +32,10 @@ LOANAPP=$(token demo_loan_application)
 |---|---|---|
 | 401 | `UNAUTHENTICATED` | Missing, malformed, tampered, or expired token, or disabled user. |
 | 401 | `INVALID_CREDENTIALS` | Login failed (same body for unknown user, wrong password, disabled account). |
-| 403 | `FORBIDDEN` | Authenticated but missing the permission. |
-| 404 | `PRODUCT_NOT_FOUND`, `VARIABLE_NOT_FOUND`, `POLICY_NOT_FOUND`, `POLICY_VERSION_NOT_FOUND`, `ROUTE_NOT_FOUND` | Unknown product code / dictionary variable / policy / policy version / route. |
-| 409 | `PRODUCT_CODE_CONFLICT`, `VARIABLE_CODE_CONFLICT`, `POLICY_CONFLICT`, `POLICY_VERSION_FROZEN` | Product, variable, or policy already exists / an edit or submit of a version that is no longer a draft. |
-| 422 | `INPUT_VALIDATION_ERROR`, `POLICY_VALIDATION_FAILED` | Invalid JSON, field, query parameter, or a field that cannot be set / a draft that is incomplete or whose content (RAC expressions, scorecard, decision matrix, test cases) does not validate at submit. |
+| 403 | `FORBIDDEN`, `SELF_APPROVAL_FORBIDDEN`, `APPROVER_NOT_ELIGIBLE` | Authenticated but missing the permission / the submitter acting on their own approval request / an approver without the step's role or scope. |
+| 404 | `PRODUCT_NOT_FOUND`, `VARIABLE_NOT_FOUND`, `POLICY_NOT_FOUND`, `POLICY_VERSION_NOT_FOUND`, `APPROVAL_WORKFLOW_NOT_FOUND`, `APPROVAL_WORKFLOW_VERSION_NOT_FOUND`, `APPROVAL_REQUEST_NOT_FOUND`, `ROUTE_NOT_FOUND` | Unknown product code / dictionary variable / policy / policy version / approval workflow / workflow version / approval request / route. |
+| 409 | `PRODUCT_CODE_CONFLICT`, `VARIABLE_CODE_CONFLICT`, `POLICY_CONFLICT`, `POLICY_VERSION_FROZEN`, `APPROVAL_WORKFLOW_CONFLICT`, `APPROVAL_WORKFLOW_NOT_CONFIGURED`, `APPROVAL_REQUEST_CLOSED`, `APPROVAL_STEP_NOT_ACTIVE`, `APPROVAL_ALREADY_GIVEN`, `POLICY_VERSION_SUPERSEDED`, `POLICY_NOT_PUBLISHABLE` | Product, variable, policy, or approval workflow already exists / an edit or submit of a version that is no longer a draft / a submit without an approval workflow / an action on a closed request, a step that is not active, or a second action of one approver. |
+| 422 | `INPUT_VALIDATION_ERROR`, `POLICY_VALIDATION_FAILED`, `POLICY_NOT_EVALUABLE` | Invalid JSON, field, query parameter, or a field that cannot be set / a draft that is incomplete or whose content (RAC expressions, scorecard, decision matrix, test cases) does not validate at submit / a version the simulator cannot evaluate yet (RF-017). |
 | 503 | `SERVICE_BUSY` | Login capacity saturated; honour `Retry-After`. |
 | 500 | `INTERNAL_ERROR` | Unexpected failure; the cause is only in `error.log`. |
 
@@ -94,6 +94,10 @@ curl -s $B/api/v1/auth/me -H "Authorization: Bearer $ANALYST"
 
 ```json
 {"permissions":["product:read","dictionary:read","dictionary:write","policy:read","policy:write","policy:simulate","policy:submit"],"roles":["RISK_ANALYST"],"user_id":"635f10a8-9530-4d1c-a19e-0f04b38087fe","username":"demo_analyst"}
+```
+Since RF-019 the response also has `approval_scopes`, read from the database on every request. For `demo_approver_1`:
+```json
+{"approval_scopes":["RISK_LEAD"],"permissions":["product:read","dictionary:read","policy:read","approval:read","approval:act"],"roles":["RISK_APPROVER"],"user_id":"bb406f95-ac8a-4f1f-bbe6-cfba88d87dda","username":"demo_approver_1"}
 ```
 
 Without a token:
@@ -284,7 +288,7 @@ The snapshot above is shortened to one dictionary variable; the real one lists a
 HTTP/1.1 409 Conflict
 {"error":{"code":"POLICY_VERSION_FROZEN","message":"only a DRAFT version can be changed or submitted"},"request_id":"ca3b6d46c7a0bf3572851fd7a3e85b82"}
 ```
-Approving, rejecting, and publishing a pending version arrive with M4. To revise a pending version now, clone it.
+The example above was captured before RF-019. Since RF-019 the submit also opens an **approval request** in the same transaction and the response adds `approval_request` (see [Approval requests](#approval-requests)); a product and scope without an approval workflow answer `409 APPROVAL_WORKFLOW_NOT_CONFIGURED` and the draft stays a DRAFT. To revise a pending or rejected version, clone it.
 ## RAC rules
 Read (`policy:read`): `RISK_ANALYST`, `RISK_APPROVER`, `AUDITOR`. Write (`policy:write`): `RISK_ANALYST` only. The `ADMIN` and the Loan Application have no access.
 A RAC rule has a `rule_code`, a `reason_code`, an `expression`, an `action`, and an optional `description`. The **expression is the condition an applicant must meet to pass the rule**. If it is false, `action` applies: `REJECT` ends the evaluation with a rejection, `REFER` sends the application to manual review and scoring continues. The order of the rules in the list is the order they run in. Rules are checked when you save them, not run (evaluation arrives with RF-012).
@@ -549,6 +553,123 @@ Most of the 334 ms is the deliberate bcrypt cost.
 grep -h '"requestID":"doc-login-00001"' storage/logs/{activity,error,query}.log
 ```
 
+## Policy simulator
+
+Simulate (`policy:simulate`): `RISK_ANALYST` only. Everyone else gets `403`.
+
+`POST /api/v1/policy-versions/{version_id}/simulate` evaluates one applicant against any version, draft or frozen, with the same code as `POST /decisions/evaluate`, and returns the trace. It stores nothing: no decision, no idempotency key (none is needed), no change to the version or the active policy. Below, a clone of the seeded policy whose minimum age was raised to 30 (`PUT .../rac-rules` with `age_years >= 30`):
+
+```sh
+curl -s -X POST $B/api/v1/policy-versions/$DRAFT/simulate -H "Authorization: Bearer $ANALYST" -H 'Content-Type: application/json' \
+  -d '{"applicant":{"age_years":29,"monthly_income":"12000000.00","existing_installment":"2500000.00","employment_tenure_months":36,"slik_max_kol":1,"is_blacklisted":false}}'
+```
+```json
+{"status":"SIMULATED","stored":false,"policy_version":{"id":"14e77762-3220-4472-9ba5-3e584adb1ee7","number":2,"status":"DRAFT","product_code":"KTA_DEMO","scope":"DEFAULT","checksum":null},"final_decision":"REJECT","risk_grade":null,"total_score":null,"reason_codes":["AGE_BELOW_MINIMUM"],"refer_flag":false,"derived_features":[{"code":"dsr_ratio","value":"0.208333","exact":"5/24","unit":"ratio","formula_version":1,"expression":"existing_installment / monthly_income"},{"code":"net_disposable_income","value":"9500000.00","exact":"9500000","unit":"IDR","formula_version":1,"expression":"monthly_income - existing_installment"}],"rac_results":[{"order":1,"rule_code":"RAC_MIN_AGE","reason_code":"AGE_BELOW_MINIMUM","action":"REJECT","passed":false,"inputs":[{"variable":"age_years","value":"29"}]}],"rac_not_evaluated":["RAC_BLACKLIST","RAC_SLIK"],"base_score":"350.00","score_breakdown":[],"matrix":null}
+```
+
+The active version still approves the same applicant through `POST /decisions/evaluate`, and `decision.runs` stays empty. Simulating the active version gives exactly the fields a decision gives, without `decision_id`, `created_at`, and `application_id`.
+
+A draft that cannot be evaluated yet (here after `DELETE .../scorecard`) is `422 POLICY_NOT_EVALUABLE`, not a decision. The version is compiled before the applicant is checked, so this error comes first even when the applicant data is also invalid:
+
+```json
+{"error":{"code":"POLICY_NOT_EVALUABLE","message":"the policy version cannot be evaluated as it is; policy configuration error: rule configuration error: the policy has no scorecard"},"request_id":"caf3cedf989f0c65b9485a431778905e"}
+```
+
+Invalid applicant data against an evaluable version is `422 INPUT_VALIDATION_ERROR` with the same issues as a decision (`applicant.monthly_income: invalid_type` for a JSON number, and so on). An unknown version is `404 POLICY_VERSION_NOT_FOUND`. Request and response bodies of this route are never written to `activity.log`.
+
+## Approval workflows
+
+Configure (`workflow:manage`): `ADMIN` only. Read (`approval:read` or `workflow:manage`): `ADMIN`, `RISK_APPROVER`, `AUDITOR`. The analyst and the Loan Application get `403`.
+
+An approval workflow belongs to one product and policy scope and has numbered, immutable versions of sequential steps. Each step names the approver role, an optional scope (`RISK_LEAD`, `HEAD_OF_RISK`), and the number of distinct approvers it needs. `./artisan db:seed` creates the demo workflow of `SYSTEM_DESIGN.md` 11.1 (output from a live stack):
+
+```sh
+curl -s $B/api/v1/approval-workflows -H "Authorization: Bearer $APPROVER"
+```
+```json
+{"data":[{"id":"57e0f93c-e50e-4639-8e32-59470861be4e","product_code":"KTA_DEMO","policy_scope":"DEFAULT","name":"KTA_DEMO two-tier approval","version_count":1,"current_version":{"id":"854a0b70-b4f7-4188-9a9c-7757ee9a9ee6","workflow_id":"57e0f93c-e50e-4639-8e32-59470861be4e","product_code":"KTA_DEMO","policy_scope":"DEFAULT","version_number":1,"change_note":"Default demo workflow of SYSTEM_DESIGN.md 11.1.","total_approvals":2,"steps":[{"order":1,"name":"Risk Lead Review","required_role":"RISK_APPROVER","required_scope":"RISK_LEAD","min_approvers":1},{"order":2,"name":"Head of Risk Review","required_role":"RISK_APPROVER","required_scope":"HEAD_OF_RISK","min_approvers":1}],"created_by":null,"created_at":"2026-11-23T07:03:56Z"},"created_by":null,"created_at":"2026-11-23T07:03:56Z"}],"meta":{"page":1,"per_page":20,"total":1}}
+```
+
+Change the workflow by adding a version (`201`); version 1 stays as it was, so an approval request that pinned it keeps its tiers:
+
+```sh
+curl -s -X POST $B/api/v1/approval-workflows/$WORKFLOW/versions -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' -d '{
+  "change_note":"The head of risk tier needs two approvers.",
+  "steps":[{"name":"Risk Lead Review","required_role":"RISK_APPROVER","required_scope":"RISK_LEAD"},
+           {"name":"Head of Risk Review","required_role":"RISK_APPROVER","required_scope":"HEAD_OF_RISK","min_approvers":2}]}'
+```
+```json
+{"id":"7fe2631d-4751-4606-8d96-733c90c66abe","workflow_id":"57e0f93c-e50e-4639-8e32-59470861be4e","product_code":"KTA_DEMO","policy_scope":"DEFAULT","version_number":2,"change_note":"The head of risk tier needs two approvers.","total_approvals":3,"steps":[{"order":1,"name":"Risk Lead Review","required_role":"RISK_APPROVER","required_scope":"RISK_LEAD","min_approvers":1},{"order":2,"name":"Head of Risk Review","required_role":"RISK_APPROVER","required_scope":"HEAD_OF_RISK","min_approvers":2}],"created_by":"b3a8a111-75f8-4977-af2c-2d48f84b92aa","created_at":"2026-11-23T07:04:03Z"}
+```
+
+Sending the same steps again stores nothing and returns the current version with `200`. A step can never be given to the maker or the admin, and every problem is listed at once:
+
+```json
+{"error":{"code":"INPUT_VALIDATION_ERROR","message":"invalid approval workflow","details":[{"field":"steps[0].required_role","issue":"not_an_approver_role","message":"only a role that may approve (approval:act) can be required"},{"field":"steps[0].min_approvers","issue":"out_of_range","message":"1 to 5 distinct approvers"}]},"request_id":"d5237d418a7fa838dd42d581291fc641"}
+```
+
+Other issues: `steps` (`required`, `must_be_array`, `no_steps`, `too_many` above 10), `steps[i].name` (`required`, `too_long`, `invalid_characters`, `duplicate_name`), `steps[i].required_scope:unknown_scope`, `steps[i].min_approvers:must_be_integer`, `product_code` (`unknown_product`, `product_inactive`), `policy_scope:invalid_format`. A second workflow for the same product and policy scope is `409 APPROVAL_WORKFLOW_CONFLICT`. `GET /approval-workflows/{workflow_id}` lists all versions newest first; `GET /approval-workflow-versions/{workflow_version_id}` returns one. Unknown ids are `404 APPROVAL_WORKFLOW_NOT_FOUND` and `404 APPROVAL_WORKFLOW_VERSION_NOT_FOUND`.
+
+## Approval requests
+
+Read (`approval:read` or `policy:submit`): `RISK_APPROVER`, `AUDITOR`, `RISK_ANALYST`. Act (`approval:act`): `RISK_APPROVER` only. Output below is from a live stack (`db:seed`), on a clone of the demo policy submitted by `demo_analyst`.
+
+Submitting opens the request at step 1, pinned to the version's checksum and to the current workflow version (shortened to `approval_request`):
+
+```sh
+curl -s -X POST $B/api/v1/policy-versions/$DRAFT/submit -H "Authorization: Bearer $ANALYST"
+```
+```json
+"approval_request":{"id":"c0ae01cf-a899-4f09-8800-df1e6531725e","status":"PENDING","current_step":1,"policy_version":{"id":"5315a944-d850-40f5-95d1-adbb81c58e76","number":2,"product_code":"KTA_DEMO","scope":"DEFAULT","checksum":"feabef501fdc65ae237e4c118f5f4b7b107479374955089f0afc11cb4f6b6032"},"workflow_version":{"id":"f8408ec9-a9cf-46a7-90ad-8fb5b90c4224","number":1},"submitted_by":"088a2e46-3f6c-41bd-a237-6a7141a141d8","submitted_at":"2026-11-23T09:39:40Z","closed_at":null,"steps":[{"order":1,"name":"Risk Lead Review","required_role":"RISK_APPROVER","required_scope":"RISK_LEAD","min_approvers":1,"approvals":0,"state":"ACTIVE"},{"order":2,"name":"Head of Risk Review","required_role":"RISK_APPROVER","required_scope":"HEAD_OF_RISK","min_approvers":1,"approvals":0,"state":"WAITING"}],"actions":[]}
+```
+
+Approvers find their queue with `GET /api/v1/approval-requests?status=PENDING`. Only the active step accepts actions, and only from someone holding its role and scope. The head of risk on tier 1:
+
+```json
+{"error":{"code":"APPROVER_NOT_ELIGIBLE","message":"you do not hold the role and scope the active step requires"},"request_id":"195e9b195265d63e52b7e33415a2a5b5"}
+```
+
+The risk lead approves tier 1 (`step` is optional; if sent it must be the active step), then the head of risk approves tier 2, which closes the request:
+
+```sh
+curl -s -X POST $B/api/v1/approval-requests/$REQUEST/actions -H "Authorization: Bearer $APPROVER_1" -H 'Content-Type: application/json' \
+  -d '{"action":"APPROVE","comment":"Rules and golden tests reviewed.","step":1}'
+curl -s -X POST $B/api/v1/approval-requests/$REQUEST/actions -H "Authorization: Bearer $APPROVER_2" -H 'Content-Type: application/json' \
+  -d '{"action":"APPROVE","comment":"Approved for publishing."}'
+```
+```json
+{"id":"c0ae01cf-a899-4f09-8800-df1e6531725e","status":"APPROVED","current_step":null,"policy_version":{"id":"5315a944-d850-40f5-95d1-adbb81c58e76","number":2,"product_code":"KTA_DEMO","scope":"DEFAULT","checksum":"feabef501fdc65ae237e4c118f5f4b7b107479374955089f0afc11cb4f6b6032"},"workflow_version":{"id":"f8408ec9-a9cf-46a7-90ad-8fb5b90c4224","number":1},"submitted_by":"088a2e46-3f6c-41bd-a237-6a7141a141d8","submitted_at":"2026-11-23T09:39:40Z","closed_at":"2026-11-23T09:39:49Z","steps":[{"order":1,"name":"Risk Lead Review","required_role":"RISK_APPROVER","required_scope":"RISK_LEAD","min_approvers":1,"approvals":1,"state":"APPROVED"},{"order":2,"name":"Head of Risk Review","required_role":"RISK_APPROVER","required_scope":"HEAD_OF_RISK","min_approvers":1,"approvals":1,"state":"APPROVED"}],"actions":[{"id":"6479a599-39d7-495e-9b40-007755cc9430","step":1,"actor_id":"bb406f95-ac8a-4f1f-bbe6-cfba88d87dda","action":"APPROVE","comment":"Rules and golden tests reviewed.","created_at":"2026-11-23T09:39:46Z"},{"id":"d9c22d79-1bab-4a3f-8877-8865dd8f57cc","step":2,"actor_id":"65c6daf5-8003-45f6-8a96-eb1bc09b53c8","action":"APPROVE","comment":"Approved for publishing.","created_at":"2026-11-23T09:39:49Z"}]}
+```
+
+That run was captured at RF-019, when the version stopped at `APPROVED`. **Since RF-020 the final approval publishes in the same transaction** (`SYSTEM_DESIGN.md` 11.7). On a live stack at RF-020 (clone with `age_years >= 30`), after the head of risk's approval:
+
+```sh
+curl -s $B/api/v1/policy-versions/$V1 -H "Authorization: Bearer $ANALYST"     # "version_number":1,"status":"ARCHIVED"
+curl -s $B/api/v1/policy-versions/$DRAFT -H "Authorization: Bearer $ANALYST"  # "version_number":2,"status":"ACTIVE"
+```
+
+The same applicant evaluated before and after (new idempotency keys): before `"policy_version":{"id":"10d4e231-...","number":1}`, `"final_decision":"APPROVE"`; after `"policy_version":{"id":"b9bd6d0c-...","number":2}`, `"final_decision":"REJECT"`. The stored earlier decision still names version 1. The audit log got one event:
+
+```
+POLICY_VERSION_PUBLISHED | b9bd6d0c-48bf-46f3-a100-62c0b6f58252 | {"scope": "DEFAULT", "checksum": "3f00761757aad3c8b259e71737fd217a7deea1080572011cde82bd45908da035", "policy_id": "589b53b4-c919-42df-9954-2b81dae99c39", "product_code": "KTA_DEMO", "version_number": 2, "approval_request_id": "7d2f105e-75aa-4177-ab9f-929e82fa9202", "archived_version_id": "10d4e231-45fe-4853-9dde-bea1fddbf9a6", "workflow_version_id": "f6ef0904-8f55-410b-8560-482a753565d8"}
+```
+
+If the final approval cannot publish, nothing of it is kept and the request stays open at the last step: `409 POLICY_VERSION_SUPERSEDED` when a newer version is already active (reject the request; to roll back, clone the good version into a new draft and approve that), or `409 POLICY_NOT_PUBLISHABLE` when the snapshot no longer compiles.
+
+Refusals, all without writing anything:
+
+| Case | Answer |
+|---|---|
+| The submitter acts on their own request (even holding every role and scope) | `403 SELF_APPROVAL_FORBIDDEN` |
+| The caller lacks the step's role or scope | `403 APPROVER_NOT_ELIGIBLE` |
+| The caller lacks `approval:act` (analyst, admin, auditor) | `403 FORBIDDEN` |
+| The same approver acts again (one action per person per request) | `409 APPROVAL_ALREADY_GIVEN` |
+| `step` is not the active step | `409 APPROVAL_STEP_NOT_ACTIVE` |
+| The request is already approved or rejected | `409 APPROVAL_REQUEST_CLOSED` |
+| `REJECT` without `comment`, unknown `action`, or another field | `422 INPUT_VALIDATION_ERROR` |
+
+`{"action":"REJECT","comment":"..."}` closes the request as `REJECTED` and the version becomes `REJECTED`; revise by cloning it.
+
 ## Planned endpoints
 
-Not live yet; see `SYSTEM_DESIGN.md` 13.1 for the target contract: simulation (RF-017), approval requests (RF-019..RF-021), and audit search (RF-022). Each will be added to the OpenAPI contract, Swagger UI, and the Postman collection in the same change.
+Not live yet; see `SYSTEM_DESIGN.md` 13.1 for the target contract: the diff and change summary for reviewers (RF-021) and audit search (RF-022). Each will be added to the OpenAPI contract, Swagger UI, and the Postman collection in the same change.

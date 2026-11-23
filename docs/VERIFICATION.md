@@ -209,6 +209,65 @@ Run on branch `feature/RF-016-policy-cache` (RF-011 to RF-015 below it) in the d
 - **Log check (the security fix):** after the happy and unhappy runs on the fresh stack, `storage/logs/activity.log` held 24 entries for `/api/v1/decisions...`, each with `"requestBody":{"_omitted":"sensitive_route"}` and the same for `responseBody`, and no occurrence of `12000000`. In the first live run, before the fix, the log held the full applicant and decision bodies.
 - Not covered: the concurrent-duplicate timeout boundary, a load or latency baseline (RF-024), and the dependency scan (below). Direct SQL inspection of the live database was not repeated (the `psql` call hung); persistence is shown by the replay and `GET` answers and by the integration tests that count rows (`TestADecisionIsStoredWithItsTraceAndTheVersionThatMadeIt`).
 
+## M4: RF-017 (policy simulator)
+
+Run on branch `feature/RF-017-policy-simulator` (from `main` at 61e8b3d, which contains M3) on 23 November 2026, in the disposable project `rf-test-rf017` (PostgreSQL 18) and a live stack `rf-live017` (fresh `migrate` and `db:seed`). Both projects were removed with `down -v` afterwards.
+
+- `go vet ./...` clean; the changed and new Go files are `gofmt` clean. `go test -race -count=1 -v ./...` on a fresh database: **700 tests passed, 0 failed, 0 skipped**, 19 packages `ok` (the new one is `app/modules/simulation/application`).
+- `redocly lint` reports OpenAPI 0.14.0 valid. `./scripts/generate-postman.sh --check` reports the committed collection (33 requests) up to date. `./scripts/smoke-postman.sh rf-live017`: 33/33 as expected (simulate answers 403 for the read-only auditor). `/swagger` answers 200 and `/openapi.yaml` contains `simulatePolicyVersion`. `ContractParityTestSuite` passes with 33 operations.
+- **Happy flow on the live stack:** simulating the active version with the example applicant gave `APPROVE`, `685.00`, grade A, `status: SIMULATED`, `stored: false`, and the version's checksum. A clone with `age_years >= 30` gave `REJECT` with `AGE_BELOW_MINIMUM`, `checksum: null`, `rac_not_evaluated: [RAC_BLACKLIST, RAC_SLIK]`. `decision.runs` and `decision.requests` stayed at 0 rows.
+- **Unhappy flow on the same stack:** auditor 403; unknown version 404 `POLICY_VERSION_NOT_FOUND`; a wrongly typed applicant 422 `INPUT_VALIDATION_ERROR` with every issue; a draft after `DELETE .../scorecard` 422 `POLICY_NOT_EVALUABLE` (also when the applicant was invalid too, because the version is compiled first). `activity.log` showed `module: simulation` and the withheld body for the simulate route.
+- Found and fixed during the live run: a request to `/api/v1/policy-versions//simulate` (empty id, no route) logged the applicant body, because the first rule only matched a non-empty id. `BodyWithheld` now withholds every path of that shape (`withheld_test.go`).
+- Found while running the full suite: `LoggingTestSuite` failed because the shared `storage/logs/activity.log` (90 MB, written by earlier projects) contained a torn line, as described in `AGENT_RUNBOOK.md`. The old `activity.log`, `error.log`, and `query.log` were moved to `*.log.pre-rf017` (not deleted) and the suite passed.
+- Not covered: simulating an `ARCHIVED` version on a live stack (no publish exists yet; the unit test reads a frozen `ACTIVE` version), any latency figure for compiling per simulation (RF-024).
+
+## M4: RF-018 (approval workflow configuration)
+
+Run on branch `feature/RF-018-approval-workflow-config` (on top of RF-017) on 23 November 2026, in the disposable project `rf-test-rf018` (PostgreSQL 18) and a live stack `rf-live018` (fresh `migrate` and `db:seed`). Both were removed with `down -v` afterwards.
+
+- `go vet ./...` clean. `go test -race -count=1 -v ./...` on a fresh database: **733 tests passed, 0 failed, 0 skipped**, 22 packages `ok` (new: `app/modules/approval/{domain,application,infrastructure}`). `ApprovalWorkflowTestSuite` covers RBAC for all six demo users, validation, conflict, versioning, the seeder, the append-only triggers, and two concurrency cases (8 concurrent versions get numbers 1 to 9 without gaps; 6 concurrent creates give one workflow and five `409`).
+- `redocly lint` reports OpenAPI 0.15.0 valid. `./scripts/generate-postman.sh --check` reports 38 requests up to date. `./scripts/smoke-postman.sh rf-live018`: 38/38 (auditor: workflow reads 200, writes 403). `/openapi.yaml` served by the stack lists the five new operations. `ContractBehaviourTestSuite` confirms `x-required-permission` plus `x-alternative-permissions` against the running code for every role.
+- **Live stack:** the seeded `KTA_DEMO` workflow had version 1 with `Risk Lead Review`/`RISK_LEAD` and `Head of Risk Review`/`HEAD_OF_RISK`, one approver each, `total_approvals` 2. The admin added version 2 (head of risk quorum 2) with `201`, `total_approvals` 3; the same steps again gave `200` and no version; `version_count` was 2.
+- **Unhappy flow on the same stack:** a step requiring `RISK_ANALYST` with `min_approvers` 9 gave `422` with `not_an_approver_role` and `out_of_range`; the analyst writing gave `403`; a second workflow for `KTA_DEMO`/`DEFAULT` gave `409 APPROVAL_WORKFLOW_CONFLICT`.
+- Not covered: `migrate:rollback` of the new migration; a workflow for a product other than `KTA_DEMO` on the live stack (covered by the `PAYROLL` scope in tests).
+
+## M4: RF-019 (approval state machine)
+
+Run on branch `feature/RF-019-approval-state-machine` (on top of RF-018) on 23 November 2026, in the disposable project `rf-test-rf019` (PostgreSQL 18) and a live stack `rf-live019` (fresh `migrate` and `db:seed`). Both were removed with `down -v` afterwards.
+
+- `go vet ./...` clean; changed and new Go files `gofmt` clean. `go test -race -count=1 -v ./...` on a fresh database: **765 tests passed, 0 failed, 0 skipped**, 22 packages `ok`. The approval and submit feature tests were also run three times in a row with `-race` (`-count=3`) without a failure.
+- Concurrency evidence: four approvers acting at once on a quorum-2 step gave exactly two actions, an `APPROVED` request, an `APPROVED` version, and two `APPROVAL_REQUEST_CLOSED`; six identical actions of one approver at once gave one action; six concurrent submits of one draft opened one request.
+- `redocly lint` reports OpenAPI 0.16.0 valid. `./scripts/generate-postman.sh --check` reports 41 requests up to date, three times in a row (a `status` query enum without an example first made the generator pick a random value; an `example` fixed it). `./scripts/smoke-postman.sh rf-live019`: 41/41. `/openapi.yaml` served by the stack contains the three new operations.
+- **Live stack, happy flow:** `/auth/me` of `demo_approver_1` showed `approval_scopes: ["RISK_LEAD"]`. A clone of the demo policy submitted by the analyst opened a request at step 1 pinned to workflow version 1 and the version checksum. The risk lead approved step 1 (`current_step` 2), the head of risk approved step 2: request `APPROVED` with `closed_at`, both actions listed, version `APPROVED`.
+- **Live stack, unhappy flow:** head of risk on step 1 `403 APPROVER_NOT_ELIGIBLE`; analyst `403 FORBIDDEN`; `REJECT` without comment `422`; the risk lead a second time `409 APPROVAL_ALREADY_GIVEN`; an action after closing `409 APPROVAL_REQUEST_CLOSED`.
+- During the run the first `rf-live019` API container could not download Go modules (`proxy.golang.org` connection refused, a transient network failure); restarting the container after the network recovered fixed it. No code change.
+- Not covered: `migrate:rollback` of the two new migrations; approval with real latency or load; an approved version being published (RF-020).
+
+## M4: RF-020 (atomic publishing)
+
+Run on branch `feature/RF-020-atomic-publishing` (on top of RF-019) on 23 November 2026, in the disposable project `rf-test-rf020` (PostgreSQL 18) and a live stack `rf-live020` (fresh `migrate` and `db:seed`). Both were removed with `down -v` afterwards.
+
+- `go vet ./...` clean; changed and new Go files `gofmt` clean. `go test -race -count=1 -v ./...` on a fresh database: **780 tests passed, 0 failed, 0 skipped**, 23 packages `ok` (new: `app/modules/audit/application`). The concurrency tests (`TestConcurrentFinalApprovalsLeaveExactlyOneActiveVersion`, `TestDecisionsDuringAPublishUseOneWholeVersion`, `TestAnOlderApprovedVersionCannotReplaceANewerActiveOne`) were run three more times with `-race` without a failure.
+- `redocly lint` reports OpenAPI 0.17.0 valid. `./scripts/generate-postman.sh --check`: 41 requests up to date (no new operation). `./scripts/smoke-postman.sh rf-live020`: 41/41.
+- **Live stack:** the seeded version 1 decided the example applicant `APPROVE`. A clone with `age_years >= 30` (with its own golden case) was submitted and approved by both tiers: the final action returned the request `APPROVED`; version 1 became `ARCHIVED` and version 2 `ACTIVE`; the next decision for the same applicant named version 2 and was `REJECT`. `audit.events` held one `POLICY_VERSION_PUBLISHED` event for version 2 with the request, package, checksum, workflow version, and archived version 1, and no applicant data.
+- Not covered: `POLICY_NOT_PUBLISHABLE` through the API (unreachable with today's code; unit test only); `migrate:rollback` of the audit migration; publish latency (RF-024).
+
+## M4: RF-021 (policy diff and approval review)
+
+Run on branch `feature/RF-021-policy-diff-review` (on top of RF-020) in `rf-test-rf021`. `go vet` clean; `go test -race -count=1 -v ./...` on a fresh database: 790 passed and one feature test failed on its own expectation (the test rule body has other descriptions than the seeded rules, so three rules differ, not one); the expectation was corrected and the review, diff, and contract suites passed. OpenAPI 0.18.0 lint clean, 43 operations, `--check` stable twice. The full run on the milestone branch is below.
+
+## M4 milestone validation and review (`feature/M4-governance`)
+
+`feature/M4-governance` collects RF-017 to RF-021 (one `--no-ff` merge per ticket, from `main` at 61e8b3d; before the review fixes its tree was identical to `feature/RF-021-policy-diff-review`). Run on 23 November 2026 in `rf-test-m4` and the live stack `rf-live-m4` (PostgreSQL 18), both removed with `down -v` afterwards.
+
+- **Semantic and security review** of `main..feature/M4-governance` by an independent reviewer: verdict NEEDS_CHANGES with four findings to fix now (simulate body logged on path variants, approve-versus-clone deadlock, workflow configuration not audited, one ACTIVE version not a database invariant). All four fixed and tested (`docs/M4_NOTES.md`); the rest is in `docs/POST_M5_BACKLOG_M4.md`.
+- **After the fixes:** `go vet ./...` clean; changed and new Go files `gofmt` clean. `go test -race -count=1 -v ./...` on a fresh database: **794 tests passed, 0 failed, 0 skipped**, 23 packages `ok`. Every M4 concurrency test (quorum, duplicate action, duplicate submit, two final approvals, decisions during a publish, clone during the final approval) was run three more times with `-race -count=3` without a failure.
+- `redocly lint`: OpenAPI 0.18.0 valid. `./scripts/generate-postman.sh --check`: 43 requests up to date. `./scripts/smoke-postman.sh rf-live-m4`: **43/43**.
+- **End-to-end on the live stack** (`scripts/m4-e2e.sh`, fresh `migrate:reset`, `migrate`, `db:seed`): **40/40 checks**. Happy path: version 1 approves the example applicant; clone with minimum age 30; simulate (REJECT, `stored: false`); diff against the active version with the change summary and one impacted case; submit opens a request; review shows the golden tests; risk lead then head of risk approve; version 2 ACTIVE, version 1 ARCHIVED; the next decision uses version 2 and rejects; a replay keeps version 1; rollback by cloning version 1 and approving it; the applicant is approved again by the rollback version. Unhappy path: analyst cannot configure workflows or act; a maker cannot be a step role; invalid simulate data 422; auditor cannot simulate; second submit 409; head of risk on tier 1 403; reject without comment 422; second action of one approver 409; stale step 409; action on a closed request 409; loan application and admin refused on requests and review.
+- **Log check on the live stack:** simulate bodies are `{"_omitted":"sensitive_route"}`; applicant-shaped values appear only in the bodies of test case, version, submit, diff, and review routes (analyst configuration; `POST_M5_BACKLOG_M4.md` M4-SEC-03).
+- Two script defects found while writing `scripts/m4-e2e.sh` and fixed in the script, not in the product: a greedy `sed` picked the last `"id"` of a response, and a grep did not expect `>` encoded as `\u003e` (M4-TOOL-02).
+- Not covered: `migrate:rollback` of the M4 migrations (M4-TOOL-03); latency of review and publish (RF-024); the upgrade of a database that has `PENDING_APPROVAL` versions from before RF-019 (M4-REL-01).
+
 ## Not verified yet
 
 | Item | Why | Planned in |

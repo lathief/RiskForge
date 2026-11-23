@@ -9,7 +9,9 @@
 // - Bearer token variable is {{accessToken}} (filled from POST /api/v1/auth/login).
 // - Operations with `security: []` get auth "noauth"; all others get bearer {{accessToken}}.
 // - Path variables: {code} -> {{productCode}}, {variable_code} -> {{variableCode}},
-//   {policy_id} -> {{policyId}}, {version_id} -> {{versionId}}, {decision_id} -> {{decisionId}}.
+//   {policy_id} -> {{policyId}}, {version_id} -> {{versionId}}, {decision_id} -> {{decisionId}},
+//   {workflow_id} -> {{workflowId}}, {workflow_version_id} -> {{workflowVersionId}},
+//   {request_id} -> {{approvalRequestId}}.
 // - Fails if the collection and the spec disagree on the set of (METHOD, path).
 "use strict";
 
@@ -30,6 +32,9 @@ const PATH_VARIABLES = {
   policy_id: "{{policyId}}",
   version_id: "{{versionId}}",
   decision_id: "{{decisionId}}",
+  workflow_id: "{{workflowId}}",
+  workflow_version_id: "{{workflowVersionId}}",
+  request_id: "{{approvalRequestId}}",
 };
 const METHODS = ["get", "put", "post", "delete", "patch", "head", "options", "trace"];
 

@@ -16,8 +16,22 @@ func TestBodiesOfTheDecisionRoutesAreWithheld(t *testing.T) {
 		"/api/v1/decisions":                                      true,
 		"/api/v1/decisionsX":                                     false,
 		"/api/v1/products":                                       false,
-		"/api/v1/auth/login":                                     false,
-		"/health/live":                                           false,
+		// The simulator takes applicant data too (RF-017), also on a path no route matches.
+		"/api/v1/policy-versions/9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d/simulate":  true,
+		"/api/v1/policy-versions/9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d/rac-rules": false,
+		"/api/v1/policy-versions/9a8b7c6d/x/simulate":                            true,
+		"/api/v1/policy-versions//simulate":                                      true,
+		"/api/v1/policy-versions/simulate":                                       false,
+		"/api/v1/policy-versions/9a8b7c6d/simulateX":                             false,
+		"/api/v1/auth/login":                                                     false,
+		"/health/live":                                                           false,
+		// The router matches case-insensitively and ignores a trailing slash (M4 review).
+		"/API/V1/Decisions/Evaluate":                  true,
+		"/api/v1/decisions/evaluate/":                 true,
+		"/api/v1/policy-versions/9a8b7c6d/Simulate":   true,
+		"/api/v1/policy-versions/9a8b7c6d/simulate/":  true,
+		"/api/v1/policy-versions/9a8b7c6d/simulate//": true,
+		"/API/V1/PRODUCTS/":                           false,
 	} {
 		assert.Equal(t, want, BodyWithheld(path), path)
 	}

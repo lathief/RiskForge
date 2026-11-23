@@ -57,6 +57,7 @@ type repoState struct {
 	sc       map[string]*domain.Scorecard
 	matrices map[string]domain.DecisionMatrix
 	cases    map[string]domain.TestCases
+	active   map[string]domain.Version
 }
 
 func (f *fakeRepo) snapshot() repoState {
@@ -80,12 +81,19 @@ func (f *fakeRepo) snapshot() repoState {
 	for k, v := range f.testCases {
 		tc[k] = append(domain.TestCases(nil), v...)
 	}
-	return repoState{pk, append([]domain.Version(nil), f.versions...), f.seq, rs, sc, mx, tc}
+	var active map[string]domain.Version
+	if f.active != nil {
+		active = map[string]domain.Version{}
+		for k, v := range f.active {
+			active[k] = v
+		}
+	}
+	return repoState{pk, append([]domain.Version(nil), f.versions...), f.seq, rs, sc, mx, tc, active}
 }
 
 func (f *fakeRepo) restore(s repoState) {
-	f.packages, f.versions, f.seq, f.rules, f.scorecards, f.matrices, f.testCases =
-		s.packages, s.versions, s.seq, s.rules, s.sc, s.matrices, s.cases
+	f.packages, f.versions, f.seq, f.rules, f.scorecards, f.matrices, f.testCases, f.active =
+		s.packages, s.versions, s.seq, s.rules, s.sc, s.matrices, s.cases, s.active
 }
 
 type fakeTx struct {
@@ -196,6 +204,56 @@ func (f *fakeRepo) UpdateDraft(_ context.Context, nv domain.Version) (domain.Ver
 		}
 	}
 	return domain.Version{}, ErrVersionNotFound
+}
+
+func (f *fakeRepo) bindingKey(packageID string) string {
+	p := f.packages[packageID]
+	return p.ProductCode + "|" + p.Scope
+}
+
+func (f *fakeRepo) FindBinding(_ context.Context, packageID string, forUpdate bool) (domain.Version, bool, error) {
+	if forUpdate {
+		f.locks = append(f.locks, "binding:"+packageID)
+	}
+	bound, ok := f.active[f.bindingKey(packageID)]
+	if !ok {
+		return domain.Version{}, false, nil
+	}
+	for _, v := range f.versions {
+		if v.ID == bound.ID {
+			return v, true, nil
+		}
+	}
+	return bound, true, nil
+}
+
+func (f *fakeRepo) BindActive(_ context.Context, packageID, versionID, _ string) error {
+	for _, v := range f.versions {
+		if v.ID == versionID {
+			if v.Status != domain.StatusActive || v.PackageID != packageID {
+				return errors.New("binding must point at an ACTIVE version of the package")
+			}
+			if f.active == nil {
+				f.active = map[string]domain.Version{}
+			}
+			f.active[f.bindingKey(packageID)] = v
+			return nil
+		}
+	}
+	return ErrVersionNotFound
+}
+
+func (f *fakeRepo) SetStatus(_ context.Context, id string, from, to domain.Status) error {
+	for i, v := range f.versions {
+		if v.ID == id {
+			if v.Status != from {
+				return ErrVersionNotPending
+			}
+			f.versions[i].Status = to
+			return nil
+		}
+	}
+	return ErrVersionNotFound
 }
 
 func (f *fakeRepo) Freeze(_ context.Context, id string, snapshot []byte, checksum, actor string) (domain.Version, error) {

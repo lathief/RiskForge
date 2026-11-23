@@ -73,11 +73,25 @@ func (r *UserRepository) assemble(ctx context.Context, rows []userRow, err error
 		roles = append(roles, role)
 	}
 
+	var scopeCodes []string
+	if err := r.db.Querier(ctx).Select(&scopeCodes,
+		`SELECT scope_code FROM identity.user_approval_scopes WHERE user_id = $1::uuid ORDER BY scope_code`, row.ID); err != nil {
+		return domain.User{}, err
+	}
+	scopes := make([]domain.ApprovalScope, 0, len(scopeCodes))
+	for _, code := range scopeCodes {
+		scope, ok := domain.ParseApprovalScope(code)
+		if !ok {
+			return domain.User{}, fmt.Errorf("user %s: unknown approval scope %q", row.ID, code)
+		}
+		scopes = append(scopes, scope)
+	}
 	return domain.User{
-		ID:           row.ID,
-		Username:     row.Username,
-		PasswordHash: row.PasswordHash,
-		Active:       row.Active,
-		Roles:        roles,
+		ID:             row.ID,
+		Username:       row.Username,
+		PasswordHash:   row.PasswordHash,
+		Active:         row.Active,
+		Roles:          roles,
+		ApprovalScopes: scopes,
 	}, nil
 }

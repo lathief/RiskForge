@@ -83,25 +83,43 @@ func (r *PolicyResolver) load(ctx context.Context, ref policyapp.ActiveRef) (*re
 	if err != nil {
 		return nil, fmt.Errorf("%w: version %s: %v", application.ErrPolicyConfiguration, v.ID, err)
 	}
-	compiled, err := policydomain.CompilePolicy(snapshot.Content, snapshot.Dictionary)
+	policy, err := newResolvedPolicy(application.PolicyRef{
+		VersionID: v.ID, VersionNumber: v.Number, Checksum: v.Checksum, ProductCode: v.ProductCode, Scope: v.Scope,
+	}, snapshot.Content, snapshot.Dictionary)
 	if err != nil {
-		return nil, fmt.Errorf("%w: version %s: %v", application.ErrPolicyConfiguration, v.ID, err)
+		return nil, fmt.Errorf("version %s: %w", v.ID, err)
 	}
-	dictionary := make([]dictionarydomain.Variable, 0, len(snapshot.Dictionary))
-	known := make(map[string]bool, len(snapshot.Dictionary))
-	for _, d := range snapshot.Dictionary {
+	return policy, nil
+}
+
+// NewEvaluablePolicy compiles the content of a version against the dictionary it is written
+// for and returns it ready to evaluate. It is the one evaluation core: the Decision API uses it
+// for a frozen snapshot, and the policy simulator (RF-017) uses it for the content of a draft,
+// so a simulation and a decision run the same code (SYSTEM_DESIGN.md 12). A failure wraps
+// application.ErrPolicyConfiguration.
+func NewEvaluablePolicy(ref application.PolicyRef, content policydomain.Content, vars []policydomain.DictionaryVariable) (application.ResolvedPolicy, error) {
+	p, err := newResolvedPolicy(ref, content, vars)
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+func newResolvedPolicy(ref application.PolicyRef, content policydomain.Content, vars []policydomain.DictionaryVariable) (*resolvedPolicy, error) {
+	compiled, err := policydomain.CompilePolicy(content, vars)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", application.ErrPolicyConfiguration, err)
+	}
+	dictionary := make([]dictionarydomain.Variable, 0, len(vars))
+	known := make(map[string]bool, len(vars))
+	for _, d := range vars {
 		dictionary = append(dictionary, dictionarydomain.Variable{
 			Code: d.Code, Origin: dictionarydomain.Origin(d.Origin), Type: dictionarydomain.ValueType(d.Type),
 			Unit: d.Unit, Required: d.Required, Nullable: d.Nullable, Scale: d.Scale, MinValue: d.MinValue, MaxValue: d.MaxValue,
 		})
 		known[d.Code] = true
 	}
-	return &resolvedPolicy{
-		ref: application.PolicyRef{
-			VersionID: v.ID, VersionNumber: v.Number, Checksum: v.Checksum, ProductCode: v.ProductCode, Scope: v.Scope,
-		},
-		compiled: compiled, dictionary: dictionary, known: known,
-	}, nil
+	return &resolvedPolicy{ref: ref, compiled: compiled, dictionary: dictionary, known: known}, nil
 }
 
 // resolvedPolicy is immutable and safe for concurrent use; the cache hands the same value to
