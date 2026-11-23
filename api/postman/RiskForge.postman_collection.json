@@ -17364,6 +17364,707 @@
           }
         }
       ]
+    },
+    {
+      "name": "Simulation",
+      "description": "Policy simulator. Evaluates a draft or any version and stores nothing (RF-017).",
+      "item": [
+        {
+          "name": "Simulate an applicant against a policy version",
+          "request": {
+            "name": "Simulate an applicant against a policy version",
+            "description": {
+              "content": "Evaluates one applicant against **any version**, draft or frozen, and returns the full\ntrace (SYSTEM_DESIGN.md 12, RF-017). It is the way to see what a draft does before it is\nsubmitted. It uses **the same evaluation core as `POST /decisions/evaluate`**: input\nvalidation against the data dictionary the version is pinned to, the derived features,\nthe RAC rules in order, the scorecard, the decision matrix, and the precedence. Given the\nsame content and the same applicant, a simulation returns the same `final_decision`,\n`risk_grade`, `total_score`, `reason_codes`, and trace as a decision would.\n\n**Nothing is written and nothing in production changes.** No decision run, rule trace, or\nidempotency key is stored (so no `Idempotency-Key` is needed, and the same request can be\nrepeated), the active policy binding does not move, the version is not locked, edited, or\nfrozen, and the compiled policy cache of the Decision API is neither read nor filled. A\ndraft is evaluated from its content as saved at the moment of the request, so an edit is\nvisible on the next call. The response has no `decision_id`, `created_at`, or\n`application_id`, and `stored` is `false`.\n\n**Applicant data** follows the rules of `POST /decisions/evaluate`: integers are JSON\nnumbers, decimals are strings, derived variables must not be sent, and invalid data is\n`422 INPUT_VALIDATION_ERROR` with every problem listed. It is never a `REJECT`.\n\n**A version that cannot be evaluated yet.** A draft is often incomplete: no scorecard, a\ndecision matrix that does not cover the score range, or an expression that no longer\ncompiles. That is `422 POLICY_NOT_EVALUABLE`, whose `message` says what is missing. It is a\nstatement about the draft, not a decision about the applicant. The version is compiled\nbefore the applicant is checked, so a version that cannot be evaluated is reported first.\nA technical fault is `500 INTERNAL_ERROR`.\n\n`policy_version.checksum` is `null` until the version is frozen. The body is the\napplicant's financial data, so request and response bodies of this route are never\nwritten to the activity log, as for the decision endpoints.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "policy-versions",
+                ":version_id",
+                "simulate"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "type": "any",
+                  "value": "{{versionId}}",
+                  "key": "version_id",
+                  "disabled": false,
+                  "description": {
+                    "content": "(Required) ",
+                    "type": "text/plain"
+                  }
+                }
+              ],
+              "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/simulate"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "headerFamily": "json",
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The trace of the evaluation. Nothing was stored.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "simulate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/simulate"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"status\": \"SIMULATED\",\n  \"stored\": false,\n  \"policy_version\": {\n    \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n    \"number\": 2,\n    \"status\": \"DRAFT\",\n    \"product_code\": \"KTA_DEMO\",\n    \"scope\": \"DEFAULT\",\n    \"checksum\": null\n  },\n  \"final_decision\": \"REJECT\",\n  \"risk_grade\": null,\n  \"total_score\": null,\n  \"reason_codes\": [\n    \"AGE_BELOW_MINIMUM\"\n  ],\n  \"refer_flag\": false,\n  \"derived_features\": [\n    {\n      \"code\": \"dsr_ratio\",\n      \"value\": \"0.208333\",\n      \"exact\": \"5/24\",\n      \"unit\": \"ratio\",\n      \"formula_version\": 1,\n      \"expression\": \"existing_installment / monthly_income\"\n    },\n    {\n      \"code\": \"net_disposable_income\",\n      \"value\": \"9500000.00\",\n      \"exact\": \"9500000\",\n      \"unit\": \"IDR\",\n      \"formula_version\": 1,\n      \"expression\": \"monthly_income - existing_installment\"\n    }\n  ],\n  \"rac_results\": [\n    {\n      \"order\": 1,\n      \"rule_code\": \"RAC_MIN_AGE\",\n      \"reason_code\": \"AGE_BELOW_MINIMUM\",\n      \"action\": \"REJECT\",\n      \"passed\": false,\n      \"inputs\": [\n        {\n          \"variable\": \"age_years\",\n          \"value\": \"29\"\n        }\n      ]\n    }\n  ],\n  \"rac_not_evaluated\": [\n    \"RAC_BLACKLIST\",\n    \"RAC_SLIK\"\n  ],\n  \"base_score\": \"350.00\",\n  \"score_breakdown\": [],\n  \"matrix\": null\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "simulate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/simulate"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "simulate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/simulate"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "No policy version has this id.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "simulate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/simulate"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"POLICY_VERSION_NOT_FOUND\",\n    \"message\": \"policy version not found\"\n  },\n  \"request_id\": \"9c8b7a6d5e4f3a2b1c0d9e8f7a6b5c4d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "simulate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/simulate"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The request body exceeds 64 KiB. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "simulate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/simulate"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Request Entity Too Large",
+              "code": 413,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Entity Too Large",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "`INPUT_VALIDATION_ERROR`: the request or the applicant data is invalid.\n`POLICY_NOT_EVALUABLE`: the version cannot be evaluated as it is. Neither is a\ndecision about the applicant.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "simulate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/simulate"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INPUT_VALIDATION_ERROR\",\n    \"message\": \"the applicant data is invalid\",\n    \"details\": [\n      {\n        \"field\": \"applicant.monthly_income\",\n        \"issue\": \"below_min_value\"\n      }\n    ]\n  },\n  \"request_id\": \"4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "simulate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/simulate"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        }
+      ]
     }
   ],
   "auth": {
@@ -17388,7 +18089,7 @@
     "name": "RiskForge API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": {
-      "content": "Contract for the endpoints implemented so far (RF-001 to RF-016, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; the role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
+      "content": "Contract for the endpoints implemented so far (RF-001 to RF-017, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; the role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
       "type": "text/plain"
     },
     "_postman_id": "4b6e2f0a-9c3d-4e51-8a7b-1f2e3d4c5b6a"

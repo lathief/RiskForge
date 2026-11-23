@@ -205,6 +205,15 @@ Di Git Bash Windows, jalankan dengan `MSYS_NO_PATHCONV=1` dan ganti `$PWD` denga
 - Cache hanya untuk jalur decision. Simulator (RF-017) bekerja pada draft yang tidak punya kunci immutable dan tidak boleh memakainya.
 - `PolicyResolver.CacheStats()` memberi hits, misses, loads, waits, dan entries untuk tes; tes yang membuktikan "satu load" memakai angka itu. Untuk menjalankan benchmark informal: `go test -run XXX -bench BenchmarkResolveAndEvaluate ./database/seeders/` (bukan baseline, lihat RF-024).
 - Tes: `app/modules/decision/infrastructure/policy_cache_test.go` (unit, `-race`), `database/seeders/demo_decision_cache_test.go` (resolver di atas policy demo), `tests/feature/decision_cache_test.go` (publish yang dilakukan tangan lewat SQL, load tunggal dari database nyata). Keputusan: `docs/adr/0017-compiled-policy-cache.md`.
+## Policy simulator (RF-017)
+- Endpoint: `POST /api/v1/policy-versions/{version_id}/simulate`, izin `policy:simulate` (hanya `demo_analyst`). Body `{"applicant": {...}}`; versi berstatus apa pun. Contoh nyata: `docs/API_EXAMPLES.md` bagian "Policy simulator".
+- Satu inti evaluasi: `decision/infrastructure.NewEvaluablePolicy(ref, content, dictionary)` dipakai resolver Decision API (snapshot beku) dan simulator (isi draft). Jangan menulis evaluasi, pemetaan trace, atau validasi input kedua di modul `simulation`; ubah fungsi bersama itu dan biarkan `TestSimulationMatchesTheDecisionOfTheSameVersion` membuktikan keduanya sama.
+- Respons decision dan simulasi berbagi `outcomeResponse`/`toOutcomeResponse` (`app/http/controllers/decision_controller.go`), dan skema OpenAPI `SimulationResult` mereferensikan properti `DecisionResult`. Field trace baru ditambahkan di sana sekali.
+- Simulator tidak menulis apa pun: `PolicyService.LoadForSimulation` hanya membaca (tanpa `FOR UPDATE`), tidak ada `Idempotency-Key`, tidak ada baris `decision.*`, dan cache policy tidak dipakai. Jangan menambah penyimpanan atau cache tanpa ADR baru (ADR 0018).
+- Draft yang belum dapat dievaluasi adalah `422 POLICY_NOT_EVALUABLE` (`simulation/application.NotEvaluableError`), bukan 500 seperti di Decision API. Versi dikompilasi sebelum input diperiksa.
+- Body route simulate ditahan dari `activity.log` (`logging.BodyWithheld`). Route baru yang menerima data pemohon wajib ditambahkan di sana beserta tes (`withheld_test.go`, `decision_logging_test.go`).
+- Smoke Postman memakai `demo_auditor`, sehingga request simulate dijawab 403 (aturan "write" di `scripts/postman/smoke-check.js`).
+- Tes: `app/modules/simulation/application/simulation_service_test.go` (unit), `app/modules/policy/application/simulation_source_test.go` (pembacaan tanpa tulis), `database/seeders/demo_simulation_test.go` (policy demo, sama dengan resolver), `tests/feature/simulation_test.go` (HTTP, RBAC, tanpa efek samping). Batasan: `docs/M4_NOTES.md`.
 ## Coverage
 `./scripts/coverage.sh [rf-test-<nama>]` mengukur coverage statement (unit saja, lalu unit + integrasi) di project Compose sekali pakai dan mencetak tabel Markdown. Hasilnya dicatat di `docs/coverage.md`; perbarui file itu setelah setiap tiket.
 

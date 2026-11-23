@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.13.2
+  version: 0.14.0
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
-    Contract for the endpoints implemented so far (RF-001 to RF-016, plus M1 hardening).
+    Contract for the endpoints implemented so far (RF-001 to RF-017, plus M1 hardening).
 
     - All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.
     - Authorization is permission-based. Each operation lists the required permission
@@ -45,6 +45,8 @@ tags:
     description: Policy packages and their versions, with immutable snapshots on submit (RF-006).
   - name: Decisions
     description: Credit decisions against the active policy (RF-014).
+  - name: Simulation
+    description: Policy simulator. Evaluates a draft or any version and stores nothing (RF-017).
 
 paths:
   /health/live:
@@ -1170,6 +1172,100 @@ paths:
         "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
         "408": { $ref: "#/components/responses/RequestTimeout" }
         "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/policy-versions/{version_id}/simulate:
+    parameters:
+      - name: version_id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/PolicyVersionId" }
+    post:
+      tags: [Simulation]
+      summary: Simulate an applicant against a policy version
+      description: |
+        Evaluates one applicant against **any version**, draft or frozen, and returns the full
+        trace (SYSTEM_DESIGN.md 12, RF-017). It is the way to see what a draft does before it is
+        submitted. It uses **the same evaluation core as `POST /decisions/evaluate`**: input
+        validation against the data dictionary the version is pinned to, the derived features,
+        the RAC rules in order, the scorecard, the decision matrix, and the precedence. Given the
+        same content and the same applicant, a simulation returns the same `final_decision`,
+        `risk_grade`, `total_score`, `reason_codes`, and trace as a decision would.
+
+        **Nothing is written and nothing in production changes.** No decision run, rule trace, or
+        idempotency key is stored (so no `Idempotency-Key` is needed, and the same request can be
+        repeated), the active policy binding does not move, the version is not locked, edited, or
+        frozen, and the compiled policy cache of the Decision API is neither read nor filled. A
+        draft is evaluated from its content as saved at the moment of the request, so an edit is
+        visible on the next call. The response has no `decision_id`, `created_at`, or
+        `application_id`, and `stored` is `false`.
+
+        **Applicant data** follows the rules of `POST /decisions/evaluate`: integers are JSON
+        numbers, decimals are strings, derived variables must not be sent, and invalid data is
+        `422 INPUT_VALIDATION_ERROR` with every problem listed. It is never a `REJECT`.
+
+        **A version that cannot be evaluated yet.** A draft is often incomplete: no scorecard, a
+        decision matrix that does not cover the score range, or an expression that no longer
+        compiles. That is `422 POLICY_NOT_EVALUABLE`, whose `message` says what is missing. It is a
+        statement about the draft, not a decision about the applicant. The version is compiled
+        before the applicant is checked, so a version that cannot be evaluated is reported first.
+        A technical fault is `500 INTERNAL_ERROR`.
+
+        `policy_version.checksum` is `null` until the version is frozen. The body is the
+        applicant's financial data, so request and response bodies of this route are never
+        written to the activity log, as for the decision endpoints.
+      operationId: simulatePolicyVersion
+      x-required-permission: policy:simulate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SimulationRequest" }
+            example:
+              applicant:
+                age_years: 29
+                monthly_income: "12000000.00"
+                existing_installment: "2500000.00"
+                employment_tenure_months: 36
+                slik_max_kol: 1
+                is_blacklisted: false
+      responses:
+        "200":
+          description: The trace of the evaluation. Nothing was stored.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SimulationResult" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422":
+          description: |
+            `INPUT_VALIDATION_ERROR`: the request or the applicant data is invalid.
+            `POLICY_NOT_EVALUABLE`: the version cannot be evaluated as it is. Neither is a
+            decision about the applicant.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              examples:
+                invalidInput:
+                  value:
+                    error:
+                      code: INPUT_VALIDATION_ERROR
+                      message: the applicant data is invalid
+                      details:
+                        - { field: applicant.monthly_income, issue: below_min_value }
+                    request_id: 4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f
+                notEvaluable:
+                  value:
+                    error:
+                      code: POLICY_NOT_EVALUABLE
+                      message: "the policy version cannot be evaluated as it is; policy configuration error: rule configuration error: the policy has no scorecard"
+                    request_id: 5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a
+        "500": { $ref: "#/components/responses/InternalError" }
   /api/v1/decisions/evaluate:
     post:
       tags: [Decisions]
@@ -2256,6 +2352,92 @@ components:
                 decision:
                   $ref: "#/components/schemas/MatrixDecision"
             - type: "null"
+    SimulationRequest:
+      type: object
+      required: [applicant]
+      additionalProperties: false
+      properties:
+        applicant:
+          type: object
+          maxProperties: 100
+          description: |
+            The applicant facts, as in a decision request: integers are JSON numbers, decimals are
+            strings, booleans are booleans. Derived variables must not be sent.
+          additionalProperties: true
+    SimulationResult:
+      type: object
+      description: |
+        The trace of a simulation. The trace fields are those of `DecisionResult` (they are
+        referenced, so the two cannot drift apart); the identity fields of a stored decision
+        (`decision_id`, `created_at`, `application_id`, `product_code`) are absent because
+        nothing is stored.
+      required:
+        - status
+        - stored
+        - policy_version
+        - final_decision
+        - risk_grade
+        - total_score
+        - reason_codes
+        - refer_flag
+        - derived_features
+        - rac_results
+        - rac_not_evaluated
+        - base_score
+        - score_breakdown
+        - matrix
+      example:
+        status: SIMULATED
+        stored: false
+        policy_version: { id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d, number: 2, status: DRAFT, product_code: KTA_DEMO, scope: DEFAULT, checksum: null }
+        final_decision: REJECT
+        risk_grade: null
+        total_score: null
+        reason_codes: [AGE_BELOW_MINIMUM]
+        refer_flag: false
+        derived_features:
+          - { code: dsr_ratio, value: "0.208333", exact: 5/24, unit: ratio, formula_version: 1, expression: existing_installment / monthly_income }
+          - { code: net_disposable_income, value: "9500000.00", exact: "9500000", unit: IDR, formula_version: 1, expression: monthly_income - existing_installment }
+        rac_results:
+          - { order: 1, rule_code: RAC_MIN_AGE, reason_code: AGE_BELOW_MINIMUM, action: REJECT, passed: false, inputs: [{ variable: age_years, value: "29" }] }
+        rac_not_evaluated: [RAC_BLACKLIST, RAC_SLIK]
+        base_score: "350.00"
+        score_breakdown: []
+        matrix: null
+      properties:
+        status:
+          type: string
+          enum: [SIMULATED]
+          description: Always `SIMULATED`. A decision has `COMPLETED`.
+        stored:
+          type: boolean
+          enum: [false]
+          description: Always `false`. Nothing was written.
+        policy_version:
+          type: object
+          description: The version that was evaluated.
+          required: [id, number, status, product_code, scope, checksum]
+          properties:
+            id: { type: string, format: uuid }
+            number: { type: integer, minimum: 1 }
+            status: { $ref: "#/components/schemas/PolicyStatus" }
+            product_code: { type: string }
+            scope: { type: string }
+            checksum:
+              type: [string, "null"]
+              pattern: "^[0-9a-f]{64}$"
+              description: SHA-256 of the frozen snapshot. Null for a DRAFT, which has none yet.
+        final_decision: { $ref: "#/components/schemas/DecisionResult/properties/final_decision" }
+        risk_grade: { $ref: "#/components/schemas/DecisionResult/properties/risk_grade" }
+        total_score: { $ref: "#/components/schemas/DecisionResult/properties/total_score" }
+        reason_codes: { $ref: "#/components/schemas/DecisionResult/properties/reason_codes" }
+        refer_flag: { $ref: "#/components/schemas/DecisionResult/properties/refer_flag" }
+        derived_features: { $ref: "#/components/schemas/DecisionResult/properties/derived_features" }
+        rac_results: { $ref: "#/components/schemas/DecisionResult/properties/rac_results" }
+        rac_not_evaluated: { $ref: "#/components/schemas/DecisionResult/properties/rac_not_evaluated" }
+        base_score: { $ref: "#/components/schemas/DecisionResult/properties/base_score" }
+        score_breakdown: { $ref: "#/components/schemas/DecisionResult/properties/score_breakdown" }
+        matrix: { $ref: "#/components/schemas/DecisionResult/properties/matrix" }
     MatrixDecision:
       type: string
       enum: [APPROVE, REFER, REJECT]
@@ -2573,6 +2755,7 @@ components:
                 - POLICY_NOT_ACTIVE
                 - POLICY_CONFIGURATION_ERROR
                 - EVALUATION_ERROR
+                - POLICY_NOT_EVALUABLE
                 - IDEMPOTENCY_CONFLICT
                 - DECISION_NOT_FOUND
                 - SERVICE_BUSY

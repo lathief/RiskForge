@@ -35,7 +35,7 @@ LOANAPP=$(token demo_loan_application)
 | 403 | `FORBIDDEN` | Authenticated but missing the permission. |
 | 404 | `PRODUCT_NOT_FOUND`, `VARIABLE_NOT_FOUND`, `POLICY_NOT_FOUND`, `POLICY_VERSION_NOT_FOUND`, `ROUTE_NOT_FOUND` | Unknown product code / dictionary variable / policy / policy version / route. |
 | 409 | `PRODUCT_CODE_CONFLICT`, `VARIABLE_CODE_CONFLICT`, `POLICY_CONFLICT`, `POLICY_VERSION_FROZEN` | Product, variable, or policy already exists / an edit or submit of a version that is no longer a draft. |
-| 422 | `INPUT_VALIDATION_ERROR`, `POLICY_VALIDATION_FAILED` | Invalid JSON, field, query parameter, or a field that cannot be set / a draft that is incomplete or whose content (RAC expressions, scorecard, decision matrix, test cases) does not validate at submit. |
+| 422 | `INPUT_VALIDATION_ERROR`, `POLICY_VALIDATION_FAILED`, `POLICY_NOT_EVALUABLE` | Invalid JSON, field, query parameter, or a field that cannot be set / a draft that is incomplete or whose content (RAC expressions, scorecard, decision matrix, test cases) does not validate at submit / a version the simulator cannot evaluate yet (RF-017). |
 | 503 | `SERVICE_BUSY` | Login capacity saturated; honour `Retry-After`. |
 | 500 | `INTERNAL_ERROR` | Unexpected failure; the cause is only in `error.log`. |
 
@@ -549,6 +549,30 @@ Most of the 334 ms is the deliberate bcrypt cost.
 grep -h '"requestID":"doc-login-00001"' storage/logs/{activity,error,query}.log
 ```
 
+## Policy simulator
+
+Simulate (`policy:simulate`): `RISK_ANALYST` only. Everyone else gets `403`.
+
+`POST /api/v1/policy-versions/{version_id}/simulate` evaluates one applicant against any version, draft or frozen, with the same code as `POST /decisions/evaluate`, and returns the trace. It stores nothing: no decision, no idempotency key (none is needed), no change to the version or the active policy. Below, a clone of the seeded policy whose minimum age was raised to 30 (`PUT .../rac-rules` with `age_years >= 30`):
+
+```sh
+curl -s -X POST $B/api/v1/policy-versions/$DRAFT/simulate -H "Authorization: Bearer $ANALYST" -H 'Content-Type: application/json' \
+  -d '{"applicant":{"age_years":29,"monthly_income":"12000000.00","existing_installment":"2500000.00","employment_tenure_months":36,"slik_max_kol":1,"is_blacklisted":false}}'
+```
+```json
+{"status":"SIMULATED","stored":false,"policy_version":{"id":"14e77762-3220-4472-9ba5-3e584adb1ee7","number":2,"status":"DRAFT","product_code":"KTA_DEMO","scope":"DEFAULT","checksum":null},"final_decision":"REJECT","risk_grade":null,"total_score":null,"reason_codes":["AGE_BELOW_MINIMUM"],"refer_flag":false,"derived_features":[{"code":"dsr_ratio","value":"0.208333","exact":"5/24","unit":"ratio","formula_version":1,"expression":"existing_installment / monthly_income"},{"code":"net_disposable_income","value":"9500000.00","exact":"9500000","unit":"IDR","formula_version":1,"expression":"monthly_income - existing_installment"}],"rac_results":[{"order":1,"rule_code":"RAC_MIN_AGE","reason_code":"AGE_BELOW_MINIMUM","action":"REJECT","passed":false,"inputs":[{"variable":"age_years","value":"29"}]}],"rac_not_evaluated":["RAC_BLACKLIST","RAC_SLIK"],"base_score":"350.00","score_breakdown":[],"matrix":null}
+```
+
+The active version still approves the same applicant through `POST /decisions/evaluate`, and `decision.runs` stays empty. Simulating the active version gives exactly the fields a decision gives, without `decision_id`, `created_at`, and `application_id`.
+
+A draft that cannot be evaluated yet (here after `DELETE .../scorecard`) is `422 POLICY_NOT_EVALUABLE`, not a decision. The version is compiled before the applicant is checked, so this error comes first even when the applicant data is also invalid:
+
+```json
+{"error":{"code":"POLICY_NOT_EVALUABLE","message":"the policy version cannot be evaluated as it is; policy configuration error: rule configuration error: the policy has no scorecard"},"request_id":"caf3cedf989f0c65b9485a431778905e"}
+```
+
+Invalid applicant data against an evaluable version is `422 INPUT_VALIDATION_ERROR` with the same issues as a decision (`applicant.monthly_income: invalid_type` for a JSON number, and so on). An unknown version is `404 POLICY_VERSION_NOT_FOUND`. Request and response bodies of this route are never written to `activity.log`.
+
 ## Planned endpoints
 
-Not live yet; see `SYSTEM_DESIGN.md` 13.1 for the target contract: simulation (RF-017), approval requests (RF-019..RF-021), and audit search (RF-022). Each will be added to the OpenAPI contract, Swagger UI, and the Postman collection in the same change.
+Not live yet; see `SYSTEM_DESIGN.md` 13.1 for the target contract: approval requests (RF-019..RF-021) and audit search (RF-022). Each will be added to the OpenAPI contract, Swagger UI, and the Postman collection in the same change.

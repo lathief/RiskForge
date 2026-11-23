@@ -852,7 +852,7 @@ Status: terimplementasi pada branch `feature/RF-010-full-policy-validation`, di 
 
 **Siklus hidup.** `GET .../test-cases` (status apa pun) dan `PUT .../test-cases` (ganti seluruh daftar, hanya `DRAFT`, transaksi dengan kunci baris versi; daftar sama tidak menulis; daftar kosong menghapus semua). Clone menyalin test case. Snapshot memuat `test_cases` berurutan, ikut checksum; `SnapshotFormat` naik menjadi **2**. Snapshot format 1 (RF-006..RF-009) tidak pernah ditulis ulang karena checksum menutupinya. Tabel hanya dapat ditulis ketika versi induknya `DRAFT` (trigger); CHECK constraint mewajibkan hasil yang konsisten (`DECISION` dengan salah satu tiga keputusan, `INPUT_VALIDATION_ERROR` tanpa keputusan, grade, atau reason code).
 
-**Belum ada (disengaja).** Simulasi batch (RF-017) dan diff antar versi (RF-021). Data demo: `DemoPolicySeeder` memberi draft versi 1 `KTA_DEMO` enam test case (`GOLDEN_HAPPY_PATH`, `GOLDEN_AGE_BELOW_MINIMUM`, `GOLDEN_BLACKLISTED`, `GOLDEN_SLIK_REFER`, `GOLDEN_MISSING_INCOME`, `GOLDEN_ZERO_INCOME`) hanya selama draft itu belum memiliki test case; draft demo lolos validasi penuh.
+**Belum ada (disengaja).** Simulasi batch dan diff antar versi (RF-021); simulasi satu pemohon ada sejak RF-017 (Bagian 10.12). Data demo: `DemoPolicySeeder` memberi draft versi 1 `KTA_DEMO` enam test case (`GOLDEN_HAPPY_PATH`, `GOLDEN_AGE_BELOW_MINIMUM`, `GOLDEN_BLACKLISTED`, `GOLDEN_SLIK_REFER`, `GOLDEN_MISSING_INCOME`, `GOLDEN_ZERO_INCOME`) hanya selama draft itu belum memiliki test case; draft demo lolos validasi penuh.
 
 ---
 ## 10. Decision Engine Design
@@ -1016,7 +1016,25 @@ Status: terimplementasi pada branch `feature/RF-016-policy-cache`, di atas RF-01
 
 **Pengukuran informal** (`BenchmarkResolveAndEvaluate`, satu mesin, tanpa latensi database, bukan baseline): sekitar 133 µs per decision pada cache hangat berbanding sekitar 571 µs bila dikompilasi tiap kali. Bukti dari log query pada stack nyata: decision pertama menjalankan satu query pembacaan snapshot (`policy_versions`), decision berikutnya tidak.
 
-**Belum ada (disengaja).** Metrik cache di endpoint (RF-023: `CacheStats` sudah tersedia), pemanasan cache saat start, cache untuk versi draft atau simulasi (RF-017), `lock_timeout` untuk request duplikat yang menunggu (lihat `docs/M3_NOTES.md`).
+**Belum ada (disengaja).** Metrik cache di endpoint (RF-023: `CacheStats` sudah tersedia), pemanasan cache saat start, `lock_timeout` untuk request duplikat yang menunggu (lihat `docs/M3_NOTES.md`). Cache untuk versi draft atau simulasi sengaja tidak ada: simulator (RF-017, Bagian 10.12) tidak memakainya.
+
+### 10.12 Implementasi policy simulator (RF-017)
+
+Status: terimplementasi pada branch `feature/RF-017-policy-simulator`, dari `main` (yang sudah memuat M3). Keputusan lengkap: `docs/adr/0018-policy-simulator.md`. Menjalankan Bagian 12.
+
+**Endpoint.** `POST /api/v1/policy-versions/{version_id}/simulate`, izin `policy:simulate` (hanya `RISK_ANALYST`; izin ini sudah ada di matriks Bagian 4). Body `{"applicant": {...}}`; kunci tingkat atas lain ditolak. Versi dapat berstatus apa pun: draft (isi yang tersimpan saat request), `PENDING_APPROVAL`, `ACTIVE`, atau `ARCHIVED`.
+
+**Inti evaluasi yang sama.** Modul `simulation` (`application.Service`, port `Source`) memuat isi versi lewat `PolicyService.LoadForSimulation` (hanya membaca: tanpa kunci, tanpa tulis, tanpa membaca binding aktif) dan mengompilasinya dengan `decision/infrastructure.NewEvaluablePolicy`, fungsi yang juga dipakai resolver Decision API untuk snapshot beku. Validasi input terhadap dictionary versi itu, feature builder, RAC, scorecard, matrix, dan presedensi (Bagian 10.1) dengan demikian satu kode. Respons dibangun dengan fungsi yang sama dengan respons decision (`toOutcomeResponse`), dan skema OpenAPI-nya mereferensikan properti `DecisionResult`, sehingga keduanya tidak dapat menyimpang. Diuji: untuk lima pemohon, simulasi versi aktif sama persis dengan decision di setiap field trace.
+
+**Tidak ada efek samping (Bagian 12).** Tidak ada baris di `decision.requests`, `decision.runs`, atau `decision.rule_traces`; tidak ada `Idempotency-Key` (request yang sama boleh diulang dan hasilnya sama); `active_policy_bindings` dan baris versi tidak berubah; cache policy terkompilasi tidak dibaca maupun diisi, karena draft tidak punya kunci immutable (Bagian 10.11). Setiap simulasi mengompilasi isi yang dibacanya, sehingga suntingan draft terlihat pada panggilan berikutnya. Keputusan production untuk pemohon yang sama tetap memakai versi aktif (diuji dengan draft yang lebih ketat).
+
+**Respons sukses (`200`).** `status` `SIMULATED`, `stored` `false`, `policy_version` (`id`, `number`, `status`, `product_code`, `scope`, dan `checksum` yang `null` untuk draft), lalu field trace yang sama dengan decision: `final_decision`, `risk_grade`, `total_score`, `reason_codes`, `refer_flag`, `derived_features`, `rac_results`, `rac_not_evaluated`, `base_score`, `score_breakdown`, `matrix`. Tidak ada `decision_id`, `created_at`, `application_id`, atau `product_code` tingkat atas karena tidak ada yang disimpan.
+
+**Pemetaan error.** 401; 403 (tanpa `policy:simulate`); 404 `POLICY_VERSION_NOT_FOUND` (termasuk id yang bukan UUID); 422 `INPUT_VALIDATION_ERROR` (data pemohon tidak valid, daftar lengkap dengan path `applicant.<variabel>`, sama dengan decision; juga `applicant` hilang, bukan objek, atau lebih dari 100 kunci); dan **422 `POLICY_NOT_EVALUABLE`** untuk versi yang belum dapat dievaluasi: draft tanpa scorecard atau matrix, matrix yang tidak menutup rentang skor, ekspresi yang tidak lagi dikompilasi, atau nilai di luar semua bin. `message` menyebut penyebabnya karena itu isi draft milik analis sendiri. Kode ini baru dan sengaja berbeda dari decision, yang memetakan kegagalan serupa ke 500 (`POLICY_CONFIGURATION_ERROR`, `EVALUATION_ERROR`): pada policy aktif itu kesalahan server, pada draft itu kesalahan yang dapat diperbaiki pemanggil. Tidak satu pun menjadi keputusan. Kegagalan lain 500 `INTERNAL_ERROR`.
+
+**Log.** Body request dan respons route simulate tidak pernah masuk `activity.log`: `logging.BodyWithheld` kini juga menahan setiap path berbentuk `/api/v1/policy-versions/.../simulate`, termasuk path dengan id kosong yang tidak cocok dengan route mana pun. Route `policy-versions` lain tetap dicatat dengan redaksi. Ini menutup SEC-04 untuk simulator.
+
+**Belum ada (disengaja).** Simulasi batch atas seluruh test case tersimpan (`POST .../validate` sudah menjalankannya, Bagian 9.9), simulasi atas kumpulan input atau data historis (v1.1, Bagian 21), perbandingan hasil dengan versi aktif (diff, RF-021), dan audit event simulasi (RF-022).
 
 ---
 
@@ -1091,6 +1109,8 @@ Simulator menggunakan **evaluation core yang sama** dengan production evaluation
 8. Score bin overlap / matrix gap → policy gagal validasi.
 9. Simulasi draft tidak memengaruhi keputusan production active version.
 10. Re-evaluation terhadap input & policy snapshot sama menghasilkan output yang sama.
+
+**Status implementasi.** Simulator satu pemohon (`POST /policy-versions/{version_id}/simulate`) ada sejak RF-017 (Bagian 10.12). Kasus 9 diuji oleh `TestSimulatingADraftWritesNothingAndLeavesTheActivePolicyAlone`, kasus 10 oleh `TestSimulationIsRepeatableAndNeedsNoIdempotencyKey`. Test case tersimpan dijalankan oleh `validate` dan submit (RF-013).
 
 ---
 
@@ -1186,11 +1206,17 @@ Perbedaan dari tabel rencana: `{id}` pada `/policies/{id}/clone` adalah id **pac
 |---|---|---|
 | `GET` | `/api/v1/decisions/{decision_id}` | Bearer + `decision:read`; API consumer membaca decision miliknya, auditor (`audit:read`) membaca semuanya; selain itu 404 |
 `POST /decisions/evaluate` kini mewajibkan header `Idempotency-Key`, menyimpan decision, dan menambah `decision_id` dan `created_at` pada respons (header `Idempotent-Replayed: true` pada replay; `409 IDEMPOTENCY_CONFLICT`).
+**Telah terimplementasi (Milestone 4, RF-017, branch `feature/RF-017-policy-simulator`, dari `main`):** satu operasi simulator. Total OpenAPI 0.14.0, Swagger UI, dan Postman Collection menjadi 33 operasi. Rancangan di Bagian 10.12.
+| Method | Absolute path | Auth / Permission |
+|---|---|---|
+| `POST` | `/api/v1/policy-versions/{version_id}/simulate` | Bearer + `policy:simulate` (Analyst); mengevaluasi satu pemohon terhadap versi apa pun (draft atau beku) dengan inti evaluasi Decision API; tidak menyimpan apa pun |
+
+Perbedaan dari tabel rencana: path memakai `{version_id}` seperti route `policy-versions` lainnya, body `{"applicant": {...}}`, dan izinnya `policy:simulate` yang sudah ada di matriks.
+
 **Target berikutnya (planned, bukan otomatis sudah live):** tabel di bawah memakai path relatif `/api/v1` kecuali health. Operasi planned ditambahkan ke `openapi.yaml` **hanya pada tiket implementasi terkait**.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| `POST` | `/policy-versions/{id}/simulate` | Analyst | Simulate draft/selected version. |
 | `GET` | `/approval-requests/{id}` | Approver / Auditor | Review request and diff. |
 | `POST` | `/approval-requests/{id}/actions` | Approver | Approve/reject active tier. |
 
@@ -1389,7 +1415,7 @@ Empat file JSON-lines di `storage/logs` (juga ke stdout bila `LOG_PRINT=true`), 
 | `LOG_FILES` | `true`: empat file di `storage/logs` | `false`: keempat file terstruktur tidak ditulis (belum ada rotasi, RF-023); hanya log framework Goravel harian (`goravel-*.log`) |
 | `LOG_PRINT` | `false` | `true`: semua entri ke stdout (`docker logs`) |
 
-**Body yang tidak pernah dicatat (review M3).** Request dan respons route `/api/v1/decisions...` membawa data keuangan pemohon dan keputusan yang dihasilkan. Sensor berbasis nama key tidak mengenali nilai seperti `monthly_income`, dan data dictionary dapat dikonfigurasi, sehingga seluruh body route itu diganti `{"_omitted":"sensitive_route"}` (`logging.BodyWithheld`) walaupun `LOG_HTTP_BODIES=true`. Tetap tercatat: pemanggil, route, status, durasi, `requestID`. Daftar ini adalah deny list; route berikutnya yang menerima data pemohon (simulator, RF-017) harus ditambahkan (`docs/POST_M5_BACKLOG.md` SEC-04).
+**Body yang tidak pernah dicatat (review M3).** Request dan respons route `/api/v1/decisions...` membawa data keuangan pemohon dan keputusan yang dihasilkan. Sensor berbasis nama key tidak mengenali nilai seperti `monthly_income`, dan data dictionary dapat dikonfigurasi, sehingga seluruh body route itu diganti `{"_omitted":"sensitive_route"}` (`logging.BodyWithheld`) walaupun `LOG_HTTP_BODIES=true`. Tetap tercatat: pemanggil, route, status, durasi, `requestID`. Daftar ini adalah deny list; sejak RF-017 ia juga menahan `/api/v1/policy-versions/{id}/simulate` (Bagian 10.12), dan route berikutnya yang menerima data pemohon harus ditambahkan (`docs/POST_M5_BACKLOG.md` SEC-04).
 **Status yang dicatat** adalah yang benar-benar diterima klien: request yang melewati timeout 3 detik dicatat `408` walaupun handler selesai belakangan, dan panic setelah deadline tetap masuk `error.log`.
 
 ---
@@ -1431,7 +1457,7 @@ Setiap tiket hanya selesai jika:
 | M1 — Foundation | Goravel + Fiber driver bootstrap, Compose agent sandbox, Postgres driver, config, migrations, auth/RBAC, product catalog | **Done pada `main` (PR #1..#4, commit `07e9ebea`);** bukti runtime tersedia di `docs/VERIFICATION.md`. |
 | M2 — Policy Configuration | Data dictionary (DX-001 Swagger UI + Postman baseline sudah selesai), versioned draft, RAC/scorecard/matrix CRUD + validation | Valid & invalid policy examples pass contract tests; setiap endpoint M2 tersedia di OpenAPI, Swagger UI, dan Postman. |
 | M3 — Decision Engine | Derived features, RAC, scorecard, matrix, decision API, idempotency | Golden dataset passes; decision run stored durably. **Tercapai pada branch tiket RF-011 sampai RF-016, yang dikumpulkan di branch `feature/M3-decision-engine`** (belum di-merge ke `main`): enam golden case demo lulus lewat pipeline penuh dan `validate`/submit, decision disimpan dengan trace dan idempotency, policy terkompilasi di-cache. Audit milestone (COMPLETE/PARTIAL/MISSING dengan bukti) dan review semantik/keamanan: Bagian 17.3 dan `docs/M3_NOTES.md`; temuan yang ditunda: `docs/POST_M5_BACKLOG.md`. |
-| M4 — Governance | Simulator, workflow config, tier approval, publish/rollback semantics | Self-approval blocked; concurrency tests pass; version is immutable. |
+| M4 — Governance | Simulator, workflow config, tier approval, publish/rollback semantics | Self-approval blocked; concurrency tests pass; version is immutable. **Berjalan:** RF-017 (simulator) selesai pada `feature/RF-017-policy-simulator`; RF-018 sampai RF-021 belum dikerjakan. |
 | M5 — Portfolio Hardening | Audit search, observability, CI untuk validasi OpenAPI + Postman parity, tests, demo | Complete E2E demo reproducible dari Compose project baru + fresh DB; docs/collection drift gagal di CI. |
 
 **Urutan:** M1 (done) → DX-001 (done) → **M2/RF-005..RF-010** → M3 → M4 → M5. Agar ada demo cepat, boleh menerapkan policy seed **khusus development/test** sebelum workflow approval selesai, tetapi production evaluation endpoint tidak boleh memiliki bypass policy publishing di versi final.
@@ -1533,7 +1559,7 @@ Temuan yang tidak diperbaiki sekarang dicatat sebagai pekerjaan setelah M5 di `d
 
 ### M4 — Governance
 
-- [ ] **RF-017 Policy simulator.** Evaluate draft, show rule trace, do not write production decision.
+- [x] **RF-017 Policy simulator.** Evaluate draft, show rule trace, do not write production decision. **Selesai pada branch `feature/RF-017-policy-simulator`** (dari `main`, belum di-merge): `POST /api/v1/policy-versions/{version_id}/simulate` mengevaluasi satu pemohon terhadap draft atau versi mana pun dengan inti evaluasi Decision API, mengembalikan trace penuh, dan tidak menulis apa pun (tanpa run, trace, kunci idempotency, perubahan binding, atau cache). `422 POLICY_NOT_EVALUABLE` untuk draft yang belum lengkap. Body route ditahan dari `activity.log` (SEC-04). OpenAPI 0.14.0 dengan 33 operasi, Postman diregenerasi dan `--check` lulus, smoke 33/33. Bagian 10.12, ADR 0018, `docs/M4_NOTES.md`.
 - [ ] **RF-018 Approval workflow config.** Versioned tiers, role/scope, quorum, default demo workflow.
 - [ ] **RF-019 Approval state machine.** Submission lock, action validation, self-approval prevention, unique votes.
 - [ ] **RF-020 Atomic publishing.** Gunakan satu Goravel DB transaction untuk switch active binding, archive old, dan audit; eksplisit locking + concurrency tests.
@@ -1797,5 +1823,5 @@ Setiap ADR mencatat **context, decision, alternatives, consequences, date**.
 - [ ] Agent dapat menjalankan stack dari Compose `api + db`, menguji dengan `rf-test-*` terisolasi, dan membersihkan test project tanpa menghapus volume development.
 - [ ] Tidak ada data pribadi sesungguhnya, keys, atau credentials di repo.
 
-**Status kini (diperbarui 19 November 2026, validasi M3): M1 (RF-001 sampai RF-004), M1 hardening, LOG-001, DX-001, DOC-001, dan M2 (RF-005 sampai RF-010) sudah ada di `main` (PR #1 sampai #6). M3 (RF-011 sampai RF-016) selesai: tiap tiket ada di branch-nya (bertumpuk) dan semuanya dikumpulkan di branch `feature/M3-decision-engine` (dari `main`, merge `--no-ff` per tiket), yang divalidasi sebagai satu kesatuan (`docs/VERIFICATION.md`, audit milestone di `docs/M3_NOTES.md`, review di 17.3); branch itu belum dipush dan belum di-merge ke `main`. Langkah berikutnya: M4, mulai `RF-017 Policy simulator`. Temuan yang ditunda sampai setelah M5: `docs/POST_M5_BACKLOG.md`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.
+**Status kini (diperbarui 23 November 2026, RF-017): M1 (RF-001 sampai RF-004), M1 hardening, LOG-001, DX-001, DOC-001, M2 (RF-005 sampai RF-010), dan M3 (RF-011 sampai RF-016, PR #7 dari `feature/M3-decision-engine`) sudah ada di `main`. Validasi M3: `docs/VERIFICATION.md`; audit milestone: `docs/M3_NOTES.md`; review: 17.3. M4 dimulai: `RF-017 Policy simulator` selesai pada branch `feature/RF-017-policy-simulator` (dari `main`, belum di-merge; Bagian 10.12, `docs/M4_NOTES.md`). Langkah berikutnya: `RF-018 Approval workflow config`. Temuan yang ditunda sampai setelah M5: `docs/POST_M5_BACKLOG.md`.** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.
 

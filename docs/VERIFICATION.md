@@ -209,6 +209,18 @@ Run on branch `feature/RF-016-policy-cache` (RF-011 to RF-015 below it) in the d
 - **Log check (the security fix):** after the happy and unhappy runs on the fresh stack, `storage/logs/activity.log` held 24 entries for `/api/v1/decisions...`, each with `"requestBody":{"_omitted":"sensitive_route"}` and the same for `responseBody`, and no occurrence of `12000000`. In the first live run, before the fix, the log held the full applicant and decision bodies.
 - Not covered: the concurrent-duplicate timeout boundary, a load or latency baseline (RF-024), and the dependency scan (below). Direct SQL inspection of the live database was not repeated (the `psql` call hung); persistence is shown by the replay and `GET` answers and by the integration tests that count rows (`TestADecisionIsStoredWithItsTraceAndTheVersionThatMadeIt`).
 
+## M4: RF-017 (policy simulator)
+
+Run on branch `feature/RF-017-policy-simulator` (from `main` at 61e8b3d, which contains M3) on 23 November 2026, in the disposable project `rf-test-rf017` (PostgreSQL 18) and a live stack `rf-live017` (fresh `migrate` and `db:seed`). Both projects were removed with `down -v` afterwards.
+
+- `go vet ./...` clean; the changed and new Go files are `gofmt` clean. `go test -race -count=1 -v ./...` on a fresh database: **700 tests passed, 0 failed, 0 skipped**, 19 packages `ok` (the new one is `app/modules/simulation/application`).
+- `redocly lint` reports OpenAPI 0.14.0 valid. `./scripts/generate-postman.sh --check` reports the committed collection (33 requests) up to date. `./scripts/smoke-postman.sh rf-live017`: 33/33 as expected (simulate answers 403 for the read-only auditor). `/swagger` answers 200 and `/openapi.yaml` contains `simulatePolicyVersion`. `ContractParityTestSuite` passes with 33 operations.
+- **Happy flow on the live stack:** simulating the active version with the example applicant gave `APPROVE`, `685.00`, grade A, `status: SIMULATED`, `stored: false`, and the version's checksum. A clone with `age_years >= 30` gave `REJECT` with `AGE_BELOW_MINIMUM`, `checksum: null`, `rac_not_evaluated: [RAC_BLACKLIST, RAC_SLIK]`. `decision.runs` and `decision.requests` stayed at 0 rows.
+- **Unhappy flow on the same stack:** auditor 403; unknown version 404 `POLICY_VERSION_NOT_FOUND`; a wrongly typed applicant 422 `INPUT_VALIDATION_ERROR` with every issue; a draft after `DELETE .../scorecard` 422 `POLICY_NOT_EVALUABLE` (also when the applicant was invalid too, because the version is compiled first). `activity.log` showed `module: simulation` and the withheld body for the simulate route.
+- Found and fixed during the live run: a request to `/api/v1/policy-versions//simulate` (empty id, no route) logged the applicant body, because the first rule only matched a non-empty id. `BodyWithheld` now withholds every path of that shape (`withheld_test.go`).
+- Found while running the full suite: `LoggingTestSuite` failed because the shared `storage/logs/activity.log` (90 MB, written by earlier projects) contained a torn line, as described in `AGENT_RUNBOOK.md`. The old `activity.log`, `error.log`, and `query.log` were moved to `*.log.pre-rf017` (not deleted) and the suite passed.
+- Not covered: simulating an `ARCHIVED` version on a live stack (no publish exists yet; the unit test reads a frozen `ACTIVE` version), any latency figure for compiling per simulation (RF-024).
+
 ## Not verified yet
 
 | Item | Why | Planned in |
