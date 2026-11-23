@@ -15,22 +15,25 @@ flowchart TD
         API --> AUTH[Authentication and RBAC]
         AUTH --> IDENTITY[identity module]
         API --> CATALOG[catalog module]
-        API -.-> POLICY[policy module - planned M2]
-        API -.-> ENGINE[decision + ruleengine - planned M3]
-        API -.-> APPROVAL[approval module - workflow config RF-018, requests RF-019, atomic publish RF-020]
-        ENGINE -.-> AUDIT[audit module - planned M5]
+        API --> POLICY[policy module - M2, diff RF-021]
+        API --> ENGINE[decision + ruleengine + simulation - M3, RF-017]
+        API --> APPROVAL[approval module - workflows RF-018, requests RF-019, atomic publish RF-020]
+        APPROVAL --> POLICY
+        APPROVAL --> AUDIT[audit module - event log RF-020, search planned M5]
         PLATFORM[platform: transactions, structured logging]
     end
 
     IDENTITY --> PLATFORM
     CATALOG --> PLATFORM
-    POLICY -.-> PLATFORM
-    ENGINE -.-> PLATFORM
+    POLICY --> PLATFORM
+    ENGINE --> PLATFORM
+    APPROVAL --> PLATFORM
+    AUDIT --> PLATFORM
     PLATFORM --> DB[(PostgreSQL 18)]
     PLATFORM --> LOGS[[storage/logs: activity, error, lifetime, query]]
 ```
 
-Solid lines exist today. Dashed lines are planned and described in `SYSTEM_DESIGN.md`.
+All modules in the diagram exist; audit search (M5) is planned and described in `SYSTEM_DESIGN.md`.
 
 ## Modules
 
@@ -40,11 +43,11 @@ Solid lines exist today. Dashed lines are planned and described in `SYSTEM_DESIG
 | `catalog` | Credit products (`KTA_DEMO`, ...) | Implemented (RF-004) | `app/modules/catalog` |
 | `dictionary` | Input variables and derived features: typed definitions, append-only versions, one schema version | Implemented (RF-005), with the feature builder `BuildFeatures` for derived values (RF-011) | `app/modules/dictionary` |
 | `policy` | Policy packages and versioned drafts with frozen, checksummed snapshots | Implemented (RF-006), with RAC rules (RF-007), scorecard (RF-008), decision matrix (RF-009), and test cases with full validation (RF-010); the test cases are executed through the decision pipeline, with the evaluator `CompilePolicy` (RF-013) | `app/modules/policy` |
-| `ruleengine` | Pure compile/validate/evaluate. Today: `Analyze` checks RAC expressions (syntax, allowed subset of the `expr` language, known variables, boolean result) | Checking (RF-007) and RAC evaluation (RF-012) implemented; scorecard and matrix evaluation planned (RF-013) | `app/modules/ruleengine` |
+| `ruleengine` | Pure compile/validate/evaluate. Today: `Analyze` checks RAC expressions (syntax, allowed subset of the `expr` language, known variables, boolean result) | Checking (RF-007), RAC evaluation (RF-012), and scorecard and matrix evaluation (RF-013) implemented | `app/modules/ruleengine` |
 | `decision` | Decision API: resolves the active policy, evaluates an application, returns the decision with its trace | `POST /decisions/evaluate` (RF-014) with durable runs, traces, and idempotency, and `GET /decisions/{id}` (RF-015) implemented, with the compiled policy cache (RF-016) | `app/modules/decision` |
 | `simulation` | Policy simulator: evaluates one applicant against any version with the Decision API's evaluation core (`decision/infrastructure.NewEvaluablePolicy`) and stores nothing. No tables. | `POST /policy-versions/{version_id}/simulate` implemented (RF-017) | `app/modules/simulation` |
-| `approval` | Approval workflow configuration (one workflow per product and policy scope, append-only versions of sequential steps with role, scope, quorum) and approval requests: submit opens a request pinned to the policy checksum and workflow version; the state machine records approver actions on the active step. Calls the policy module through a port. | Workflow configuration (RF-018) and state machine (RF-019) implemented, schema `approval`: `workflow_definitions`, `workflow_versions`, `workflow_steps`, `requests`, `actions`; atomic publish (RF-020) and diff (RF-021) planned | `app/modules/approval` |
-| `audit` | Append-only domain event log (`audit.events`): who, when, action, entity, identifiers only | Event log written by the publication transaction (RF-020, `POLICY_VERSION_PUBLISHED`); audit search planned (RF-022) | `app/modules/audit` |
+| `approval` | Approval workflow configuration (one workflow per product and policy scope, append-only versions of sequential steps with role, scope, quorum) and approval requests: submit opens a request pinned to the policy checksum and workflow version; the state machine records approver actions on the active step. Calls the policy module through a port. | Workflow configuration (RF-018) and state machine (RF-019) implemented, schema `approval`: `workflow_definitions`, `workflow_versions`, `workflow_steps`, `requests`, `actions`; the last approval publishes the version in the same transaction (RF-020); the review endpoint returns the policy diff (RF-021) | `app/modules/approval` |
+| `audit` | Append-only domain event log (`audit.events`): who, when, action, entity, identifiers only | Event log written in the same transaction as the change: publication (RF-020, `POLICY_VERSION_PUBLISHED`) and workflow configuration (`APPROVAL_WORKFLOW_CREATED`, `APPROVAL_WORKFLOW_VERSION_CREATED`, M4 review); audit search planned (RF-022) | `app/modules/audit` |
 | `platform` | Transaction manager, query logging, structured logs | Implemented | `app/platform` |
 
 Each PostgreSQL schema belongs to one module (`identity`, `catalog`, `dictionary`, `policy`, `approval`, `decision`, `audit`). A module never queries another module's tables; cross-module calls go through application interfaces.

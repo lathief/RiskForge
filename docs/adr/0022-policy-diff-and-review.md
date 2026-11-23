@@ -29,6 +29,6 @@ Bagian 11.4 meminta approver melihat perubahan dibandingkan versi aktif: aturan 
 
 ## Konsekuensi
 
-- Satu review mengompilasi dua policy dan menjalankan test case dua kali; biayanya sebanding dengan `validate` dan tidak di-cache.
+- Satu review mengompilasi hingga tiga policy (target untuk validasi dan untuk impact, base sekali) dan menjalankan test case hingga tiga kali; biayanya sekitar tiga kali `validate` dan tidak di-cache (`POST_M5_BACKLOG_M4.md` M4-SEC-04).
 - Baris matrix yang disisipkan di tengah tampak sebagai beberapa baris `MODIFIED` dan satu `ADDED`.
 - Dampak hanya atas test case tersimpan; backtesting historis adalah v1.1.

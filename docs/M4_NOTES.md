@@ -19,7 +19,7 @@ Branch `feature/RF-017-policy-simulator`, from `main` (M3 merged). ADR `docs/adr
 | Path from the planned table | Deviation | `/policy-versions/{version_id}/simulate` (the `{id}` of the plan named like the other version routes). |
 | Batch simulation of all stored test cases | Not built | `POST .../validate` already executes every stored case (RF-013). |
 | Simulation over many inputs or historical data | Not built | Backtesting is v1.1 (`SYSTEM_DESIGN.md` 21). |
-| Comparison with the active version | Not built | RF-021 (diff and approval review). |
+| Comparison with the active version | Done in RF-021 | `GET /policy-versions/{version_id}/diff` and the approval review. |
 | Audit event per simulation | Not built | RF-022. |
 | Approver or auditor simulation | Not built | Not in the permission matrix. Revisit with RF-021 if reviewers need it. |
 
@@ -44,7 +44,7 @@ Branch `feature/RF-018-approval-workflow-config`, on top of RF-017. ADR `docs/ad
 | Endpoints not in the planned table | Deviation | Five configuration operations; the planned table of 13.1 only lists approval requests. |
 | Audit event on change | Done (M4 review) | `APPROVAL_WORKFLOW_CREATED` and `APPROVAL_WORKFLOW_VERSION_CREATED` in `audit.events`, in the same transaction; search is RF-022. |
 | Approval of workflow changes | Not built | Enhancement in `SYSTEM_DESIGN.md` 11.3. |
-| Fallback workflow for a product without one | Not built | RF-019 will refuse such a submission. |
+| Fallback workflow for a product without one | Not built | Since RF-019 such a submission is refused and the draft stays a draft. |
 
 Known limits:
 
@@ -66,8 +66,8 @@ Branch `feature/RF-019-approval-state-machine`, on top of RF-018. ADR `docs/adr/
 | Workflow version snapshot | Done | The request pins `workflow_version_id`; tested by changing the workflow after submit. |
 | Checksum check | Done | The outcome is applied only if the version still has the submitted checksum. |
 | Submit contract change | Deviation | Response adds `approval_request`; new `409 APPROVAL_WORKFLOW_NOT_CONFIGURED`. Additive for clients that read the version fields. |
-| Publish on final approval | Not built | RF-020. An approved version is `APPROVED` and not evaluated until then. |
-| Diff for reviewers | Not built | RF-021. |
+| Publish on final approval | Done in RF-020 | The final approval publishes in the same transaction. |
+| Diff for reviewers | Done in RF-021 | `GET /approval-requests/{request_id}/review`. |
 | Withdraw by the maker | Not built | Not in the design; a pending version can be cloned meanwhile. |
 | One open request per policy package | Not built | Not required by the design; see ADR 0020. |
 | Assigning scopes through the API | Not built | Seeder and SQL only. |
@@ -117,7 +117,7 @@ Branch `feature/RF-021-policy-diff-review`, on top of RF-020. ADR `docs/adr/0022
 | Simulation impact summary | Done (stored cases) | The target's stored test cases run with the base and the target; historical backtesting is v1.1. |
 | Endpoint shape | Deviation | Diff lives in `GET /approval-requests/{id}/review`, not in `GET /approval-requests/{id}` (ADR 0022). Plus `GET /policy-versions/{id}/diff` for analysts. |
 
-Known limits: the review of a closed request compares with the version active now (`POST_M5_BACKLOG_M4.md` M4-REL-06); a row inserted in the middle of the matrix shows as several modified rows and one added row; each review compiles two policies (M4-SEC-04).
+Known limits: the review of a closed request compares with the version active now (`POST_M5_BACKLOG_M4.md` M4-REL-06); a row inserted in the middle of the matrix shows as several modified rows and one added row; each review compiles up to three policies (the target for validation and for the impact, the base once) and runs the test cases up to three times (M4-SEC-04).
 
 ## Milestone 4 validation and review
 

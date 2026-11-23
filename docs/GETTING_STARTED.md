@@ -49,9 +49,9 @@ The seeders create synthetic demo users, the demo product `KTA_DEMO`, the eight-
 |---|---|---|
 | `demo_admin` | `ADMIN` | Manage products and dictionary variables. |
 | `demo_analyst` | `RISK_ANALYST` | Read products, manage dictionary variables; owns policy drafts: opens, edits, clones, and submits them. |
-| `demo_approver_1`, `demo_approver_2` | `RISK_APPROVER` | Read products and the dictionary; will approve policies (M4). |
+| `demo_approver_1`, `demo_approver_2` | `RISK_APPROVER` | Read products and the dictionary; approve or reject submitted policies (M4): `demo_approver_1` holds the `RISK_LEAD` scope (step 1), `demo_approver_2` the `HEAD_OF_RISK` scope (step 2). |
 | `demo_auditor` | `AUDITOR` | Read-only access. |
-| `demo_loan_application` | `API_CONSUMER` | The Loan Application client; will call the decision API (M3). |
+| `demo_loan_application` | `API_CONSUMER` | The Loan Application client; calls the decision API (M3). |
 
 All demo users share the password stored as `DEMO_USER_PASSWORD` in `.env.agent`.
 
