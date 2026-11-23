@@ -70,8 +70,21 @@ const (
 	simulationSuffix = "/simulate"
 )
 
+// normalizePath folds the variants the router treats as the same route: Fiber matches paths
+// case-insensitively and ignores a trailing slash by default, so "/API/v1/Decisions/evaluate/"
+// reaches the same handler as "/api/v1/decisions/evaluate" and must be withheld the same way
+// (M4 review).
+func normalizePath(path string) string {
+	p := strings.ToLower(path)
+	if len(p) > 1 {
+		p = strings.TrimRight(p, "/")
+	}
+	return p
+}
+
 // BodyWithheld reports whether bodies of requests to path must not be logged.
 func BodyWithheld(path string) bool {
+	path = normalizePath(path)
 	for _, p := range withheldBodyPrefixes {
 		if path == p || strings.HasPrefix(path, p+"/") {
 			return true

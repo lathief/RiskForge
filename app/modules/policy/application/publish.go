@@ -32,8 +32,9 @@ type Publication struct {
 // Publish makes an APPROVED version the active policy of its package (RF-020,
 // SYSTEM_DESIGN.md 9.4). In the caller's transaction it:
 //
-//  1. locks the version, the package row, and the active binding, so two publishes of one
-//     package run one after the other and a decision never sees a half-switched binding;
+//  1. locks the package row, the version, and the active binding, in that order (the order of
+//     Clone, so the two cannot deadlock), so two publishes of one package run one after the
+//     other and a decision never sees a half-switched binding;
 //  2. checks the version is APPROVED with the approved checksum, its snapshot verifies, and the
 //     snapshot compiles (a policy that fails to compile is never activated);
 //  3. refuses a version older than the active one (ErrVersionSuperseded);
@@ -49,15 +50,12 @@ func (s *PolicyService) Publish(ctx context.Context, versionID, checksum, actorI
 	}
 	var out Publication
 	err := s.tx.WithinTransaction(ctx, func(ctx context.Context) error {
-		v, err := s.repo.FindVersion(ctx, versionID, true)
+		v, err := s.lockVersionOfPackage(ctx, versionID)
 		if err != nil {
 			return err
 		}
 		if v.Status != domain.StatusApproved || v.Checksum == "" || v.Checksum != checksum {
 			return ErrVersionNotApproved
-		}
-		if _, err := s.repo.FindPackage(ctx, v.PackageID, true); err != nil {
-			return err
 		}
 		current, bound, err := s.repo.FindBinding(ctx, v.PackageID, true)
 		if err != nil {

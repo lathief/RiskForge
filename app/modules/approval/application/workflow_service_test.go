@@ -152,7 +152,39 @@ func newService() (*WorkflowService, *fakeRepo) {
 		"KTA_DEMO": {ID: "p-1", Code: "KTA_DEMO", Active: true},
 		"OLD_PROD": {ID: "p-2", Code: "OLD_PROD", Active: false},
 	}
-	return NewWorkflowService(repo, products, fakeVocab{}, &fakeTx{repo: repo}), repo
+	return NewWorkflowService(repo, products, fakeVocab{}, &fakeAudit{}, &fakeTx{repo: repo}), repo
+}
+
+func TestWorkflowChangesAreAudited(t *testing.T) {
+	repo := &fakeRepo{}
+	audit := &fakeAudit{}
+	svc := NewWorkflowService(repo, fakeProducts{"KTA_DEMO": {ID: "p-1", Code: "KTA_DEMO", Active: true}}, fakeVocab{}, audit, &fakeTx{repo: repo})
+	ctx := context.Background()
+	def, v1, err := svc.Create(ctx, "admin-1", demoInput())
+	require.NoError(t, err)
+	require.Len(t, audit.events, 2)
+	assert.Equal(t, EventWorkflowCreated, audit.events[0].Action)
+	assert.Equal(t, def.ID, audit.events[0].AggregateID)
+	assert.Equal(t, EventWorkflowVersionCreated, audit.events[1].Action)
+	assert.Equal(t, v1.ID, audit.events[1].AggregateID)
+	assert.Equal(t, "admin-1", audit.events[1].ActorID)
+	assert.Equal(t, 2, audit.events[1].Data["total_approvals"])
+
+	// A weaker workflow is a new, audited version.
+	v2, created, err := svc.AddVersion(ctx, "admin-2", def.ID, domain.NewVersionInput{StepsPresent: true,
+		Steps: []domain.StepInput{{Name: "Any approver", RequiredRole: "RISK_APPROVER"}}})
+	require.NoError(t, err)
+	require.True(t, created)
+	require.Len(t, audit.events, 3)
+	assert.Equal(t, v2.ID, audit.events[2].AggregateID)
+	assert.Equal(t, 1, audit.events[2].Data["total_approvals"])
+
+	// No new version, no event.
+	_, created, err = svc.AddVersion(ctx, "admin-2", def.ID, domain.NewVersionInput{StepsPresent: true,
+		Steps: []domain.StepInput{{Name: "Any approver", RequiredRole: "RISK_APPROVER"}}})
+	require.NoError(t, err)
+	assert.False(t, created)
+	assert.Len(t, audit.events, 3)
 }
 
 func one(n int) *int { return &n }

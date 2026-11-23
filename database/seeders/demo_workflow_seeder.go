@@ -50,7 +50,7 @@ func SeedDemoWorkflow() error {
 	approvalDB := base.WithModule("approval")
 	products := catalogapp.NewProductService(cataloginfra.NewProductRepository(catalogDB), catalogDB)
 	service := approvalapp.NewWorkflowService(approvalinfra.NewWorkflowRepository(approvalDB),
-		approvalinfra.NewCatalogProducts(products), approvalinfra.IdentityRoles{}, approvalDB)
+		approvalinfra.NewCatalogProducts(products), approvalinfra.IdentityRoles{}, approvalinfra.NewDatabaseAuditLog(approvalDB), approvalDB)
 	_, _, err := service.Create(context.Background(), "", approvaldomain.NewWorkflowInput{
 		ProductCode: DemoProductCode, PolicyScope: DemoPolicyScope, Name: DemoWorkflowName,
 		ChangeNote: "Default demo workflow of SYSTEM_DESIGN.md 11.1.",

@@ -252,6 +252,22 @@ Run on branch `feature/RF-020-atomic-publishing` (on top of RF-019) on 23 Novemb
 - **Live stack:** the seeded version 1 decided the example applicant `APPROVE`. A clone with `age_years >= 30` (with its own golden case) was submitted and approved by both tiers: the final action returned the request `APPROVED`; version 1 became `ARCHIVED` and version 2 `ACTIVE`; the next decision for the same applicant named version 2 and was `REJECT`. `audit.events` held one `POLICY_VERSION_PUBLISHED` event for version 2 with the request, package, checksum, workflow version, and archived version 1, and no applicant data.
 - Not covered: `POLICY_NOT_PUBLISHABLE` through the API (unreachable with today's code; unit test only); `migrate:rollback` of the audit migration; publish latency (RF-024).
 
+## M4: RF-021 (policy diff and approval review)
+
+Run on branch `feature/RF-021-policy-diff-review` (on top of RF-020) in `rf-test-rf021`. `go vet` clean; `go test -race -count=1 -v ./...` on a fresh database: 790 passed and one feature test failed on its own expectation (the test rule body has other descriptions than the seeded rules, so three rules differ, not one); the expectation was corrected and the review, diff, and contract suites passed. OpenAPI 0.18.0 lint clean, 43 operations, `--check` stable twice. The full run on the milestone branch is below.
+
+## M4 milestone validation and review (`feature/M4-governance`)
+
+`feature/M4-governance` collects RF-017 to RF-021 (one `--no-ff` merge per ticket, from `main` at 61e8b3d; before the review fixes its tree was identical to `feature/RF-021-policy-diff-review`). Run on 23 November 2026 in `rf-test-m4` and the live stack `rf-live-m4` (PostgreSQL 18), both removed with `down -v` afterwards.
+
+- **Semantic and security review** of `main..feature/M4-governance` by an independent reviewer: verdict NEEDS_CHANGES with four findings to fix now (simulate body logged on path variants, approve-versus-clone deadlock, workflow configuration not audited, one ACTIVE version not a database invariant). All four fixed and tested (`docs/M4_NOTES.md`); the rest is in `docs/POST_M5_BACKLOG_M4.md`.
+- **After the fixes:** `go vet ./...` clean; changed and new Go files `gofmt` clean. `go test -race -count=1 -v ./...` on a fresh database: **794 tests passed, 0 failed, 0 skipped**, 23 packages `ok`. Every M4 concurrency test (quorum, duplicate action, duplicate submit, two final approvals, decisions during a publish, clone during the final approval) was run three more times with `-race -count=3` without a failure.
+- `redocly lint`: OpenAPI 0.18.0 valid. `./scripts/generate-postman.sh --check`: 43 requests up to date. `./scripts/smoke-postman.sh rf-live-m4`: **43/43**.
+- **End-to-end on the live stack** (`scripts/m4-e2e.sh`, fresh `migrate:reset`, `migrate`, `db:seed`): **40/40 checks**. Happy path: version 1 approves the example applicant; clone with minimum age 30; simulate (REJECT, `stored: false`); diff against the active version with the change summary and one impacted case; submit opens a request; review shows the golden tests; risk lead then head of risk approve; version 2 ACTIVE, version 1 ARCHIVED; the next decision uses version 2 and rejects; a replay keeps version 1; rollback by cloning version 1 and approving it; the applicant is approved again by the rollback version. Unhappy path: analyst cannot configure workflows or act; a maker cannot be a step role; invalid simulate data 422; auditor cannot simulate; second submit 409; head of risk on tier 1 403; reject without comment 422; second action of one approver 409; stale step 409; action on a closed request 409; loan application and admin refused on requests and review.
+- **Log check on the live stack:** simulate bodies are `{"_omitted":"sensitive_route"}`; applicant-shaped values appear only in the bodies of test case, version, submit, diff, and review routes (analyst configuration; `POST_M5_BACKLOG_M4.md` M4-SEC-03).
+- Two script defects found while writing `scripts/m4-e2e.sh` and fixed in the script, not in the product: a greedy `sed` picked the last `"id"` of a response, and a grep did not expect `>` encoded as `\u003e` (M4-TOOL-02).
+- Not covered: `migrate:rollback` of the M4 migrations (M4-TOOL-03); latency of review and publish (RF-024); the upgrade of a database that has `PENDING_APPROVAL` versions from before RF-019 (M4-REL-01).
+
 ## Not verified yet
 
 | Item | Why | Planned in |

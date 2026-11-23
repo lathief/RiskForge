@@ -1,5 +1,7 @@
 # Milestone 4 notes (governance)
 
+Status: M4 (RF-017 to RF-021) complete; validated and reviewed as one unit on `feature/M4-governance` (see the last section). Deferred findings: [`POST_M5_BACKLOG_M4.md`](POST_M5_BACKLOG_M4.md).
+
 Limits, deviations from `SYSTEM_DESIGN.md`, and open decisions of milestone 4, one section per ticket. The design is in `SYSTEM_DESIGN.md` 10.12 onward; the reasons are in the ADRs named below.
 
 ## Policy simulator (RF-017)
@@ -40,7 +42,7 @@ Branch `feature/RF-018-approval-workflow-config`, on top of RF-017. ADR `docs/ad
 | Restricted permission | Done | Writes `workflow:manage` (admin). Reads `approval:read` or `workflow:manage` (`RequireAnyPermission`, `x-alternative-permissions`). |
 | Concurrency | Done | Version numbers serialized by the workflow row lock (8 concurrent versions: gap-free 1..9); concurrent creates of one workflow give exactly one. |
 | Endpoints not in the planned table | Deviation | Five configuration operations; the planned table of 13.1 only lists approval requests. |
-| Audit event on change | Not built | RF-022; `created_by` per version until then. |
+| Audit event on change | Done (M4 review) | `APPROVAL_WORKFLOW_CREATED` and `APPROVAL_WORKFLOW_VERSION_CREATED` in `audit.events`, in the same transaction; search is RF-022. |
 | Approval of workflow changes | Not built | Enhancement in `SYSTEM_DESIGN.md` 11.3. |
 | Fallback workflow for a product without one | Not built | RF-019 will refuse such a submission. |
 
@@ -98,3 +100,60 @@ Known limits:
 - A request for a superseded version stays `PENDING` until an approver rejects it; nothing closes it automatically.
 - The development seeder publishes without an approval request and without an audit event.
 - `POLICY_NOT_PUBLISHABLE` cannot be reached through the API with today's code (submit already compiles the same snapshot); it guards an evaluator change between submit and approval. It is covered by a unit test with a damaged snapshot.
+
+## Policy diff and approval review (RF-021)
+
+Branch `feature/RF-021-policy-diff-review`, on top of RF-020. ADR `docs/adr/0022-policy-diff-and-review.md`. Design: `SYSTEM_DESIGN.md` 11.8.
+
+| Item | Status | Notes |
+|---|---|---|
+| Compare against the active version | Done | Default base; the version it was cloned from when the target is active or nothing is active; `NONE` for a first version. `?base_version_id=` of the same policy. |
+| Readable change summary | Done | One line per change; per-section counts; field before/after. |
+| Added/modified/removed RAC rules | Done | Keyed by `rule_code`. |
+| Scorecard characteristic/bin/points | Done | Base score, characteristics by code, bins by order. |
+| Matrix boundaries/grade/decision | Done | Rows by order. |
+| Dictionary / derived formula | Done / by design | Dictionary variables and schema version are diffed; derived formulas are code, not policy content (ADR 0022). |
+| Test results | Done | Full validation report of the target with golden test results. |
+| Simulation impact summary | Done (stored cases) | The target's stored test cases run with the base and the target; historical backtesting is v1.1. |
+| Endpoint shape | Deviation | Diff lives in `GET /approval-requests/{id}/review`, not in `GET /approval-requests/{id}` (ADR 0022). Plus `GET /policy-versions/{id}/diff` for analysts. |
+
+Known limits: the review of a closed request compares with the version active now (`POST_M5_BACKLOG_M4.md` M4-REL-06); a row inserted in the middle of the matrix shows as several modified rows and one added row; each review compiles two policies (M4-SEC-04).
+
+## Milestone 4 validation and review
+
+RF-017 to RF-021 were collected in `feature/M4-governance` (from `main`, one `--no-ff` merge per ticket; before the review fixes its tree was identical to `feature/RF-021-policy-diff-review`) and validated as one unit. Commands and numbers: `docs/VERIFICATION.md`. An independent semantic and security review of the whole diff gave **NEEDS_CHANGES** with four findings to fix now; all four are fixed and tested below. The other findings are tracked in `docs/POST_M5_BACKLOG_M4.md`.
+
+### Milestone audit (`SYSTEM_DESIGN.md` 17, M4 gate)
+
+| Gate or scope item | Result | Evidence |
+|---|---|---|
+| Simulator | COMPLETE | `POST /policy-versions/{id}/simulate` (RF-017); same evaluation core as decisions, field-by-field test; writes nothing. |
+| Workflow config | COMPLETE | Versioned tiers, role and scope, quorum, demo workflow (RF-018); configuration changes audited (M4 review fix). |
+| Tier approval | COMPLETE | State machine (RF-019): active step only, server-side role and scope, unique votes, quorum of distinct approvers. |
+| Publish semantics | COMPLETE | Final approval publishes atomically with archive, binding, and audit (RF-020); one ACTIVE version per package enforced by the database (M4 review fix). |
+| Rollback semantics | COMPLETE | Clone of an archived version approved again; tested in `TestRollbackPublishesACopyOfTheArchivedVersion` and `scripts/m4-e2e.sh`. Older versions cannot overwrite newer ones (`409 POLICY_VERSION_SUPERSEDED`). |
+| Diff and review | COMPLETE | RF-021 (above). |
+| Gate: self-approval blocked | COMPLETE | `TestTheSubmitterCanNeverApproveTheirOwnSubmission` (a user with both roles), domain test, trigger on `approval.actions`; live check. Weaker than possible: M4-SEC-01. |
+| Gate: concurrency tests pass | COMPLETE | Quorum, duplicate action, duplicate submit, two final approvals, decisions during publish, clone during final approval; each repeated three times with `-race`. |
+| Gate: version is immutable | COMPLETE | Policy triggers since M2; workflow versions, requests, actions, and audit events append-only (triggers tested). |
+| Swagger, OpenAPI, Postman | COMPLETE | OpenAPI 0.18.0, 43 operations, lint clean, `--check` stable, smoke 43/43. |
+| Audit of governance actions | PARTIAL | Publication and workflow configuration are audit events; submit and individual approvals are only in `approval.actions` (M4-ARC-01, RF-022). |
+| Production bypass of approval | COMPLETE (none) | Only `DemoActivePolicySeeder`, refused outside local and testing (M4-ARC-04). |
+
+### Findings fixed in this review
+
+| Finding | Fix |
+|---|---|
+| Security: the simulator body was withheld from `activity.log` only for the exact path `/simulate`; Fiber routes `/Simulate` and `/simulate/` to the same handler. The decision prefix had the same gap. | `logging.BodyWithheld` lower-cases the path and trims trailing slashes before matching; tests for both variants. |
+| Concurrency: the final approval locked the version, then the package; `Clone` locks the package, then share-locks the source version through its foreign key. A clone during the first publish of a package could deadlock (Postgres aborts one; the caller gets 500). | `ConcludeReview` and `Publish` lock the package first (`lockVersionOfPackage`); `TestACloneDuringTheFinalApprovalNeverDeadlocks` runs clone and final approval together five times. |
+| Audit: workflow configuration changes wrote no audit event (`SYSTEM_DESIGN.md` 11.3). | `APPROVAL_WORKFLOW_CREATED` and `APPROVAL_WORKFLOW_VERSION_CREATED` (with the tiers and total approvals) in the same transaction. |
+| Data integrity: "one ACTIVE version per package" was enforced only by the publish lock. | Partial unique index `policy_versions_one_active_key`; the hand-made publish in a cache test was reordered to archive before activating, as `Publish` does. |
+| Documentation: OpenAPI did not say that submit looks up the workflow before validating. | Submit description updated. |
+
+### Reviewed and found sound
+
+- No code path freezes, approves, activates, or binds a version without an approval request, except the development seeder.
+- Every new route carries the permission OpenAPI declares (`ContractBehaviourTestSuite` checks it for every demo role, including `x-alternative-permissions`).
+- Approver roles and scopes are read from the database on every request; the action body cannot claim them (`not_allowed`).
+- Diff and review expose test case inputs only to roles that can already read them through `policy:read`.
+- Audit events hold identifiers, codes, checksums, and tier definitions only; no applicant data.

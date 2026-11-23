@@ -85,11 +85,43 @@ type WorkflowService struct {
 	repo     Repository
 	products ProductLookup
 	vocab    domain.RoleVocabulary
+	audit    AuditTrail
 	tx       tx.Manager
 }
 
-func NewWorkflowService(repo Repository, products ProductLookup, vocab domain.RoleVocabulary, txm tx.Manager) *WorkflowService {
-	return &WorkflowService{repo: repo, products: products, vocab: vocab, tx: txm}
+func NewWorkflowService(repo Repository, products ProductLookup, vocab domain.RoleVocabulary, audit AuditTrail, txm tx.Manager) *WorkflowService {
+	return &WorkflowService{repo: repo, products: products, vocab: vocab, audit: audit, tx: txm}
+}
+
+// Audit actions of workflow configuration (SYSTEM_DESIGN.md 11.3: workflow configuration needs
+// a restricted permission and audit).
+const (
+	EventWorkflowCreated        = "APPROVAL_WORKFLOW_CREATED"
+	EventWorkflowVersionCreated = "APPROVAL_WORKFLOW_VERSION_CREATED"
+)
+
+// recordVersion writes the audit event of a new workflow version, with its tiers, in the
+// caller's transaction. A weakened workflow (fewer tiers, no scope, smaller quorum) is visible
+// in the log.
+func (s *WorkflowService) recordVersion(ctx context.Context, actorID string, def domain.Definition, v domain.Version, created bool) error {
+	steps := make([]map[string]any, 0, len(v.Steps))
+	for _, st := range v.Steps {
+		steps = append(steps, map[string]any{
+			"order": st.Order, "name": st.Name, "required_role": st.RequiredRole,
+			"required_scope": nullable(st.RequiredScope), "min_approvers": st.MinApprovers,
+		})
+	}
+	data := map[string]any{
+		"workflow_id": def.ID, "product_code": def.ProductCode, "policy_scope": def.PolicyScope,
+		"version_number": v.Number, "steps": steps, "total_approvals": v.TotalApprovals(),
+	}
+	if created {
+		if err := s.audit.Record(ctx, AuditEvent{Action: EventWorkflowCreated, AggregateType: "APPROVAL_WORKFLOW", AggregateID: def.ID, ActorID: actorID,
+			Data: map[string]any{"product_code": def.ProductCode, "policy_scope": def.PolicyScope, "name": def.Name}}); err != nil {
+			return err
+		}
+	}
+	return s.audit.Record(ctx, AuditEvent{Action: EventWorkflowVersionCreated, AggregateType: "APPROVAL_WORKFLOW_VERSION", AggregateID: v.ID, ActorID: actorID, Data: data})
 }
 
 // Create opens the workflow of a product and policy scope with its first version, in one
@@ -117,8 +149,10 @@ func (s *WorkflowService) Create(ctx context.Context, actorID string, in domain.
 		if def, err = s.repo.InsertDefinition(ctx, product, req.PolicyScope, req.Name, actorID); err != nil {
 			return err
 		}
-		ver, err = s.repo.InsertVersion(ctx, def.ID, req.ChangeNote, req.Steps, actorID)
-		return err
+		if ver, err = s.repo.InsertVersion(ctx, def.ID, req.ChangeNote, req.Steps, actorID); err != nil {
+			return err
+		}
+		return s.recordVersion(ctx, actorID, def, ver, true)
 	})
 	if err != nil {
 		return domain.Definition{}, domain.Version{}, err
@@ -155,9 +189,11 @@ func (s *WorkflowService) AddVersion(ctx context.Context, actorID, workflowID st
 			out = versions[0]
 			return nil
 		}
-		out, err = s.repo.InsertVersion(ctx, def.ID, req.ChangeNote, req.Steps, actorID)
-		created = err == nil
-		return err
+		if out, err = s.repo.InsertVersion(ctx, def.ID, req.ChangeNote, req.Steps, actorID); err != nil {
+			return err
+		}
+		created = true
+		return s.recordVersion(ctx, actorID, def, out, false)
 	})
 	if err != nil {
 		return domain.Version{}, false, err

@@ -113,7 +113,7 @@ func Api() {
 	approvalDB := dbManager.WithModule(moduleApproval)
 	workflowController := controllers.NewApprovalWorkflowController(approvalapp.NewWorkflowService(
 		approvalinfra.NewWorkflowRepository(approvalDB), approvalinfra.NewCatalogProducts(catalogService),
-		approvalinfra.IdentityRoles{}, approvalDB))
+		approvalinfra.IdentityRoles{}, approvalinfra.NewDatabaseAuditLog(approvalDB), approvalDB))
 	// Approval state machine (RF-019): approvers act on the active step; analysts see the
 	// status of their submissions.
 	requestController := controllers.NewApprovalRequestController(approvalapp.NewRequestService(

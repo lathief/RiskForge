@@ -2,6 +2,8 @@
 
 This file lists problems and improvements found while reviewing the code, the design, and the security of RiskForge that are **not** fixed yet. Work on them after Milestone 5 (portfolio hardening), or earlier when the ticket named in the last column starts. Fixed findings are not listed here; they are in the review tables of `docs/M3_NOTES.md` and `SYSTEM_DESIGN.md` section 17.3.
 
+The findings of the Milestone 4 review (RF-017 to RF-021) are tracked separately in [`POST_M5_BACKLOG_M4.md`](POST_M5_BACKLOG_M4.md).
+
 How to use it: one row is one trackable item. Change **Status** when work starts (`Open`, `In progress`, `Done: <commit or PR>`). Add new findings at the end of the right table with the next free id. Keep each row factual: what was observed, where, and what to do.
 
 Severity: **High** can expose data or give a wrong decision in production. **Medium** weakens security or reliability under load or misuse. **Low** is maintainability, ergonomics, or a documented limit.

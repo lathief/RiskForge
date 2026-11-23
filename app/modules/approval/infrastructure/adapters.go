@@ -7,11 +7,13 @@ import (
 	"goravel/app/modules/approval/application"
 	"goravel/app/modules/approval/domain"
 	auditapp "goravel/app/modules/audit/application"
+	auditinfra "goravel/app/modules/audit/infrastructure"
 	catalogapp "goravel/app/modules/catalog/application"
 	catalogdomain "goravel/app/modules/catalog/domain"
 	identitydomain "goravel/app/modules/identity/domain"
 	policyapp "goravel/app/modules/policy/application"
 	policydomain "goravel/app/modules/policy/domain"
+	"goravel/app/platform/database"
 )
 
 // CatalogProducts answers product lookups through the catalog module's use case.
@@ -95,6 +97,12 @@ type AuditLog struct {
 var _ application.AuditTrail = (*AuditLog)(nil)
 
 func NewAuditLog(recorder *auditapp.Recorder) *AuditLog { return &AuditLog{recorder: recorder} }
+
+// NewDatabaseAuditLog writes through the audit module's PostgreSQL repository with db, so the
+// event joins the transaction of the change it records.
+func NewDatabaseAuditLog(db *database.Manager) *AuditLog {
+	return NewAuditLog(auditapp.NewRecorder(auditinfra.NewEventRepository(db)))
+}
 
 func (a *AuditLog) Record(ctx context.Context, e application.AuditEvent) error {
 	return a.recorder.Record(ctx, auditapp.Event{

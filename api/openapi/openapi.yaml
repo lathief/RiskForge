@@ -686,7 +686,8 @@ paths:
         response is the frozen version plus `approval_request`, in the shape of
         `GET /approval-requests/{request_id}`, with step 1 active. A product and scope without a
         workflow cannot be submitted: `409 APPROVAL_WORKFLOW_NOT_CONFIGURED`, and the draft stays a
-        DRAFT. Approvers act with `POST /approval-requests/{request_id}/actions`; the final
+        DRAFT. The workflow is looked up before the draft is validated, so a draft that is also
+        invalid gets this 409 first. Approvers act with `POST /approval-requests/{request_id}/actions`; the final
         approval publishes the version atomically (RF-020).
       operationId: submitPolicyVersion
       x-required-permission: policy:submit

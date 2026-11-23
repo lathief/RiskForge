@@ -66,13 +66,13 @@ func (s *ApprovalWorkflowTestSuite) SetupSuite() {
 	catalogDB, approvalDB := base.WithModule("catalog"), base.WithModule("approval")
 	products := catalogapp.NewProductService(cataloginfra.NewProductRepository(catalogDB), catalogDB)
 	s.service = approvalapp.NewWorkflowService(approvalinfra.NewWorkflowRepository(approvalDB),
-		approvalinfra.NewCatalogProducts(products), approvalinfra.IdentityRoles{}, approvalDB)
+		approvalinfra.NewCatalogProducts(products), approvalinfra.IdentityRoles{}, approvalinfra.NewDatabaseAuditLog(approvalDB), approvalDB)
 }
 
 // SetupTest empties the workflow tables. TRUNCATE does not fire the append-only row triggers.
 func (s *ApprovalWorkflowTestSuite) SetupTest() {
 	db := facades.DB()
-	s.Require().NoError(db.Statement("TRUNCATE TABLE approval.actions, approval.requests, approval.workflow_steps, approval.workflow_versions, approval.workflow_definitions"))
+	s.Require().NoError(db.Statement("TRUNCATE TABLE audit.events, approval.actions, approval.requests, approval.workflow_steps, approval.workflow_versions, approval.workflow_definitions"))
 	s.Require().NoError(seeders.SeedDemoProducts())
 	s.Require().NoError(db.Statement(
 		`INSERT INTO catalog.products (code, name, status) VALUES ('OLD_PROD', 'Retired product', 'INACTIVE') ON CONFLICT (code) DO NOTHING`))
@@ -172,6 +172,11 @@ func (s *ApprovalWorkflowTestSuite) TestCreateStoresVersionOneWithItsSteps() {
 		map[string]any{"order": float64(2), "name": "Head of Risk Review", "required_role": "RISK_APPROVER", "required_scope": "HEAD_OF_RISK", "min_approvers": float64(1)},
 	}, current["steps"], "a missing min_approvers is 1")
 	s.Equal([]any{current}, body["versions"])
+
+	// The configuration change is audited in the same transaction (SYSTEM_DESIGN.md 11.3).
+	var actions []string
+	s.Require().NoError(facades.DB().Select(&actions, `SELECT action FROM audit.events ORDER BY action`))
+	s.Equal([]string{"APPROVAL_WORKFLOW_CREATED", "APPROVAL_WORKFLOW_VERSION_CREATED"}, actions)
 
 	shown := s.json(s.send("demo_auditor", "GET", workflowsPath+"/"+body["id"].(string), "").AssertOk())
 	s.Equal(body, shown, "GET returns what POST stored")

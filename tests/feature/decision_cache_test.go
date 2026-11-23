@@ -10,6 +10,7 @@ import (
 	"goravel/app/facades"
 	decisionapp "goravel/app/modules/decision/application"
 	decisioninfra "goravel/app/modules/decision/infrastructure"
+	"goravel/app/platform/database"
 )
 
 // The compiled policy cache (RF-016) against the real database and the real HTTP application.
@@ -27,10 +28,24 @@ func (s *PolicyTestSuite) publishSecondVersion() (oldID, newID string) {
 	s.putRules("demo_analyst", newID, strings.Replace(demoRulesBody, "age_years >= 21", "age_years >= 22", 1)).AssertOk()
 	s.submitRaw(newID).AssertOk()
 
-	s.Require().NoError(s.exec(`UPDATE policy.policy_versions SET status = 'APPROVED' WHERE id = $1::uuid`, newID))
-	s.Require().NoError(s.exec(`UPDATE policy.policy_versions SET status = 'ACTIVE' WHERE id = $1::uuid`, newID))
-	s.Require().NoError(s.exec(`UPDATE policy.active_policy_bindings SET policy_version_id = $1::uuid`, newID))
-	s.Require().NoError(s.exec(`UPDATE policy.policy_versions SET status = 'ARCHIVED' WHERE id = $1::uuid`, oldID))
+	// The same steps as PolicyService.Publish (RF-020), in its order: archive the old version
+	// before activating the new one (at most one ACTIVE version per package, M4 review), then
+	// move the binding, all in one transaction.
+	m := database.NewManager(facades.DB())
+	s.Require().NoError(m.WithinTransaction(context.Background(), func(ctx context.Context) error {
+		q := m.Querier(ctx)
+		for _, stmt := range []struct{ sql, id string }{
+			{`UPDATE policy.policy_versions SET status = 'APPROVED' WHERE id = $1::uuid`, newID},
+			{`UPDATE policy.policy_versions SET status = 'ARCHIVED' WHERE id = $1::uuid`, oldID},
+			{`UPDATE policy.policy_versions SET status = 'ACTIVE' WHERE id = $1::uuid`, newID},
+			{`UPDATE policy.active_policy_bindings SET policy_version_id = $1::uuid`, newID},
+		} {
+			if err := q.Statement(stmt.sql, stmt.id); err != nil {
+				return err
+			}
+		}
+		return nil
+	}))
 	return oldID, newID
 }
 

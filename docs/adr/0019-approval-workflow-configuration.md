@@ -33,5 +33,5 @@ Bagian 11 menetapkan approval berjenjang yang tidak meng-hardcode jumlah tier: m
 ## Konsekuensi
 
 - RF-019 memanggil `WorkflowService.CurrentVersion(product, scope)` saat submit dan menyimpan id versinya; produk tanpa workflow tidak dapat di-submit ke approval.
-- Perubahan workflow tidak tercatat sebagai audit event sampai RF-022; `created_by` per versi adalah jejaknya.
+- *(Diubah pada review M4.)* Perubahan workflow ditulis sebagai audit event `APPROVAL_WORKFLOW_CREATED` dan `APPROVAL_WORKFLOW_VERSION_CREATED` dalam transaksi yang sama (Bagian 11.3); pencarian audit adalah RF-022.
 - Menambah role approver baru di matriks identity otomatis membuatnya dapat dipakai di step.

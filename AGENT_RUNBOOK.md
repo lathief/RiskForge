@@ -235,11 +235,20 @@ Di Git Bash Windows, jalankan dengan `MSYS_NO_PATHCONV=1` dan ganti `$PWD` denga
 - Keputusan: `docs/adr/0020-approval-state-machine.md`; batasan: `docs/M4_NOTES.md`.
 ## Publish atomik (RF-020)
 - Approval terakhir mem-publish dalam transaksi aksinya: `RequestService.Act` -> `PolicyGateway.ApproveAndPublish` (`PolicyService.ConcludeReview` + `PolicyService.Publish`) -> `AuditTrail.Record` -> tutup request. Jangan memindahkan publish ke luar transaksi itu atau ke goroutine lain.
-- `PolicyService.Publish` (`app/modules/policy/application/publish.go`) adalah satu-satunya kode yang memindahkan `policy.active_policy_bindings`; seeder dev juga memakainya. Urutan kunci: request, versi, paket, binding; jangan mengunci dalam urutan lain (deadlock).
+- `PolicyService.Publish` (`app/modules/policy/application/publish.go`) adalah satu-satunya kode yang memindahkan `policy.active_policy_bindings`; seeder dev juga memakainya. Urutan kunci: request, paket, versi, binding (`lockVersionOfPackage`), sama dengan `Clone`; jangan mengunci versi sebelum paketnya (deadlock, review M4). Indeks unik parsial menjamin satu versi `ACTIVE` per paket: arsipkan versi lama sebelum mengaktifkan yang baru.
 - Versi lebih lama dari versi aktif ditolak (`ErrVersionSuperseded`); rollback = clone versi lama lewat approval. Jangan menambah "reactivate" untuk versi `ARCHIVED`.
 - Audit: modul `app/modules/audit` (`application.Recorder`, `infrastructure.EventRepository`), tabel `audit.events` append-only. Data event hanya identifier, kode, dan checksum; jangan pernah memasukkan input pemohon. Test yang menghitung event mengosongkan `audit.events` (sudah di `PolicyTestSuite.SetupTest`).
 - Tes: `app/modules/policy/application/publish_test.go`, `app/modules/approval/application/request_service_test.go` (rollback saat publish atau audit gagal), `tests/feature/publish_test.go` (alur, rollback, konkurensi, decision selama publish). Jalankan dengan `-race -count=3` bila mengubah `Publish` atau `Act`.
 - Keputusan: `docs/adr/0021-atomic-publishing.md`; batasan: `docs/M4_NOTES.md`.
+## Policy diff dan approval review (RF-021)
+- Endpoint: `GET /api/v1/policy-versions/{version_id}/diff?base_version_id=` (izin `policy:read`) dan `GET /api/v1/approval-requests/{request_id}/review` (izin `approval:read` atau `policy:submit`). Keduanya hanya membaca.
+- Diff murni di `app/modules/policy/domain/diff.go` (`CompareVersions`, `Summary`); perbandingan, laporan validasi, dan dampak di `app/modules/policy/application/compare.go` (`PolicyService.Compare`). Bagian isi baru pada `domain.Content` juga harus ditambahkan ke diff, dengan tes di `diff_test.go`.
+- Dampak memakai `CompilePolicy` dan `RunTestCases` (inti evaluasi yang sama); jangan menulis evaluasi kedua.
+- Tes: `app/modules/policy/domain/diff_test.go`, `app/modules/policy/application/compare_test.go`, `tests/feature/policy_diff_test.go`. Keputusan: `docs/adr/0022-policy-diff-and-review.md`.
+## Validasi Milestone 4
+- Konfigurasi workflow kini ditulis ke `audit.events` (`APPROVAL_WORKFLOW_CREATED`, `APPROVAL_WORKFLOW_VERSION_CREATED`); `NewWorkflowService` menerima `AuditTrail` (`approvalinfra.NewDatabaseAuditLog(db)`). Test yang menghitung event publish memakai `s.publishedEvents()`, bukan jumlah semua baris.
+- Alur end-to-end M4 di stack nyata: `./scripts/m4-e2e.sh` (stack yang sudah di-seed di `127.0.0.1:3000`; mengubah data, jadi hanya untuk project sekali pakai seperti `rf-live-<nama>`, bukan `rf-dev` yang ingin dipertahankan). Lihat `docs/SCRIPTS.md`.
+- Temuan review yang ditunda: `docs/POST_M5_BACKLOG_M4.md`.
 ## Coverage
 `./scripts/coverage.sh [rf-test-<nama>]` mengukur coverage statement (unit saja, lalu unit + integrasi) di project Compose sekali pakai dan mencetak tabel Markdown. Hasilnya dicatat di `docs/coverage.md`; perbarui file itu setelah setiap tiket.
 

@@ -32,7 +32,7 @@ func (s *PolicyTestSuite) workflowService() *approvalapp.WorkflowService {
 	catalogDB, approvalDB := base.WithModule("catalog"), base.WithModule("approval")
 	products := catalogapp.NewProductService(cataloginfra.NewProductRepository(catalogDB), catalogDB)
 	return approvalapp.NewWorkflowService(approvalinfra.NewWorkflowRepository(approvalDB),
-		approvalinfra.NewCatalogProducts(products), approvalinfra.IdentityRoles{}, approvalDB)
+		approvalinfra.NewCatalogProducts(products), approvalinfra.IdentityRoles{}, approvalinfra.NewDatabaseAuditLog(approvalDB), approvalDB)
 }
 
 func (s *PolicyTestSuite) requestService() *approvalapp.RequestService {
@@ -350,7 +350,7 @@ func (s *PolicyTestSuite) TestConcurrentApprovalsReachTheQuorumExactlyOnce() {
 	s.Equal(approvaldomain.RequestApproved, final.Status)
 	s.Len(final.Actions, 2)
 	s.Equal("ACTIVE", s.getVersion(v1)["status"])
-	s.Equal(1, s.rows("audit.events"), "one publication, one event")
+	s.Equal(1, s.publishedEvents(), "one publication, one event")
 }
 
 // The same approver sending twice at once is recorded once.

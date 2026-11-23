@@ -41,6 +41,13 @@ func (s *PolicyTestSuite) status(versionID string) string {
 	return s.getVersion(versionID)["status"].(string)
 }
 
+// publishedEvents counts the publication events (workflow configuration writes its own).
+func (s *PolicyTestSuite) publishedEvents() int {
+	var n []int
+	s.Require().NoError(selectInts(&n, `SELECT COUNT(*) FROM audit.events WHERE action = 'POLICY_VERSION_PUBLISHED'`))
+	return n[0]
+}
+
 func (s *PolicyTestSuite) bound() []string {
 	var ids []string
 	s.Require().NoError(selectStrings(&ids, `SELECT policy_version_id::text FROM policy.active_policy_bindings`))
@@ -85,7 +92,7 @@ func (s *PolicyTestSuite) TestTheFinalApprovalPublishesAndTheNextDecisionUsesIt(
 	}
 	var events []event
 	s.Require().NoError(facades.DB().Select(&events,
-		`SELECT action, aggregate_type, aggregate_id, actor_id::text AS actor_id, data::text AS data FROM audit.events`))
+		`SELECT action, aggregate_type, aggregate_id, actor_id::text AS actor_id, data::text AS data FROM audit.events WHERE action = 'POLICY_VERSION_PUBLISHED'`))
 	s.Require().Len(events, 1)
 	e := events[0]
 	s.Equal("POLICY_VERSION_PUBLISHED", e.Action)
@@ -123,7 +130,7 @@ func (s *PolicyTestSuite) TestAnOlderApprovedVersionCannotReplaceANewerActiveOne
 	s.Len(r["actions"], 1)
 	s.Equal("PENDING_APPROVAL", s.status(older))
 	s.Equal([]string{newer}, s.bound())
-	s.Equal(1, s.rows("audit.events"))
+	s.Equal(1, s.publishedEvents())
 
 	// The approver closes it by rejecting.
 	s.act("demo_approver_2", olderReq, `{"action":"REJECT","comment":"superseded by a newer version"}`).AssertOk()
@@ -253,6 +260,38 @@ func (s *PolicyTestSuite) TestDecisionsDuringAPublishUseOneWholeVersion() {
 	s.Equal([]string{v2}, s.bound())
 }
 
+// A clone and the final approval of one policy at once: both lock the package before a version,
+// so they never deadlock (M4 review; the first publish of a package is the likely case, because
+// a clone then copies the newest version).
+func (s *PolicyTestSuite) TestACloneDuringTheFinalApprovalNeverDeadlocks() {
+	head := approvaldomain.Actor{ID: s.userID("demo_approver_2"), Roles: []string{"RISK_APPROVER"}, Scopes: []string{"HEAD_OF_RISK"}}
+	approvals := s.requestService()
+	for round := 0; round < 5; round++ {
+		s.SetupTest()
+		v1, id := s.submitForApproval("demo_analyst")
+		policyID := s.getVersion(v1)["policy_id"].(string)
+		s.act("demo_approver_1", id["id"].(string), `{"action":"APPROVE"}`).AssertOk()
+		analyst := s.userID("demo_analyst")
+		var (
+			wg                   sync.WaitGroup
+			cloneErr, approveErr error
+		)
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			_, cloneErr = s.service.Clone(context.Background(), analyst, policyID, policyapp.CloneInput{})
+		}()
+		go func() {
+			defer wg.Done()
+			_, approveErr = approvals.Act(context.Background(), head, id["id"].(string), approvaldomain.ActionInput{Action: "APPROVE"})
+		}()
+		wg.Wait()
+		s.NoError(cloneErr, "round %d", round)
+		s.NoError(approveErr, "round %d", round)
+		s.Equal([]string{v1}, s.bound())
+	}
+}
+
 func (s *PolicyTestSuite) TestTheAuditLogIsAppendOnly() {
 	s.activate()
 	policyID, _ := s.activeIDs()
@@ -262,7 +301,7 @@ func (s *PolicyTestSuite) TestTheAuditLogIsAppendOnly() {
 	db := facades.DB()
 	s.Error(db.Statement(`UPDATE audit.events SET action = 'TAMPERED_EVENT'`))
 	s.Error(db.Statement(`DELETE FROM audit.events`))
-	s.Equal(1, s.rows("audit.events"))
+	s.Equal(1, s.publishedEvents())
 }
 
 // The binding trigger still refuses a pointer at a version that is not ACTIVE, so no code
