@@ -67,8 +67,20 @@ type AuditTrail interface {
 	Record(ctx context.Context, e AuditEvent) error
 }
 
-// EventPolicyPublished is the audit action of a publication.
-const EventPolicyPublished = "POLICY_VERSION_PUBLISHED"
+// Audit actions of the approval process (RF-022). Together with the publication event they are
+// the approval history of a request: `aggregate_type=APPROVAL_REQUEST` and the request id.
+const (
+	// EventPolicyPublished is the audit action of a publication.
+	EventPolicyPublished = "POLICY_VERSION_PUBLISHED"
+	// EventRequestOpened: a submit opened the request.
+	EventRequestOpened = "APPROVAL_REQUEST_OPENED"
+	// EventActionRecorded: an approver approved or rejected on a step.
+	EventActionRecorded = "APPROVAL_ACTION_RECORDED"
+	// EventRequestClosed: the request ended, approved or rejected.
+	EventRequestClosed = "APPROVAL_REQUEST_CLOSED"
+	// AggregateApprovalRequest is the aggregate type of the events above.
+	AggregateApprovalRequest = "APPROVAL_REQUEST"
+)
 
 // NewRequest is the row opened at submit.
 type NewRequest struct {
@@ -155,6 +167,15 @@ func (s *RequestService) Submit(ctx context.Context, actorID, versionID string) 
 		if err != nil {
 			return err
 		}
+		if err := s.audit.Record(ctx, AuditEvent{
+			Action: EventRequestOpened, AggregateType: AggregateApprovalRequest, AggregateID: id, ActorID: actorID,
+			Data: map[string]any{
+				"policy_version_id": frozen.VersionID, "version_number": frozen.Number, "checksum": frozen.Checksum,
+				"product_code": frozen.ProductCode, "scope": frozen.PolicyScope, "workflow_version_id": workflow.ID,
+			},
+		}); err != nil {
+			return err
+		}
 		out, err = s.requests.FindRequest(ctx, id, false)
 		return err
 	})
@@ -196,6 +217,16 @@ func (s *RequestService) Act(ctx context.Context, actor domain.Actor, requestID 
 		if err := s.requests.InsertAction(ctx, r.ID, t.Action); err != nil {
 			return err
 		}
+		// The comment is free text and stays in approval.actions; the event holds codes only.
+		if err := s.audit.Record(ctx, AuditEvent{
+			Action: EventActionRecorded, AggregateType: AggregateApprovalRequest, AggregateID: r.ID, ActorID: actor.ID,
+			Data: map[string]any{
+				"policy_version_id": r.PolicyVersionID, "step": t.Action.StepOrder, "action": string(t.Action.Type),
+				"request_status": string(t.Status),
+			},
+		}); err != nil {
+			return err
+		}
 		switch {
 		case t.Closed && t.Status == domain.RequestRejected:
 			if err := s.policies.Reject(ctx, r.PolicyVersionID, r.PolicyChecksum); err != nil {
@@ -219,6 +250,17 @@ func (s *RequestService) Act(ctx context.Context, actor domain.Actor, requestID 
 		}
 		if t.Status != r.Status || t.CurrentStep != r.CurrentStep {
 			if err := s.requests.UpdateState(ctx, r.ID, t.Status, t.CurrentStep); err != nil {
+				return err
+			}
+		}
+		if t.Closed {
+			if err := s.audit.Record(ctx, AuditEvent{
+				Action: EventRequestClosed, AggregateType: AggregateApprovalRequest, AggregateID: r.ID, ActorID: actor.ID,
+				Data: map[string]any{
+					"policy_version_id": r.PolicyVersionID, "version_number": r.PolicyVersionNumber,
+					"checksum": r.PolicyChecksum, "status": string(t.Status),
+				},
+			}); err != nil {
 				return err
 			}
 		}

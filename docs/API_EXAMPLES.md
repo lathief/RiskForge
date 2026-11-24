@@ -694,6 +694,80 @@ Response from the e2e flow, where version 2 raised the minimum age from 21 to 30
 The request was approved earlier and version 3 (a rollback copy of version 1) is active now, so the base is version 3. `impact` runs the stored test cases of the target version against both versions, and `changed` counts the cases whose result differs. For a draft that cannot be evaluated yet, `impact.available` is `false` with a `reason`, and the diff is still returned. Go encodes `>` as `\u003e` in JSON strings.
 
 Errors: an unknown version or request is `404 POLICY_VERSION_NOT_FOUND` or `404 APPROVAL_REQUEST_NOT_FOUND`, and a `base_version_id` of another policy is `422 INPUT_VALIDATION_ERROR` (`base_version_id: not_in_policy`).
+## Audit search (RF-022)
+
+Only an auditor (`audit:read`) may search. Every other role, including the admin, gets `403 FORBIDDEN`. Both operations only read; searching writes no event. `TOKEN` below is the `demo_auditor` token. Responses are from a real run after `./scripts/m4-e2e.sh` (ids and times differ on your stack).
+
+### Approval history of one request
+
+The history of a request is the list of its events, oldest first:
+
+```sh
+curl -s "$API/audit/events?aggregate_type=APPROVAL_REQUEST&aggregate_id=$REQUEST_ID&order=asc" -H "Authorization: Bearer $TOKEN"
+```
+```json
+{"data":[
+ {"id":"8f41a5ec-caba-4f81-b9a9-ad3eaf565123","occurred_at":"2026-11-23T17:29:41Z","action":"APPROVAL_REQUEST_OPENED","aggregate_type":"APPROVAL_REQUEST","aggregate_id":"b9774a22-abce-45a8-a0b8-006fada77d6b",
+  "actor":{"id":"5dcfc2b4-07a2-4024-80bf-1e2d3f302724","username":"demo_analyst"},
+  "data":{"checksum":"1a22aa8b...a2ff","policy_version_id":"b039a70d-4430-4b00-ba17-356f5e841269","product_code":"KTA_DEMO","scope":"DEFAULT","version_number":3,"workflow_version_id":"9ca6fcb1-7302-435e-9d12-038271289b1e"}},
+ {"id":"8ea0ff08-d348-4921-b806-f1c2dc339445","occurred_at":"2026-11-23T17:29:42Z","action":"APPROVAL_ACTION_RECORDED","aggregate_type":"APPROVAL_REQUEST","aggregate_id":"b9774a22-abce-45a8-a0b8-006fada77d6b",
+  "actor":{"id":"2b4eb66e-3676-4c9b-ae21-ca293ebc577c","username":"demo_approver_1"},
+  "data":{"action":"APPROVE","policy_version_id":"b039a70d-4430-4b00-ba17-356f5e841269","request_status":"PENDING","step":1}},
+ {"id":"097c1bcb-2818-4026-abcc-14f6c8eeabc4","occurred_at":"2026-11-23T17:29:42Z","action":"APPROVAL_ACTION_RECORDED","aggregate_type":"APPROVAL_REQUEST","aggregate_id":"b9774a22-abce-45a8-a0b8-006fada77d6b",
+  "actor":{"id":"a27781ac-4b11-4e01-a49d-08e159f10df4","username":"demo_approver_2"},
+  "data":{"action":"APPROVE","policy_version_id":"b039a70d-4430-4b00-ba17-356f5e841269","request_status":"APPROVED","step":2}},
+ {"id":"a91696e0-3af5-445a-be57-5e2a0a72eda8","occurred_at":"2026-11-23T17:29:42Z","action":"APPROVAL_REQUEST_CLOSED","aggregate_type":"APPROVAL_REQUEST","aggregate_id":"b9774a22-abce-45a8-a0b8-006fada77d6b",
+  "actor":{"id":"a27781ac-4b11-4e01-a49d-08e159f10df4","username":"demo_approver_2"},
+  "data":{"checksum":"1a22aa8b...a2ff","policy_version_id":"b039a70d-4430-4b00-ba17-356f5e841269","status":"APPROVED","version_number":3}}
+],"meta":{"page":1,"per_page":20,"total":4}}
+```
+(`checksum` is shortened here; the API returns all 64 characters.) The events hold identifiers and codes only. The approver's `comment` stays in `GET /approval-requests/{request_id}`. A rejection ends with `APPROVAL_ACTION_RECORDED` (`"action":"REJECT"`, `"request_status":"REJECTED"`) and `APPROVAL_REQUEST_CLOSED` (`"status":"REJECTED"`). Requests opened before RF-022 have no events.
+
+### Other event filters
+
+`action`, `aggregate_type`, `aggregate_id`, `actor_id`, `from` (inclusive), `to` (exclusive), `order` (`desc` default, `asc`), `page`, `per_page` (1 to 100):
+
+```sh
+curl -s "$API/audit/events?action=POLICY_VERSION_PUBLISHED&per_page=1" -H "Authorization: Bearer $TOKEN"
+```
+```json
+{"data":[{"id":"58ee07ce-de44-4158-9618-d2bd94553d88","occurred_at":"2026-11-23T17:29:42Z","action":"POLICY_VERSION_PUBLISHED","aggregate_type":"POLICY_VERSION","aggregate_id":"b039a70d-4430-4b00-ba17-356f5e841269",
+  "actor":{"id":"a27781ac-4b11-4e01-a49d-08e159f10df4","username":"demo_approver_2"},
+  "data":{"approval_request_id":"b9774a22-abce-45a8-a0b8-006fada77d6b","archived_version_id":"5405f38e-f188-4421-a1b6-0190a19e4255","checksum":"1a22aa8b...a2ff","policy_id":"1d2b26ab-e9d4-43bb-9d01-b0ee71ac6d3c","product_code":"KTA_DEMO","scope":"DEFAULT","version_number":3,"workflow_version_id":"9ca6fcb1-7302-435e-9d12-038271289b1e"}}],
+ "meta":{"page":1,"per_page":1,"total":2}}
+```
+An event written without a user (a development seeder) has `"actor": null`. `data` is redacted again on read: a value under a key such as `password` or `api_key` is returned as `"[REDACTED]"`.
+
+### Decision history
+
+```sh
+curl -s "$API/audit/decisions?application_id=LOAN-APP-E2E-0001&per_page=2" -H "Authorization: Bearer $TOKEN"
+```
+```json
+{"data":[
+ {"decision_id":"fd637925-c06a-4808-b48b-ae4953d41121","created_at":"2026-11-23T17:29:43Z","application_id":"LOAN-APP-E2E-0001","product_code":"KTA_DEMO",
+  "policy_version":{"id":"b039a70d-4430-4b00-ba17-356f5e841269","number":3,"checksum":"1a22aa8b...a2ff"},"final_decision":"APPROVE","risk_grade":"A","total_score":"685.00","reason_codes":[]},
+ {"decision_id":"4f862d0a-3e3f-4758-aec8-556afbe73bcb","created_at":"2026-11-23T17:29:38Z","application_id":"LOAN-APP-E2E-0001","product_code":"KTA_DEMO",
+  "policy_version":{"id":"5405f38e-f188-4421-a1b6-0190a19e4255","number":2,"checksum":"3f007617...a035"},"final_decision":"REJECT","risk_grade":null,"total_score":null,"reason_codes":["AGE_BELOW_MINIMUM"]}
+],"meta":{"page":1,"per_page":2,"total":3}}
+```
+Newest first. The same application was decided three times, by policy versions 1, 2, and 3 (the page shows the latest two; `total` counts all three). Filters: `application_id`, `product_code`, `final_decision` (`APPROVE`, `REFER`, `REJECT`), `policy_version_id`, `from`, `to`, `page`, `per_page`. The list has no applicant input and no trace; read one decision with its full trace through `GET /decisions/{decision_id}`.
+
+### Errors
+
+All invalid parameters are reported together:
+
+```sh
+curl -s "$API/audit/events?from=yesterday&order=sideways&per_page=500" -H "Authorization: Bearer $TOKEN"
+```
+```json
+{"error":{"code":"INPUT_VALIDATION_ERROR","message":"invalid query parameters","details":[
+ {"field":"from","issue":"invalid_format","message":"use an RFC 3339 timestamp such as 2026-11-21T08:00:00Z"},
+ {"field":"per_page","issue":"must_be_between_1_and_100"},
+ {"field":"order","issue":"invalid_value"}]},"request_id":"e126bbc7877306f78a2f41e5c6857ded"}
+```
+`to` must be after `from` (`to: must_be_after_from`). A token without `audit:read` is `403 FORBIDDEN`; no token is `401 UNAUTHENTICATED`.
+
 ## Planned endpoints
 
-Not live yet; see `SYSTEM_DESIGN.md` 13.1 for the target contract: audit search (RF-022). Each will be added to the OpenAPI contract, Swagger UI, and the Postman collection in the same change.
+None of the planned endpoints of `SYSTEM_DESIGN.md` 13.1 is left; a later ticket that adds an operation adds it to the OpenAPI contract, Swagger UI, and the Postman collection in the same change.

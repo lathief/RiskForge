@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Measures Go statement coverage and prints it as Markdown (the source of docs/coverage.md).
+# Measures Go statement coverage and prints it as Markdown (the source of docs/COVERAGE.md).
 #
 #   ./scripts/coverage.sh [project]     default project: rf-test-coverage
 #

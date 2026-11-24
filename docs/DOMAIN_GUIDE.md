@@ -79,6 +79,7 @@ stateDiagram-v2
 - Only drafts can be edited. A submitted version is frozen by a checksum, and every approval refers to that exact content.
 - Approval is multi-level (for example Risk Lead, then Head of Risk). The maker can never approve their own submission, and an approver cannot edit the draft under review.
 - The last approval switches the active version, archives the previous one, and records the audit event in one database transaction.
+- Every step of the approval (submit, each approval or rejection, the closing) is an audit event written in the transaction of that step. An auditor reads the history of a request with `GET /audit/events?aggregate_type=APPROVAL_REQUEST&aggregate_id=<request id>&order=asc`, and the results of past decisions with `GET /audit/decisions` (RF-022). The audit log holds identifiers and codes, not applicant data and not the approver's comment.
 - Rolling back means publishing a new version copied from a known-good one, through the same approval process. History is never edited.
 
 ## What is a business result and what is an error

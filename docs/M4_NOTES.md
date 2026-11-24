@@ -1,6 +1,6 @@
 # Milestone 4 notes (governance)
 
-Status: M4 (RF-017 to RF-021) complete; validated and reviewed as one unit on `feature/M4-governance` (see the last section). Deferred findings: [`POST_M5_BACKLOG_M4.md`](POST_M5_BACKLOG_M4.md).
+Status: M4 (RF-017 to RF-021) complete; validated and reviewed as one unit on `feature/M4-governance` (see the last section). Deferred findings: [`BACKLOG.md`](BACKLOG.md).
 
 Limits, deviations from `SYSTEM_DESIGN.md`, and open decisions of milestone 4, one section per ticket. The design is in `SYSTEM_DESIGN.md` 10.12 onward; the reasons are in the ADRs named below.
 
@@ -20,7 +20,7 @@ Branch `feature/RF-017-policy-simulator`, from `main` (M3 merged). ADR `docs/adr
 | Batch simulation of all stored test cases | Not built | `POST .../validate` already executes every stored case (RF-013). |
 | Simulation over many inputs or historical data | Not built | Backtesting is v1.1 (`SYSTEM_DESIGN.md` 21). |
 | Comparison with the active version | Done in RF-021 | `GET /policy-versions/{version_id}/diff` and the approval review. |
-| Audit event per simulation | Not built | RF-022. |
+| Audit event per simulation | Not built | Not done in RF-022 either; see [`M5_NOTES.md`](M5_NOTES.md). |
 | Approver or auditor simulation | Not built | Not in the permission matrix. Revisit with RF-021 if reviewers need it. |
 
 Known limits:
@@ -42,7 +42,7 @@ Branch `feature/RF-018-approval-workflow-config`, on top of RF-017. ADR `docs/ad
 | Restricted permission | Done | Writes `workflow:manage` (admin). Reads `approval:read` or `workflow:manage` (`RequireAnyPermission`, `x-alternative-permissions`). |
 | Concurrency | Done | Version numbers serialized by the workflow row lock (8 concurrent versions: gap-free 1..9); concurrent creates of one workflow give exactly one. |
 | Endpoints not in the planned table | Deviation | Five configuration operations; the planned table of 13.1 only lists approval requests. |
-| Audit event on change | Done (M4 review) | `APPROVAL_WORKFLOW_CREATED` and `APPROVAL_WORKFLOW_VERSION_CREATED` in `audit.events`, in the same transaction; search is RF-022. |
+| Audit event on change | Done (M4 review) | `APPROVAL_WORKFLOW_CREATED` and `APPROVAL_WORKFLOW_VERSION_CREATED` in `audit.events`, in the same transaction; searchable since RF-022 (`GET /audit/events`). |
 | Approval of workflow changes | Not built | Enhancement in `SYSTEM_DESIGN.md` 11.3. |
 | Fallback workflow for a product without one | Not built | Since RF-019 such a submission is refused and the draft stays a draft. |
 
@@ -117,11 +117,11 @@ Branch `feature/RF-021-policy-diff-review`, on top of RF-020. ADR `docs/adr/0022
 | Simulation impact summary | Done (stored cases) | The target's stored test cases run with the base and the target; historical backtesting is v1.1. |
 | Endpoint shape | Deviation | Diff lives in `GET /approval-requests/{id}/review`, not in `GET /approval-requests/{id}` (ADR 0022). Plus `GET /policy-versions/{id}/diff` for analysts. |
 
-Known limits: the review of a closed request compares with the version active now (`POST_M5_BACKLOG_M4.md` M4-REL-06); a row inserted in the middle of the matrix shows as several modified rows and one added row; each review compiles up to three policies (the target for validation and for the impact, the base once) and runs the test cases up to three times (M4-SEC-04).
+Known limits: the review of a closed request compares with the version active now (`BACKLOG.md` M4-REL-06); a row inserted in the middle of the matrix shows as several modified rows and one added row; each review compiles up to three policies (the target for validation and for the impact, the base once) and runs the test cases up to three times (M4-SEC-04).
 
 ## Milestone 4 validation and review
 
-RF-017 to RF-021 were collected in `feature/M4-governance` (from `main`, one `--no-ff` merge per ticket; before the review fixes its tree was identical to `feature/RF-021-policy-diff-review`) and validated as one unit. Commands and numbers: `docs/VERIFICATION.md`. An independent semantic and security review of the whole diff gave **NEEDS_CHANGES** with four findings to fix now; all four are fixed and tested below. The other findings are tracked in `docs/POST_M5_BACKLOG_M4.md`.
+RF-017 to RF-021 were collected in `feature/M4-governance` (from `main`, one `--no-ff` merge per ticket; before the review fixes its tree was identical to `feature/RF-021-policy-diff-review`) and validated as one unit. Commands and numbers: `docs/VERIFICATION.md`. An independent semantic and security review of the whole diff gave **NEEDS_CHANGES** with four findings to fix now; all four are fixed and tested below. The other findings are tracked in `docs/BACKLOG.md`.
 
 ### Milestone audit (`SYSTEM_DESIGN.md` 17, M4 gate)
 

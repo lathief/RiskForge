@@ -103,6 +103,12 @@ func Api() {
 	decisionController := controllers.NewDecisionController(
 		decisionapp.NewEvaluationService(decisioninfra.NewPolicyResolver(policyService),
 			decisioninfra.NewDecisionRepository(decisionDB), decisionDB))
+	// Audit search (RF-022): the auditor reads the event log and the decision history. Both
+	// only read, so they share the audit module's database manager.
+	auditDB := dbManager.WithModule(moduleAudit)
+	auditController := controllers.NewAuditController(
+		auditapp.NewSearchService(auditinfra.NewEventSearch(auditDB)),
+		decisionapp.NewHistoryService(decisioninfra.NewDecisionRepository(auditDB)))
 	// Policy simulator (RF-017): evaluates any version with the evaluation core of the Decision
 	// API and writes nothing, so it needs no database manager of its own.
 	simulationController := controllers.NewSimulationController(
@@ -130,6 +136,7 @@ func Api() {
 	canReadPolicies := middleware.NewRequirePermission(domain.PermPolicyRead)
 	canWritePolicies := middleware.NewRequirePermission(domain.PermPolicyWrite)
 	canSubmitPolicies := middleware.NewRequirePermission(domain.PermPolicySubmit)
+	canReadAudit := middleware.NewRequirePermission(domain.PermAuditRead)
 	canReadProducts := middleware.NewRequirePermission(domain.PermProductRead)
 	canWriteProducts := middleware.NewRequirePermission(domain.PermProductWrite)
 
@@ -140,6 +147,7 @@ func Api() {
 	decision := middleware.NewModule(moduleDecision)
 	simulation := middleware.NewModule(moduleSimulation)
 	approval := middleware.NewModule(moduleApproval)
+	audit := middleware.NewModule(moduleAudit)
 
 	facades.Route().Prefix("/api/v1").Group(func(router route.Router) {
 		router.Middleware(identity).Post("/auth/login", authController.Login)
@@ -185,5 +193,7 @@ func Api() {
 		router.Middleware(policy, authenticate, canReadPolicies).Get("/policy-versions/{version_id}/diff", policyController.Diff)
 		router.Middleware(decision, authenticate, canEvaluateDecisions).Post("/decisions/evaluate", decisionController.Evaluate)
 		router.Middleware(decision, authenticate, canReadDecisions).Get("/decisions/{decision_id}", decisionController.Show)
+		router.Middleware(audit, authenticate, canReadAudit).Get("/audit/events", auditController.Events)
+		router.Middleware(audit, authenticate, canReadAudit).Get("/audit/decisions", auditController.Decisions)
 	})
 }

@@ -19233,7 +19233,7 @@
           "request": {
             "name": "Configure the approval workflow of a product",
             "description": {
-              "content": "Creates the approval workflow of a product and policy scope with its first version. A\nversion is an ordered list of **sequential steps** (tiers); the number of steps is not\nfixed (1 to 10). Each step names the role an approver must hold, optionally an approval\nscope that narrows it, and the number of **distinct** approvers it needs\n(`min_approvers`, 1 to 5, default 1).\n\nRules: `required_role` must be a role that may approve (`approval:act`, today only\n`RISK_APPROVER`), so configuration can never hand approval to the maker (`RISK_ANALYST`)\nor to the admin who configures it (`not_an_approver_role`). `required_scope` is\n`RISK_LEAD` or `HEAD_OF_RISK` (`unknown_scope`), or null for any holder of the role.\nStep names are single-line and unique in the version, case-insensitively\n(`duplicate_name`). The product must exist and be ACTIVE (`unknown_product`,\n`product_inactive`); `policy_scope` defaults to `DEFAULT`. A product and policy scope\nhave one workflow (`409 APPROVAL_WORKFLOW_CONFLICT`); change it with\n`POST /approval-workflows/{workflow_id}/versions`.\n\nOnly `workflow:manage` (the admin) may configure workflows. Configuration is\nappend-only: a workflow, a version, and its steps are never edited or deleted (database\ntriggers refuse it). Audit events arrive with RF-022; until then `created_by` records\nwho made each version.\n",
+              "content": "Creates the approval workflow of a product and policy scope with its first version. A\nversion is an ordered list of **sequential steps** (tiers); the number of steps is not\nfixed (1 to 10). Each step names the role an approver must hold, optionally an approval\nscope that narrows it, and the number of **distinct** approvers it needs\n(`min_approvers`, 1 to 5, default 1).\n\nRules: `required_role` must be a role that may approve (`approval:act`, today only\n`RISK_APPROVER`), so configuration can never hand approval to the maker (`RISK_ANALYST`)\nor to the admin who configures it (`not_an_approver_role`). `required_scope` is\n`RISK_LEAD` or `HEAD_OF_RISK` (`unknown_scope`), or null for any holder of the role.\nStep names are single-line and unique in the version, case-insensitively\n(`duplicate_name`). The product must exist and be ACTIVE (`unknown_product`,\n`product_inactive`); `policy_scope` defaults to `DEFAULT`. A product and policy scope\nhave one workflow (`409 APPROVAL_WORKFLOW_CONFLICT`); change it with\n`POST /approval-workflows/{workflow_id}/versions`.\n\nOnly `workflow:manage` (the admin) may configure workflows. Configuration is\nappend-only: a workflow, a version, and its steps are never edited or deleted (database\ntriggers refuse it). Each change is also an audit event (`APPROVAL_WORKFLOW_CREATED`,\n`APPROVAL_WORKFLOW_VERSION_CREATED`), searchable with `GET /audit/events` (RF-022);\n`created_by` also records who made each version.\n",
               "type": "text/plain"
             },
             "url": {
@@ -22563,7 +22563,7 @@
           "request": {
             "name": "Approve or reject the active step",
             "description": {
-              "content": "The approval state machine (SYSTEM_DESIGN.md 11.2, 11.3). Only the **active step** of an\nopen request accepts actions. The approver's roles and approval scopes are read\nserver-side from the identity module; the body cannot claim a role. Checks, in order:\n\n- the request is open (`409 APPROVAL_REQUEST_CLOSED`);\n- `step`, if sent, is the active step (`409 APPROVAL_STEP_NOT_ACTIVE`);\n- the caller is not the submitter (`403 SELF_APPROVAL_FORBIDDEN`), even with every role;\n- the caller has not acted on this request before (`409 APPROVAL_ALREADY_GIVEN`): one\n  person acts once per request, so one approver never satisfies two tiers and a quorum\n  always counts distinct people;\n- the caller holds the step's role and, if it names one, its scope\n  (`403 APPROVER_NOT_ELIGIBLE`).\n\n`REJECT` (with a `comment`) closes the request as `REJECTED` and the policy version\nbecomes `REJECTED`; the analyst revises by cloning it into a new draft. `APPROVE` counts\ntoward the step's quorum; when reached, the next step becomes active.\n\n**The approval that completes the last step publishes (RF-020, SYSTEM_DESIGN.md 9.4).**\nIn one transaction: the action is stored, the request closes `APPROVED`, the version\n(only if it still has the submitted checksum and its snapshot compiles) becomes\n`APPROVED` and then `ACTIVE`, the previously active version of the policy becomes\n`ARCHIVED`, the active binding moves to the new version, and an audit event\n`POLICY_VERSION_PUBLISHED` is written. All of it commits or none of it does. The next\n`POST /decisions/evaluate` uses the new version; decisions already stored keep theirs.\nPublishes of one policy are serialized by a lock, so the policy never has two active\nversions. If the version cannot be published, nothing of the action is kept and the\nrequest stays open at the last step: `409 POLICY_VERSION_SUPERSEDED` when a newer\nversion is already active (reject the request instead; a rollback is a new version\ncloned from the good one), or `409 POLICY_NOT_PUBLISHABLE` when the snapshot no longer\ncompiles.\n\nThe request row is locked for the action, so concurrent approvals are decided one after\nthe other: the quorum and each transition happen exactly once, and a unique index refuses\na second action of one approver even when two arrive at once. The response is the\nrequest after the action.\n",
+              "content": "The approval state machine (SYSTEM_DESIGN.md 11.2, 11.3). Only the **active step** of an\nopen request accepts actions. The approver's roles and approval scopes are read\nserver-side from the identity module; the body cannot claim a role. Checks, in order:\n\n- the request is open (`409 APPROVAL_REQUEST_CLOSED`);\n- `step`, if sent, is the active step (`409 APPROVAL_STEP_NOT_ACTIVE`);\n- the caller is not the submitter (`403 SELF_APPROVAL_FORBIDDEN`), even with every role;\n- the caller has not acted on this request before (`409 APPROVAL_ALREADY_GIVEN`): one\n  person acts once per request, so one approver never satisfies two tiers and a quorum\n  always counts distinct people;\n- the caller holds the step's role and, if it names one, its scope\n  (`403 APPROVER_NOT_ELIGIBLE`).\n\n`REJECT` (with a `comment`) closes the request as `REJECTED` and the policy version\nbecomes `REJECTED`; the analyst revises by cloning it into a new draft. `APPROVE` counts\ntoward the step's quorum; when reached, the next step becomes active.\n\n**The approval that completes the last step publishes (RF-020, SYSTEM_DESIGN.md 9.4).**\nIn one transaction: the action is stored, the request closes `APPROVED`, the version\n(only if it still has the submitted checksum and its snapshot compiles) becomes\n`APPROVED` and then `ACTIVE`, the previously active version of the policy becomes\n`ARCHIVED`, the active binding moves to the new version, and the audit events of the\napproval are written (`APPROVAL_ACTION_RECORDED`, `POLICY_VERSION_PUBLISHED`,\n`APPROVAL_REQUEST_CLOSED`; see `GET /audit/events`). All of it commits or none of it does. The next\n`POST /decisions/evaluate` uses the new version; decisions already stored keep theirs.\nPublishes of one policy are serialized by a lock, so the policy never has two active\nversions. If the version cannot be published, nothing of the action is kept and the\nrequest stays open at the last step: `409 POLICY_VERSION_SUPERSEDED` when a newer\nversion is already active (reject the request instead; a rollback is a new version\ncloned from the good one), or `409 POLICY_NOT_PUBLISHABLE` when the snapshot no longer\ncompiles.\n\nThe request row is locked for the action, so concurrent approvals are decided one after\nthe other: the quorum and each transition happen exactly once, and a unique index refuses\na second action of one approver even when two arrive at once. The response is the\nrequest after the action.\n",
               "type": "text/plain"
             },
             "url": {
@@ -23787,6 +23787,1835 @@
           }
         }
       ]
+    },
+    {
+      "name": "Audit",
+      "description": "Auditor searches of the append-only audit event log, which holds the approval history, and of the stored decisions (RF-022).",
+      "item": [
+        {
+          "name": "Search the audit event log",
+          "request": {
+            "name": "Search the audit event log",
+            "description": {
+              "content": "The append-only log of domain events (RF-020, RF-022): who did what to which entity and\nwhen, with identifiers, codes, and checksums only, never applicant data and never the\nfree-text comment of an approver. Newest first by default; `order=asc` lists the\noldest first, which is the order to read a history in. Events of one transaction keep\nthe order in which they were written.\n\n**Approval history of a request:** `aggregate_type=APPROVAL_REQUEST&aggregate_id=<request id>&order=asc`\nreturns `APPROVAL_REQUEST_OPENED`, one `APPROVAL_ACTION_RECORDED` per approval or\nrejection (with the step, the action, and the request status after it), and\n`APPROVAL_REQUEST_CLOSED`. **Publication history of a version:**\n`aggregate_type=POLICY_VERSION&aggregate_id=<version id>` returns\n`POLICY_VERSION_PUBLISHED`. Workflow configuration is `APPROVAL_WORKFLOW_CREATED` and\n`APPROVAL_WORKFLOW_VERSION_CREATED`.\n\n`data` is redacted again when it is read: a value stored under a key such as `password`\nor `api_key` is returned as `[REDACTED]`. The search does not write events.\n\n`from` is inclusive and `to` is exclusive, both RFC 3339. Only an auditor\n(`audit:read`) may search.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "audit",
+                "events"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "Only events with this action.",
+                    "type": "text/plain"
+                  },
+                  "key": "action",
+                  "value": "APPROVAL_ACTION_RECORDED"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "Only events about this kind of entity.",
+                    "type": "text/plain"
+                  },
+                  "key": "aggregate_type",
+                  "value": "APPROVAL_REQUEST"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "Only events about the entity with this id.",
+                    "type": "text/plain"
+                  },
+                  "key": "aggregate_id",
+                  "value": "4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "Only events caused by this user.",
+                    "type": "text/plain"
+                  },
+                  "key": "actor_id",
+                  "value": "7c6b5a4d-3e2f-4b1a-8d9c-0e1f2a3b4c5d"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "Only events at or after this time.",
+                    "type": "text/plain"
+                  },
+                  "key": "from",
+                  "value": "2026-11-21T00:00:00Z"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "Only events before this time. Must be after `from`.",
+                    "type": "text/plain"
+                  },
+                  "key": "to",
+                  "value": "2026-11-22T00:00:00Z"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": " (This can only be one of asc,desc)",
+                    "type": "text/plain"
+                  },
+                  "key": "order",
+                  "value": "asc"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "per_page",
+                  "value": "20"
+                }
+              ],
+              "variable": [],
+              "raw": "{{baseUrl}}/api/v1/audit/events"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "One page of events.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "audit",
+                    "events"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events with this action.",
+                        "type": "text/plain"
+                      },
+                      "key": "action",
+                      "value": "APPROVAL_ACTION_RECORDED"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events about this kind of entity.",
+                        "type": "text/plain"
+                      },
+                      "key": "aggregate_type",
+                      "value": "APPROVAL_REQUEST"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events about the entity with this id.",
+                        "type": "text/plain"
+                      },
+                      "key": "aggregate_id",
+                      "value": "4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events caused by this user.",
+                        "type": "text/plain"
+                      },
+                      "key": "actor_id",
+                      "value": "7c6b5a4d-3e2f-4b1a-8d9c-0e1f2a3b4c5d"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events at or after this time.",
+                        "type": "text/plain"
+                      },
+                      "key": "from",
+                      "value": "2026-11-21T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events before this time. Must be after `from`.",
+                        "type": "text/plain"
+                      },
+                      "key": "to",
+                      "value": "2026-11-22T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": " (This can only be one of asc,desc)",
+                        "type": "text/plain"
+                      },
+                      "key": "order",
+                      "value": "asc"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/audit/events"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"1f2e3d4c-5b6a-4978-8a9b-0c1d2e3f4a5b\",\n      \"occurred_at\": \"2026-11-21T09:00:00Z\",\n      \"action\": \"APPROVAL_ACTION_RECORDED\",\n      \"aggregate_type\": \"APPROVAL_REQUEST\",\n      \"aggregate_id\": \"4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a\",\n      \"actor\": {\n        \"id\": \"7c6b5a4d-3e2f-4b1a-8d9c-0e1f2a3b4c5d\",\n        \"username\": \"demo_approver_1\"\n      },\n      \"data\": {\n        \"policy_version_id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n        \"step\": 1,\n        \"action\": \"APPROVE\",\n        \"request_status\": \"PENDING\"\n      }\n    }\n  ],\n  \"meta\": {\n    \"page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "audit",
+                    "events"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events with this action.",
+                        "type": "text/plain"
+                      },
+                      "key": "action",
+                      "value": "APPROVAL_ACTION_RECORDED"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events about this kind of entity.",
+                        "type": "text/plain"
+                      },
+                      "key": "aggregate_type",
+                      "value": "APPROVAL_REQUEST"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events about the entity with this id.",
+                        "type": "text/plain"
+                      },
+                      "key": "aggregate_id",
+                      "value": "4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events caused by this user.",
+                        "type": "text/plain"
+                      },
+                      "key": "actor_id",
+                      "value": "7c6b5a4d-3e2f-4b1a-8d9c-0e1f2a3b4c5d"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events at or after this time.",
+                        "type": "text/plain"
+                      },
+                      "key": "from",
+                      "value": "2026-11-21T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events before this time. Must be after `from`.",
+                        "type": "text/plain"
+                      },
+                      "key": "to",
+                      "value": "2026-11-22T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": " (This can only be one of asc,desc)",
+                        "type": "text/plain"
+                      },
+                      "key": "order",
+                      "value": "asc"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/audit/events"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "audit",
+                    "events"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events with this action.",
+                        "type": "text/plain"
+                      },
+                      "key": "action",
+                      "value": "APPROVAL_ACTION_RECORDED"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events about this kind of entity.",
+                        "type": "text/plain"
+                      },
+                      "key": "aggregate_type",
+                      "value": "APPROVAL_REQUEST"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events about the entity with this id.",
+                        "type": "text/plain"
+                      },
+                      "key": "aggregate_id",
+                      "value": "4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events caused by this user.",
+                        "type": "text/plain"
+                      },
+                      "key": "actor_id",
+                      "value": "7c6b5a4d-3e2f-4b1a-8d9c-0e1f2a3b4c5d"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events at or after this time.",
+                        "type": "text/plain"
+                      },
+                      "key": "from",
+                      "value": "2026-11-21T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events before this time. Must be after `from`.",
+                        "type": "text/plain"
+                      },
+                      "key": "to",
+                      "value": "2026-11-22T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": " (This can only be one of asc,desc)",
+                        "type": "text/plain"
+                      },
+                      "key": "order",
+                      "value": "asc"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/audit/events"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "audit",
+                    "events"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events with this action.",
+                        "type": "text/plain"
+                      },
+                      "key": "action",
+                      "value": "APPROVAL_ACTION_RECORDED"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events about this kind of entity.",
+                        "type": "text/plain"
+                      },
+                      "key": "aggregate_type",
+                      "value": "APPROVAL_REQUEST"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events about the entity with this id.",
+                        "type": "text/plain"
+                      },
+                      "key": "aggregate_id",
+                      "value": "4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events caused by this user.",
+                        "type": "text/plain"
+                      },
+                      "key": "actor_id",
+                      "value": "7c6b5a4d-3e2f-4b1a-8d9c-0e1f2a3b4c5d"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events at or after this time.",
+                        "type": "text/plain"
+                      },
+                      "key": "from",
+                      "value": "2026-11-21T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events before this time. Must be after `from`.",
+                        "type": "text/plain"
+                      },
+                      "key": "to",
+                      "value": "2026-11-22T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": " (This can only be one of asc,desc)",
+                        "type": "text/plain"
+                      },
+                      "key": "order",
+                      "value": "asc"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/audit/events"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The request is well-formed HTTP but semantically invalid.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "audit",
+                    "events"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events with this action.",
+                        "type": "text/plain"
+                      },
+                      "key": "action",
+                      "value": "APPROVAL_ACTION_RECORDED"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events about this kind of entity.",
+                        "type": "text/plain"
+                      },
+                      "key": "aggregate_type",
+                      "value": "APPROVAL_REQUEST"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events about the entity with this id.",
+                        "type": "text/plain"
+                      },
+                      "key": "aggregate_id",
+                      "value": "4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events caused by this user.",
+                        "type": "text/plain"
+                      },
+                      "key": "actor_id",
+                      "value": "7c6b5a4d-3e2f-4b1a-8d9c-0e1f2a3b4c5d"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events at or after this time.",
+                        "type": "text/plain"
+                      },
+                      "key": "from",
+                      "value": "2026-11-21T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events before this time. Must be after `from`.",
+                        "type": "text/plain"
+                      },
+                      "key": "to",
+                      "value": "2026-11-22T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": " (This can only be one of asc,desc)",
+                        "type": "text/plain"
+                      },
+                      "key": "order",
+                      "value": "asc"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/audit/events"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INPUT_VALIDATION_ERROR\",\n    \"message\": \"invalid product\",\n    \"details\": [\n      {\n        \"field\": \"code\",\n        \"issue\": \"invalid_format\"\n      },\n      {\n        \"field\": \"name\",\n        \"issue\": \"required\"\n      }\n    ]\n  },\n  \"request_id\": \"1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "audit",
+                    "events"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events with this action.",
+                        "type": "text/plain"
+                      },
+                      "key": "action",
+                      "value": "APPROVAL_ACTION_RECORDED"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events about this kind of entity.",
+                        "type": "text/plain"
+                      },
+                      "key": "aggregate_type",
+                      "value": "APPROVAL_REQUEST"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events about the entity with this id.",
+                        "type": "text/plain"
+                      },
+                      "key": "aggregate_id",
+                      "value": "4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events caused by this user.",
+                        "type": "text/plain"
+                      },
+                      "key": "actor_id",
+                      "value": "7c6b5a4d-3e2f-4b1a-8d9c-0e1f2a3b4c5d"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events at or after this time.",
+                        "type": "text/plain"
+                      },
+                      "key": "from",
+                      "value": "2026-11-21T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only events before this time. Must be after `from`.",
+                        "type": "text/plain"
+                      },
+                      "key": "to",
+                      "value": "2026-11-22T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": " (This can only be one of asc,desc)",
+                        "type": "text/plain"
+                      },
+                      "key": "order",
+                      "value": "asc"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/audit/events"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "name": "Search the stored decisions",
+          "request": {
+            "name": "Search the stored decisions",
+            "description": {
+              "content": "The result history of the Decision API (RF-015), newest first: for each decision the\napplication, the product, the policy version and checksum it was made with, the final\ndecision, the risk grade and score, and the reason codes. The list never contains the\napplicant's input or the rule trace; read one decision with its full trace through\n`GET /decisions/{decision_id}`, which an auditor may do for every decision.\n\n`from` is inclusive and `to` is exclusive, both RFC 3339. Only an auditor\n(`audit:read`) may search. The search does not write events.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "api",
+                "v1",
+                "audit",
+                "decisions"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "Only decisions of this application.",
+                    "type": "text/plain"
+                  },
+                  "key": "application_id",
+                  "value": "LOAN-APP-DEMO-0001"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "product_code",
+                  "value": "KTA_DEMO"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": " (This can only be one of APPROVE,REFER,REJECT)",
+                    "type": "text/plain"
+                  },
+                  "key": "final_decision",
+                  "value": "APPROVE"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "Only decisions made with this policy version.",
+                    "type": "text/plain"
+                  },
+                  "key": "policy_version_id",
+                  "value": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "Only decisions at or after this time.",
+                    "type": "text/plain"
+                  },
+                  "key": "from",
+                  "value": "2026-11-21T00:00:00Z"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "Only decisions before this time. Must be after `from`.",
+                    "type": "text/plain"
+                  },
+                  "key": "to",
+                  "value": "2026-11-22T00:00:00Z"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "per_page",
+                  "value": "20"
+                }
+              ],
+              "variable": [],
+              "raw": "{{baseUrl}}/api/v1/audit/decisions"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "One page of decision summaries.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "audit",
+                    "decisions"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions of this application.",
+                        "type": "text/plain"
+                      },
+                      "key": "application_id",
+                      "value": "LOAN-APP-DEMO-0001"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "product_code",
+                      "value": "KTA_DEMO"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": " (This can only be one of APPROVE,REFER,REJECT)",
+                        "type": "text/plain"
+                      },
+                      "key": "final_decision",
+                      "value": "APPROVE"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions made with this policy version.",
+                        "type": "text/plain"
+                      },
+                      "key": "policy_version_id",
+                      "value": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions at or after this time.",
+                        "type": "text/plain"
+                      },
+                      "key": "from",
+                      "value": "2026-11-21T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions before this time. Must be after `from`.",
+                        "type": "text/plain"
+                      },
+                      "key": "to",
+                      "value": "2026-11-22T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/audit/decisions"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"data\": [\n    {\n      \"decision_id\": \"0b9c5a52-1111-4222-8333-444455556666\",\n      \"created_at\": \"2026-11-21T08:30:00Z\",\n      \"application_id\": \"LOAN-APP-DEMO-0001\",\n      \"product_code\": \"KTA_DEMO\",\n      \"policy_version\": {\n        \"id\": \"9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d\",\n        \"number\": 1,\n        \"checksum\": \"5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592\"\n      },\n      \"final_decision\": \"APPROVE\",\n      \"risk_grade\": \"B\",\n      \"total_score\": \"620.00\",\n      \"reason_codes\": []\n    }\n  ],\n  \"meta\": {\n    \"page\": 1,\n    \"per_page\": 20,\n    \"total\": 1\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "audit",
+                    "decisions"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions of this application.",
+                        "type": "text/plain"
+                      },
+                      "key": "application_id",
+                      "value": "LOAN-APP-DEMO-0001"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "product_code",
+                      "value": "KTA_DEMO"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": " (This can only be one of APPROVE,REFER,REJECT)",
+                        "type": "text/plain"
+                      },
+                      "key": "final_decision",
+                      "value": "APPROVE"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions made with this policy version.",
+                        "type": "text/plain"
+                      },
+                      "key": "policy_version_id",
+                      "value": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions at or after this time.",
+                        "type": "text/plain"
+                      },
+                      "key": "from",
+                      "value": "2026-11-21T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions before this time. Must be after `from`.",
+                        "type": "text/plain"
+                      },
+                      "key": "to",
+                      "value": "2026-11-22T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/audit/decisions"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "audit",
+                    "decisions"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions of this application.",
+                        "type": "text/plain"
+                      },
+                      "key": "application_id",
+                      "value": "LOAN-APP-DEMO-0001"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "product_code",
+                      "value": "KTA_DEMO"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": " (This can only be one of APPROVE,REFER,REJECT)",
+                        "type": "text/plain"
+                      },
+                      "key": "final_decision",
+                      "value": "APPROVE"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions made with this policy version.",
+                        "type": "text/plain"
+                      },
+                      "key": "policy_version_id",
+                      "value": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions at or after this time.",
+                        "type": "text/plain"
+                      },
+                      "key": "from",
+                      "value": "2026-11-21T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions before this time. Must be after `from`.",
+                        "type": "text/plain"
+                      },
+                      "key": "to",
+                      "value": "2026-11-22T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/audit/decisions"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "audit",
+                    "decisions"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions of this application.",
+                        "type": "text/plain"
+                      },
+                      "key": "application_id",
+                      "value": "LOAN-APP-DEMO-0001"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "product_code",
+                      "value": "KTA_DEMO"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": " (This can only be one of APPROVE,REFER,REJECT)",
+                        "type": "text/plain"
+                      },
+                      "key": "final_decision",
+                      "value": "APPROVE"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions made with this policy version.",
+                        "type": "text/plain"
+                      },
+                      "key": "policy_version_id",
+                      "value": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions at or after this time.",
+                        "type": "text/plain"
+                      },
+                      "key": "from",
+                      "value": "2026-11-21T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions before this time. Must be after `from`.",
+                        "type": "text/plain"
+                      },
+                      "key": "to",
+                      "value": "2026-11-22T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/audit/decisions"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "The request is well-formed HTTP but semantically invalid.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "audit",
+                    "decisions"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions of this application.",
+                        "type": "text/plain"
+                      },
+                      "key": "application_id",
+                      "value": "LOAN-APP-DEMO-0001"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "product_code",
+                      "value": "KTA_DEMO"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": " (This can only be one of APPROVE,REFER,REJECT)",
+                        "type": "text/plain"
+                      },
+                      "key": "final_decision",
+                      "value": "APPROVE"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions made with this policy version.",
+                        "type": "text/plain"
+                      },
+                      "key": "policy_version_id",
+                      "value": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions at or after this time.",
+                        "type": "text/plain"
+                      },
+                      "key": "from",
+                      "value": "2026-11-21T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions before this time. Must be after `from`.",
+                        "type": "text/plain"
+                      },
+                      "key": "to",
+                      "value": "2026-11-22T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/audit/decisions"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INPUT_VALIDATION_ERROR\",\n    \"message\": \"invalid product\",\n    \"details\": [\n      {\n        \"field\": \"code\",\n        \"issue\": \"invalid_format\"\n      },\n      {\n        \"field\": \"name\",\n        \"issue\": \"required\"\n      }\n    ]\n  },\n  \"request_id\": \"1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "audit",
+                    "decisions"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions of this application.",
+                        "type": "text/plain"
+                      },
+                      "key": "application_id",
+                      "value": "LOAN-APP-DEMO-0001"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "product_code",
+                      "value": "KTA_DEMO"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": " (This can only be one of APPROVE,REFER,REJECT)",
+                        "type": "text/plain"
+                      },
+                      "key": "final_decision",
+                      "value": "APPROVE"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions made with this policy version.",
+                        "type": "text/plain"
+                      },
+                      "key": "policy_version_id",
+                      "value": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions at or after this time.",
+                        "type": "text/plain"
+                      },
+                      "key": "from",
+                      "value": "2026-11-21T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "Only decisions before this time. Must be after `from`.",
+                        "type": "text/plain"
+                      },
+                      "key": "to",
+                      "value": "2026-11-22T00:00:00Z"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "per_page",
+                      "value": "20"
+                    }
+                  ],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/audit/decisions"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        }
+      ]
     }
   ],
   "auth": {
@@ -23811,7 +25640,7 @@
     "name": "RiskForge API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": {
-      "content": "Contract for the endpoints implemented so far (RF-001 to RF-021, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; when `x-alternative-permissions` is also present, holding\n  any one of those permissions grants access too. The role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
+      "content": "Contract for the endpoints implemented so far (RF-001 to RF-022, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; when `x-alternative-permissions` is also present, holding\n  any one of those permissions grants access too. The role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
       "type": "text/plain"
     },
     "_postman_id": "4b6e2f0a-9c3d-4e51-8a7b-1f2e3d4c5b6a"

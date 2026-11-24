@@ -35,9 +35,11 @@ P=rf-test-rf001
 docker compose -p $P --env-file .env.agent up -d db
 docker compose -p $P --env-file .env.agent run --rm --no-deps api ./artisan migrate
 docker compose -p $P --env-file .env.agent run --rm --no-deps api go vet ./...
-docker compose -p $P --env-file .env.agent run --rm --no-deps -e HASH_BCRYPT_ROUNDS=4 api go test -race -count=1 ./...
+docker compose -p $P --env-file .env.agent run --rm --no-deps -e HASH_BCRYPT_ROUNDS=4 api go test -race -count=1 -timeout 25m ./...
 docker compose -p $P --env-file .env.agent down -v --remove-orphans   # hanya project ini
 ```
+
+`-timeout 25m` wajib untuk seluruh `./...`: suite `tests/feature` berjalan sekitar 10 menit dengan `-race` (603 s pada RF-022), sama dengan batas bawaan Go 10 menit, dan melewatinya begitu tes bertambah (`panic: test timed out after 10m0s`). Untuk satu suite atau satu paket tidak perlu. Tambahkan `-T` pada `docker compose run` bila perintah dijalankan dari skrip atau di latar belakang tanpa terminal.
 
 `HASH_BCRYPT_ROUNDS=4` wajib untuk test. Dengan cost produksi (12), login di bawah race detector melewati timeout request 3 detik dan test gagal dengan 408. Test `TestPasswordsAreStoredHashed` gagal dengan pesan yang jelas jika flag ini terlupa. Jika database test sudah berisi hash cost 12 dari run sebelumnya, hapus project test dengan `down -v` terlebih dahulu.
 
@@ -245,12 +247,21 @@ Di Git Bash Windows, jalankan dengan `MSYS_NO_PATHCONV=1` dan ganti `$PWD` denga
 - Diff murni di `app/modules/policy/domain/diff.go` (`CompareVersions`, `Summary`); perbandingan, laporan validasi, dan dampak di `app/modules/policy/application/compare.go` (`PolicyService.Compare`). Bagian isi baru pada `domain.Content` juga harus ditambahkan ke diff, dengan tes di `diff_test.go`.
 - Dampak memakai `CompilePolicy` dan `RunTestCases` (inti evaluasi yang sama); jangan menulis evaluasi kedua.
 - Tes: `app/modules/policy/domain/diff_test.go`, `app/modules/policy/application/compare_test.go`, `tests/feature/policy_diff_test.go`. Keputusan: `docs/adr/0022-policy-diff-and-review.md`.
+## Audit endpoints (RF-022)
+- Endpoint: `GET /api/v1/audit/events` dan `GET /api/v1/audit/decisions`, izin `audit:read` (hanya `demo_auditor`). Keduanya hanya membaca dan tidak menulis event. Contoh nyata: `docs/API_EXAMPLES.md` bagian "Audit search".
+- Riwayat approval satu request bukan endpoint tersendiri: `GET /audit/events?aggregate_type=APPROVAL_REQUEST&aggregate_id=<request_id>&order=asc`. `RequestService` menulis `APPROVAL_REQUEST_OPENED`, `APPROVAL_ACTION_RECORDED`, dan `APPROVAL_REQUEST_CLOSED` dalam transaksi yang sama dengan perubahannya. Langkah approval baru harus menulis eventnya lewat port `AuditTrail` di transaksi itu; komentar teks bebas dan data pemohon tidak boleh masuk `data`.
+- Pencarian event: `audit/application.SearchService` (validasi filter, `logging.RedactMap` atas `data`) dan `audit/infrastructure.EventSearch` (satu pernyataan SQL dengan parameter `NULL`-able; jangan menyusun SQL dari input). Urutan `occurred_at, seq`; kolom `seq` dari migration `20261202000001`.
+- Pencarian decision milik modul decision (`decision/application.HistoryService`, `DecisionRepository.Search`). Modul audit tidak membaca tabel `decision.*`. Daftar tidak membaca `input_snapshot`, `outcome`, atau trace; jangan menambahkannya. Body `/api/v1/audit/decisions` ditahan dari `activity.log` (`logging.withheldBodyPrefixes`).
+- Filter baru berarti: validasi di `Validate()` service (kode isu stabil), parameter di OpenAPI, `./scripts/generate-postman.sh`, dan tes di `tests/feature/audit_test.go`.
+- Test yang menghitung event harus menyaring menurut `action` (workflow demo menulis event konfigurasi, submit dan aksi menulis event approval). `TRUNCATE` yang sudah menyertakan `audit.events` tidak perlu diubah.
+- Tes: `app/modules/audit/application/search_test.go`, `app/modules/decision/application/history_test.go`, `app/modules/approval/application/request_service_test.go` (event approval), `app/platform/logging/redact_map_test.go`, `tests/feature/audit_test.go` (HTTP, RBAC, riwayat approval, filter, paginasi, redaksi, urutan). Keputusan: `docs/adr/0023-audit-search.md`; catatan milestone: `docs/M5_NOTES.md`.
+
 ## Validasi Milestone 4
 - Konfigurasi workflow kini ditulis ke `audit.events` (`APPROVAL_WORKFLOW_CREATED`, `APPROVAL_WORKFLOW_VERSION_CREATED`); `NewWorkflowService` menerima `AuditTrail` (`approvalinfra.NewDatabaseAuditLog(db)`). Test yang menghitung event publish memakai `s.publishedEvents()`, bukan jumlah semua baris.
 - Alur end-to-end M4 di stack nyata: `./scripts/m4-e2e.sh` (stack yang sudah di-seed di `127.0.0.1:3000`; mengubah data, jadi hanya untuk project sekali pakai seperti `rf-live-<nama>`, bukan `rf-dev` yang ingin dipertahankan). Lihat `docs/SCRIPTS.md`.
-- Temuan review yang ditunda: `docs/POST_M5_BACKLOG_M4.md`.
+- Temuan review yang ditunda: `docs/BACKLOG.md`.
 ## Coverage
-`./scripts/coverage.sh [rf-test-<nama>]` mengukur coverage statement (unit saja, lalu unit + integrasi) di project Compose sekali pakai dan mencetak tabel Markdown. Hasilnya dicatat di `docs/coverage.md`; perbarui file itu setelah setiap tiket.
+`./scripts/coverage.sh [rf-test-<nama>]` mengukur coverage statement (unit saja, lalu unit + integrasi) di project Compose sekali pakai dan mencetak tabel Markdown. Hasilnya dicatat di `docs/COVERAGE.md`; perbarui file itu setelah setiap tiket.
 
 ## Structured logs
 

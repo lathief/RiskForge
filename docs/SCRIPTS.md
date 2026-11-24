@@ -122,7 +122,7 @@ Runs the Milestone 4 governance flow end to end against a live, migrated, and se
 ./scripts/coverage.sh                 # project rf-test-coverage
 ./scripts/coverage.sh rf-test-rf007   # another disposable project; the name must start with rf-test-
 ```
-Measures Go statement coverage and prints two Markdown tables: unit tests only (`./app/...`, no database), and unit plus integration tests (`./...` with the HTTP and database suites). It starts a disposable Compose project with PostgreSQL, migrates it, runs both measurements inside the `api` container with `HASH_BCRYPT_ROUNDS=4`, and removes the project (`down -v` on that project only, also when a step fails). Every test binary writes the whole block list into the profile, so the script merges blocks before summing per package, and it leaves out the generated stubs in `app/facades`. The output is the source of [coverage.md](coverage.md).
+Measures Go statement coverage and prints two Markdown tables: unit tests only (`./app/...`, no database), and unit plus integration tests (`./...` with the HTTP and database suites). It starts a disposable Compose project with PostgreSQL, migrates it, runs both measurements inside the `api` container with `HASH_BCRYPT_ROUNDS=4`, and removes the project (`down -v` on that project only, also when a step fails). Every test binary writes the whole block list into the profile, so the script merges blocks before summing per package, and it leaves out the generated stubs in `app/facades`. The output is the source of [COVERAGE.md](COVERAGE.md).
 ## update-swagger-ui.sh
 
 ```sh

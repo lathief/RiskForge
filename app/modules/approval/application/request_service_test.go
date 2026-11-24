@@ -151,6 +151,25 @@ func (a *fakeAudit) Record(_ context.Context, e AuditEvent) error {
 	return nil
 }
 
+// actions lists the recorded actions in order.
+func (a *fakeAudit) actions() []string {
+	out := []string{}
+	for _, e := range a.events {
+		out = append(out, e.Action)
+	}
+	return out
+}
+
+// find returns the first event with the action, or the zero event.
+func (a *fakeAudit) find(action string) AuditEvent {
+	for _, e := range a.events {
+		if e.Action == action {
+			return e
+		}
+	}
+	return AuditEvent{}
+}
+
 var (
 	errVersionMissing = errors.New("policy version not found")
 	errFrozen         = errors.New("policy version is not a draft")
@@ -289,8 +308,10 @@ func TestTwoTiersApproveTheVersion(t *testing.T) {
 	assert.Len(t, r.Actions, 2)
 	assert.Equal(t, map[string]bool{draftID: true}, f.pol.concluded)
 	assert.Equal(t, "ACTIVE", f.pol.versions[draftID].Status, "the final approval publishes")
-	require.Len(t, f.audit.events, 1)
-	e := f.audit.events[0]
+	assert.Equal(t, []string{
+		EventRequestOpened, EventActionRecorded, EventActionRecorded, EventPolicyPublished, EventRequestClosed,
+	}, f.audit.actions(), "the approval history, in the order it happened")
+	e := f.audit.find(EventPolicyPublished)
 	assert.Equal(t, EventPolicyPublished, e.Action)
 	assert.Equal(t, "POLICY_VERSION", e.AggregateType)
 	assert.Equal(t, draftID, e.AggregateID)
@@ -319,7 +340,8 @@ func TestAFailedPublishRecordsNothingAndKeepsTheRequestOpen(t *testing.T) {
 		assert.Equal(t, domain.RequestPending, got.Status, name)
 		assert.Len(t, got.Actions, 1, name)
 		assert.Equal(t, "PENDING_APPROVAL", f.pol.versions[draftID].Status, name)
-		assert.Empty(t, f.audit.events, name)
+		assert.Equal(t, []string{EventRequestOpened, EventActionRecorded}, f.audit.actions(),
+			"only the events of the committed submit and first approval remain: %s", name)
 	}
 }
 
@@ -416,4 +438,65 @@ func TestListAndGet(t *testing.T) {
 	assert.Equal(t, r.ID, page.Items[0].ID)
 	_, err = f.svc.Get(ctx, "x")
 	assert.ErrorIs(t, err, ErrRequestNotFound)
+}
+
+// RF-022: the approval history is written as audit events in the transaction of each step, and
+// holds identifiers and codes only, never the approver's free-text comment.
+func TestSubmitAndEveryActionWriteAuditEvents(t *testing.T) {
+	f := newRequestFixture(t, true)
+	ctx := context.Background()
+	r, err := f.svc.Submit(ctx, "maker", draftID)
+	require.NoError(t, err)
+	require.Equal(t, []string{EventRequestOpened}, f.audit.actions())
+	opened := f.audit.events[0]
+	assert.Equal(t, AggregateApprovalRequest, opened.AggregateType)
+	assert.Equal(t, r.ID, opened.AggregateID)
+	assert.Equal(t, "maker", opened.ActorID)
+	assert.Equal(t, draftID, opened.Data["policy_version_id"])
+	assert.Equal(t, "c0ffee", opened.Data["checksum"])
+
+	_, err = f.svc.Act(ctx, riskLead, r.ID, domain.ActionInput{Action: "APPROVE", Comment: "contains an applicant name"})
+	require.NoError(t, err)
+	require.Equal(t, []string{EventRequestOpened, EventActionRecorded}, f.audit.actions(), "an intermediate approval does not close the request")
+	recorded := f.audit.events[1]
+	assert.Equal(t, r.ID, recorded.AggregateID)
+	assert.Equal(t, "lead", recorded.ActorID)
+	assert.Equal(t, map[string]any{
+		"policy_version_id": draftID, "step": 1, "action": "APPROVE", "request_status": "PENDING",
+	}, recorded.Data)
+	for _, e := range f.audit.events {
+		assert.NotContains(t, fmt.Sprint(e.Data), "applicant name", "free text stays in approval.actions")
+	}
+}
+
+func TestARejectionIsAuditedAsAnActionAndAClosure(t *testing.T) {
+	f := newRequestFixture(t, true)
+	ctx := context.Background()
+	r, err := f.svc.Submit(ctx, "maker", draftID)
+	require.NoError(t, err)
+	_, err = f.svc.Act(ctx, riskLead, r.ID, domain.ActionInput{Action: "REJECT", Comment: "no"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{EventRequestOpened, EventActionRecorded, EventRequestClosed}, f.audit.actions())
+	assert.Equal(t, "REJECTED", f.audit.find(EventRequestClosed).Data["status"])
+	assert.Equal(t, "REJECT", f.audit.find(EventActionRecorded).Data["action"])
+	assert.Empty(t, f.audit.find(EventPolicyPublished).Action, "a rejection publishes nothing")
+}
+
+func TestAnAuditFailureOnSubmitRollsTheSubmitBack(t *testing.T) {
+	f := newRequestFixture(t, true)
+	f.audit.failErr = errors.New("audit write failed")
+	_, err := f.svc.Submit(context.Background(), "maker", draftID)
+	require.Error(t, err)
+	assert.Empty(t, f.req.rows, "no request without its audit event")
+	assert.Equal(t, "DRAFT", f.pol.versions[draftID].Status)
+}
+
+func TestARefusedActionLeavesNoAuditEvent(t *testing.T) {
+	f := newRequestFixture(t, true)
+	ctx := context.Background()
+	r, err := f.svc.Submit(ctx, "maker", draftID)
+	require.NoError(t, err)
+	_, err = f.svc.Act(ctx, headOfRisk, r.ID, domain.ActionInput{Action: "APPROVE"})
+	require.Error(t, err)
+	assert.Equal(t, []string{EventRequestOpened}, f.audit.actions())
 }

@@ -59,7 +59,10 @@ type BodySummary struct {
 // recognise such values (`monthly_income` is not a secret by name), and the data dictionary is
 // configurable, so the whole body is left out and only the metadata (user, status, duration,
 // request id) is logged. The stored decision in the database is the record of the input.
-var withheldBodyPrefixes = []string{"/api/v1/decisions"}
+//
+// The audit search of decisions (RF-022) lists the same results by application, so it is
+// withheld too.
+var withheldBodyPrefixes = []string{"/api/v1/decisions", "/api/v1/audit/decisions"}
 
 // simulationPrefix and simulationSuffix delimit /api/v1/policy-versions/{version_id}/simulate
 // (RF-017). The simulator takes the same applicant data as a decision and returns its trace, so
@@ -168,6 +171,16 @@ func SafeURL(raw string) string {
 		}
 	}
 	return Cap(raw)
+}
+
+// RedactMap returns a copy of m in which the value of every sensitive key, at any depth, is
+// replaced by Redacted. The audit search uses it so a stored event cannot return a secret even
+// if a writer put one there by mistake (RF-022).
+func RedactMap(m map[string]any) map[string]any {
+	if m == nil {
+		return map[string]any{}
+	}
+	return redactValue(m).(map[string]any)
 }
 
 func redactValue(v any) any {

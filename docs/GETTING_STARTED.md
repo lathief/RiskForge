@@ -50,7 +50,7 @@ The seeders create synthetic demo users, the demo product `KTA_DEMO`, the eight-
 | `demo_admin` | `ADMIN` | Manage products and dictionary variables. |
 | `demo_analyst` | `RISK_ANALYST` | Read products, manage dictionary variables; owns policy drafts: opens, edits, clones, and submits them. |
 | `demo_approver_1`, `demo_approver_2` | `RISK_APPROVER` | Read products and the dictionary; approve or reject submitted policies (M4): `demo_approver_1` holds the `RISK_LEAD` scope (step 1), `demo_approver_2` the `HEAD_OF_RISK` scope (step 2). |
-| `demo_auditor` | `AUDITOR` | Read-only access. |
+| `demo_auditor` | `AUDITOR` | Read-only access, and the only role that searches the audit log and the decision history (`GET /audit/events`, `GET /audit/decisions`, RF-022). |
 | `demo_loan_application` | `API_CONSUMER` | The Loan Application client; calls the decision API (M3). |
 
 All demo users share the password stored as `DEMO_USER_PASSWORD` in `.env.agent`.
@@ -84,7 +84,7 @@ Tests run in a separate, disposable Compose project so they never touch `rf-dev`
 ```sh
 P=rf-test-local
 docker compose -p $P --env-file .env.agent up -d db
-docker compose -p $P --env-file .env.agent run --rm --no-deps -e HASH_BCRYPT_ROUNDS=4 api go test -race ./...
+docker compose -p $P --env-file .env.agent run --rm --no-deps -e HASH_BCRYPT_ROUNDS=4 api go test -race -timeout 25m ./...
 docker compose -p $P --env-file .env.agent down -v --remove-orphans
 ```
 

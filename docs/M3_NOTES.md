@@ -110,7 +110,7 @@ Things a reader of the M3 code should know that are not obvious from the design.
 
 ## Milestone 3 validation and review
 
-After RF-011 to RF-016 were collected in `feature/M3-decision-engine`, the milestone was validated as one unit (see `docs/VERIFICATION.md` for the commands and numbers) and reviewed again for code, architecture, and security. Everything not fixed is in [`POST_M5_BACKLOG.md`](POST_M5_BACKLOG.md).
+After RF-011 to RF-016 were collected in `feature/M3-decision-engine`, the milestone was validated as one unit (see `docs/VERIFICATION.md` for the commands and numbers) and reviewed again for code, architecture, and security. Everything not fixed is in [`BACKLOG.md`](BACKLOG.md).
 
 ### Milestone audit (`SYSTEM_DESIGN.md` 19.4)
 
