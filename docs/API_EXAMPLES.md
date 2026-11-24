@@ -768,6 +768,81 @@ curl -s "$API/audit/events?from=yesterday&order=sideways&per_page=500" -H "Autho
 ```
 `to` must be after `from` (`to: must_be_after_from`). A token without `audit:read` is `403 FORBIDDEN`; no token is `401 UNAUTHENTICATED`.
 
+## Metrics, rate limits, and security headers (RF-023)
+
+### Metrics
+
+Only the admin (`metrics:read`) reads `GET /metrics`. Every other role gets `403`, and no token `401`. `ADMIN_TOKEN` below is the `demo_admin` token. The values are from a real run after `./scripts/m4-e2e.sh` on a fresh stack (the output is cut to the lines that matter):
+
+```sh
+curl -si "$HOST/metrics" -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+```
+HTTP/1.1 200 OK
+Content-Type: text/plain; version=0.0.4; charset=utf-8
+Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+Cache-Control: no-store
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: no-referrer
+X-Request-Id: 91a4f65c92809288d31262fdbdf03850
+
+riskforge_approval_actions_total{action="APPROVE"} 4
+riskforge_decision_requests_total{outcome="APPROVE"} 2
+riskforge_decision_requests_total{outcome="REJECT"} 1
+riskforge_decision_requests_total{outcome="replayed"} 1
+riskforge_decision_duration_seconds_sum{outcome="APPROVE"} 0.07758324
+riskforge_decision_duration_seconds_count{outcome="APPROVE"} 2
+riskforge_http_requests_total{module="approval",code="200"} 14
+riskforge_http_requests_total{module="approval",code="403"} 9
+riskforge_http_requests_total{module="approval",code="409"} 4
+riskforge_http_requests_total{module="decision",code="200"} 4
+riskforge_http_request_duration_seconds_sum{module="decision"} 0.19495207
+riskforge_http_request_duration_seconds_count{module="decision"} 6
+riskforge_policy_cache_entries 3
+riskforge_policy_cache_loads_total 3
+riskforge_policy_publish_total 2
+riskforge_rate_limited_total{limiter="login"} 1
+riskforge_uptime_seconds 127.291499387
+```
+
+Histograms also have `_bucket{le="..."}` lines (5 ms to 5 s and `+Inf`). The metrics are per process and start at zero when it restarts. They hold counts and timings only: no identifier, user name, or applicant data. Outcomes of `riskforge_decision_requests_total` are `APPROVE`, `REFER`, `REJECT`, `replayed`, and one value per failure (`input_error`, `product_not_found`, `policy_not_active`, `idempotency_conflict`, `busy`, `policy_error`, `evaluation_error`, `error`); a failure is never counted as `REJECT`.
+
+### Rate limit: 429
+
+Login allows a burst of 10 per client address and then 30 per minute (a token every two seconds). Evaluate allows a burst of 100 and 1200 per minute per caller. `simulate`, `validate`, `diff`, and `review` share one budget per caller, a burst of 20 and 60 per minute. A refused request is not processed at all:
+
+```sh
+for i in $(seq 1 13); do curl -s -o /dev/null -w '%{http_code} ' -X POST "$API/auth/login" \
+  -H 'Content-Type: application/json' -d '{"username":"demo_analyst","password":"wrong"}'; done
+curl -si -X POST "$API/auth/login" -H 'Content-Type: application/json' -d '{"username":"demo_analyst","password":"wrong"}'
+```
+```
+HTTP/1.1 429 Too Many Requests
+Content-Type: application/json; charset=utf-8
+Cache-Control: no-store
+Retry-After: 1
+X-Request-Id: e09498998e5daa5e57ba0bdb86ff2def
+
+{"error":{"code":"RATE_LIMITED","message":"too many requests, retry after the time in the Retry-After header"},"request_id":"e09498998e5daa5e57ba0bdb86ff2def"}
+```
+`Retry-After` is the number of seconds until the next token. In this run the 13 attempts of the loop all answered `401`, and the next one was refused: the burst of 10 and the tokens refilled while the slow bcrypt checks ran were used up. The automated test (`tests/feature/rate_limit_test.go`) lowers the budget to three. The limits come from `RATE_LIMIT_*` (`.env.example`) and are per process. A client should wait for `Retry-After` and then retry the same request; an evaluate retry keeps its `Idempotency-Key`.
+
+### Duplicate request that waits too long: 503
+
+A second request with an `Idempotency-Key` whose first request is still being processed waits for it, but at most 2 seconds. After that it answers `503 SERVICE_BUSY` with `Retry-After: 1`, and nothing is stored. Retry with the same key and the same body: once the first request has committed, the retry returns its stored decision with `Idempotent-Replayed: true`. This was proved with a transaction that holds the key (`TestADuplicateThatWaitsTooLongAnswersServiceBusy`); it is not easy to produce by hand because a decision takes about 30 ms.
+
+```
+HTTP/1.1 503 Service Unavailable
+Retry-After: 1
+
+{"error":{"code":"SERVICE_BUSY","message":"the service is busy, retry shortly"},"request_id":"..."}
+```
+
+### Security headers
+
+Every answer of the application, including `401`, `403`, `404`, and `429`, carries `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` (see the metrics example above). Swagger UI sets its own policy. `408` and `413` are written by the HTTP driver and may not carry them.
+
 ## Planned endpoints
 
 None of the planned endpoints of `SYSTEM_DESIGN.md` 13.1 is left; a later ticket that adds an operation adds it to the OpenAPI contract, Swagger UI, and the Postman collection in the same change.

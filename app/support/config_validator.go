@@ -31,6 +31,13 @@ var boundedSettings = []intRange{
 	{"hashing.limits.max_concurrent", 0, 64, "concurrent password hashes"},
 	// Must leave time for the hash itself inside the 3s request timeout.
 	{"hashing.limits.queue_timeout_ms", 1, 2500, "wait for a hashing slot in milliseconds"},
+	// Rate limits (RF-023). 0 would refuse every request and a huge value is no limit at all.
+	{"ratelimit.login.per_minute", 1, 100000, "login requests per minute per client address"},
+	{"ratelimit.login.burst", 1, 10000, "login burst per client address"},
+	{"ratelimit.decision.per_minute", 1, 100000, "decision requests per minute per caller"},
+	{"ratelimit.decision.burst", 1, 10000, "decision burst per caller"},
+	{"ratelimit.analysis.per_minute", 1, 100000, "simulate, validate, diff, and review requests per minute per caller"},
+	{"ratelimit.analysis.burst", 1, 10000, "analysis burst per caller"},
 }
 
 // DocsAllowedIn reports whether Swagger UI and /openapi.yaml may be served in env.
@@ -88,6 +95,9 @@ func ValidateConfig(get func(key string) string) error {
 	}
 	if DocsRequested(get("docs.enabled")) && !DocsAllowedIn(get("app.env")) {
 		return fmt.Errorf("invalid configuration, docs.enabled (DOCS_ENABLED) may only be true when APP_ENV is local or testing")
+	}
+	if _, err := strconv.ParseBool(strings.TrimSpace(get("ratelimit.enabled"))); err != nil {
+		return fmt.Errorf("invalid configuration, ratelimit.enabled (RATE_LIMIT_ENABLED) must be true or false")
 	}
 	for _, s := range boundedSettings {
 		n, err := strconv.Atoi(strings.TrimSpace(get(s.key)))

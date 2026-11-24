@@ -3,6 +3,7 @@ package tests
 import (
 	"github.com/goravel/framework/testing"
 
+	"goravel/app/platform/ratelimit"
 	"goravel/bootstrap"
 )
 
@@ -14,6 +15,9 @@ const TestBcryptRounds = 4
 
 func init() {
 	bootstrap.Boot()
+	// The suites log in and call the same routes far more often than a client would. The rate
+	// limit tests (tests/feature/rate_limit_test.go) switch limiting on for their own duration.
+	ratelimit.SetEnabled(false)
 	registerTestRoutes()
 }
 

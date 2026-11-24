@@ -1018,7 +1018,7 @@ Status: terimplementasi pada branch `feature/RF-016-policy-cache`, di atas RF-01
 
 **Pengukuran informal** (`BenchmarkResolveAndEvaluate`, satu mesin, tanpa latensi database, bukan baseline): sekitar 133 µs per decision pada cache hangat berbanding sekitar 571 µs bila dikompilasi tiap kali. Bukti dari log query pada stack nyata: decision pertama menjalankan satu query pembacaan snapshot (`policy_versions`), decision berikutnya tidak.
 
-**Belum ada (disengaja).** Metrik cache di endpoint (RF-023: `CacheStats` sudah tersedia), pemanasan cache saat start, `lock_timeout` untuk request duplikat yang menunggu (lihat `docs/M3_NOTES.md`). Cache untuk versi draft atau simulasi sengaja tidak ada: simulator (RF-017, Bagian 10.12) tidak memakainya.
+**Belum ada (disengaja).** Pemanasan cache saat start. *(Metrik cache di `GET /metrics` dan `lock_timeout` untuk duplikat yang menunggu ditambahkan di RF-023, Bagian 15.5.)* Cache untuk versi draft atau simulasi sengaja tidak ada: simulator (RF-017, Bagian 10.12) tidak memakainya.
 
 ### 10.12 Implementasi policy simulator (RF-017)
 
@@ -1139,7 +1139,7 @@ Status: terimplementasi pada branch `feature/RF-020-atomic-publishing`, di atas 
 
 **Jalan pintas pengembangan.** `DemoActivePolicySeeder` kini memakai `ConcludeReview` dan `Publish` yang sama (tanpa approval request dan tanpa audit event), sehingga binding hanya dipindahkan oleh satu kode.
 
-**Belum ada (disengaja).** Aktivasi terjadwal (Bagian 9.2, butuh operasi terpisah dengan retry); pencarian audit (RF-022); audit untuk aksi approval selain publish (RF-022); metrik `policy_publish_total` (RF-023). Diff untuk reviewer ditambahkan di RF-021 (Bagian 11.8).
+**Belum ada (disengaja).** Aktivasi terjadwal (Bagian 9.2, butuh operasi terpisah dengan retry); pencarian audit (RF-022); audit untuk aksi approval selain publish (RF-022); metrik `policy_publish_total` *(ditambahkan di RF-023, Bagian 15.5)*. Diff untuk reviewer ditambahkan di RF-021 (Bagian 11.8).
 
 ### 11.8 Implementasi policy diff dan approval review (RF-021)
 
@@ -1330,7 +1330,15 @@ Operasi ini tidak ada di tabel rencana; Bagian 11.3 meminta konfigurasi workflow
 | `GET` | `/api/v1/audit/events` | Bearer + `audit:read` (Auditor); filter `action`, `aggregate_type`, `aggregate_id`, `actor_id`, `from`, `to`, `order`, `page`, `per_page`; `data` disanitasi |
 | `GET` | `/api/v1/audit/decisions` | Bearer + `audit:read` (Auditor); filter `application_id`, `product_code`, `final_decision`, `policy_version_id`, `from`, `to`, `page`, `per_page`; hasil tanpa input pemohon dan tanpa trace |
 
-**Target berikutnya (planned, bukan otomatis sudah live):** tidak ada operasi HTTP baru yang direncanakan dari backlog saat ini. Bila RF-023 menambah endpoint metrik atau tiket lain menambah operasi, ia ditambahkan ke `openapi.yaml` **hanya pada tiket implementasi terkait**.
+**Telah terimplementasi (Milestone 5, RF-023, branch `feature/RF-023-observability-security`, di atas RF-022):** satu operasi baca. Total OpenAPI 0.20.0, Swagger UI, dan Postman Collection menjadi 46 operasi. Rancangan di Bagian 15.5.
+
+| Method | Absolute path | Auth / Permission |
+|---|---|---|
+| `GET` | `/metrics` | Bearer + `metrics:read` (hanya Admin); metrics proses dalam format teks Prometheus; di luar `/api/v1` seperti `/health/*` |
+
+Operasi login, evaluate, simulate, validate, diff, dan review kini juga dapat dijawab `429 RATE_LIMITED` (dengan `Retry-After`); evaluate dapat dijawab `503 SERVICE_BUSY` untuk duplikat yang menunggu terlalu lama; aksi approval dapat dijawab `409 APPROVAL_STATE_CONFLICT`.
+
+**Target berikutnya (planned, bukan otomatis sudah live):** tidak ada operasi HTTP baru yang direncanakan dari backlog saat ini. Operasi baru ditambahkan ke `openapi.yaml` **hanya pada tiket implementasi terkait**.
 
 Untuk setiap operasi, wajib memperbarui **OpenAPI 3.1 → Swagger UI → Postman Collection** dalam PR yang sama. Dokumen OpenAPI mencakup pagination, security per permission, standard error shape, `X-Request-ID`, `Idempotency-Key` bila berlaku, serta validation messages; Postman dibuat dengan generator di Bagian 5.6. Jangan mencampur endpoint rencana dengan endpoint yang sudah live.
 
@@ -1500,7 +1508,7 @@ sequenceDiagram
 | Signal | Example |
 |---|---|
 | Logs | `request_id`, `decision_id`, `product_code`, `policy_version`, `error_code` (tanpa PII). Pada image release body request/response **tidak** dicatat (`LOG_HTTP_BODIES=false`). Default kode adalah `true`, untuk dev/test dengan data sintetis saja; body dicatat setelah redaksi (15.4). |
-| Metrics | `decision_requests_total{outcome}`, `decision_duration_seconds`, `approval_actions_total`, `policy_publish_total`. |
+| Metrics | `decision_requests_total{outcome}`, `decision_duration_seconds`, `approval_actions_total`, `policy_publish_total`. Diimplementasikan di RF-023 (Bagian 15.5) dengan awalan `riskforge_`, di `GET /metrics`. |
 | Health | `/health/live`, `/health/ready` dan DB connectivity. |
 | Trace | correlation ID dari API hingga DB operations; OpenTelemetry opsional bila sederhana. |
 
@@ -1524,11 +1532,29 @@ Empat file JSON-lines di `storage/logs` (juga ke stdout bila `LOG_PRINT=true`), 
 | Pengaturan | Dev/test (Compose) | Image release (`Dockerfile`) |
 |---|---|---|
 | `LOG_HTTP_BODIES` | `true` (data sintetis, untuk debugging) | `false`: hanya header dan metadata |
-| `LOG_FILES` | `true`: empat file di `storage/logs` | `false`: keempat file terstruktur tidak ditulis (belum ada rotasi, RF-023); hanya log framework Goravel harian (`goravel-*.log`) |
+| `LOG_FILES` | `true`: empat file di `storage/logs` | `false`: keempat file terstruktur tidak ditulis (belum ada rotasi; RF-023 tidak menambahkannya); hanya log framework Goravel harian (`goravel-*.log`) |
 | `LOG_PRINT` | `false` | `true`: semua entri ke stdout (`docker logs`) |
 
 **Body yang tidak pernah dicatat (review M3).** Request dan respons route `/api/v1/decisions...` membawa data keuangan pemohon dan keputusan yang dihasilkan. Sensor berbasis nama key tidak mengenali nilai seperti `monthly_income`, dan data dictionary dapat dikonfigurasi, sehingga seluruh body route itu diganti `{"_omitted":"sensitive_route"}` (`logging.BodyWithheld`) walaupun `LOG_HTTP_BODIES=true`. Tetap tercatat: pemanggil, route, status, durasi, `requestID`. Daftar ini adalah deny list; sejak RF-017 ia juga menahan `/api/v1/policy-versions/{id}/simulate` (Bagian 10.12), dan route berikutnya yang menerima data pemohon harus ditambahkan (`docs/BACKLOG.md` SEC-04).
 **Status yang dicatat** adalah yang benar-benar diterima klien: request yang melewati timeout 3 detik dicatat `408` walaupun handler selesai belakangan, dan panic setelah deadline tetap masuk `error.log`.
+
+### 15.5 Implementasi observability dan security (RF-023)
+
+Status: terimplementasi pada branch `feature/RF-023-observability-security`, di atas RF-022. Keputusan lengkap: `docs/adr/0024-observability-and-rate-limits.md`. Menjalankan Bagian 15.1, 15.2, dan 15.3.
+
+**Metrics.** `GET /metrics` (di luar `/api/v1`, seperti `/health/*`; Bearer + izin `metrics:read`, hanya `ADMIN`) mengembalikan format teks Prometheus 0.0.4 dari `app/platform/metrics`, tanpa dependency. Isinya: `riskforge_http_requests_total{module,code}` dan `riskforge_http_request_duration_seconds{module}` untuk setiap request (termasuk 401, 403, 404, 408, 422, 429, 500); `riskforge_decision_requests_total{outcome}` dan `riskforge_decision_duration_seconds{outcome}` dengan outcome `APPROVE`, `REFER`, `REJECT`, `replayed`, dan satu nilai per kegagalan (`input_error`, `product_not_found`, `policy_not_active`, `idempotency_conflict`, `busy`, `policy_error`, `evaluation_error`, `error`; kegagalan tidak pernah dihitung `REJECT`); `riskforge_approval_actions_total{action}` dan `riskforge_policy_publish_total` (dihitung setelah commit); statistik cache policy `riskforge_policy_cache_{hits,misses,loads,waits}_total` dan `_entries`; `riskforge_rate_limited_total{limiter}`; serta uptime, goroutine, dan heap. Label hanya dari himpunan tetap; tidak ada id, username, atau data pemohon, dan satu metric berhenti di 200 kombinasi label.
+
+**Rate limit.** Token bucket di memori per proses (`app/platform/ratelimit`, middleware `RateLimit`) setelah `Authenticate` dan sebelum cek izin: `login` per alamat klien (30/menit, burst 10), `POST /decisions/evaluate` per user (1200/menit, burst 100), dan `simulate`, `validate`, `diff`, `review` per user, berbagi satu anggaran (60/menit, burst 20). Penolakan adalah `429 RATE_LIMITED` dengan `Retry-After`. Pengaturan `RATE_LIMIT_*` (`config/ratelimit.go`, `.env.example`) divalidasi saat start; `RATE_LIMIT_ENABLED=false` mematikan semuanya. Tabel dibatasi 100.000 klien. Dengan beberapa instance anggaran berlaku per instance.
+
+**Timeout dan duplikat.** Timeout request tetap 3 detik dari driver. Duplikat `Idempotency-Key` yang menunggu request pertama kini dibatasi `lock_timeout` 2 detik pada klaim; setelah itu `503 SERVICE_BUSY` dengan `Retry-After: 1`, tidak ada yang disimpan, dan retry dengan kunci dan body yang sama mengembalikan decision tersimpan (Bagian 13.5).
+
+**Header keamanan.** Setiap respons aplikasi membawa `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, dan `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`. Swagger UI mengatur CSP dan cache sendiri. 408 dan 413 ditulis driver dan tidak membawanya.
+
+**Lain-lain.** State yang menyimpang pada aksi approval (`ErrVersionNotPending`, `ErrVersionNotApproved`, `ErrRequestExists`) dijawab `409 APPROVAL_STATE_CONFLICT` dan dicatat sebagai integrity alert, bukan `500`. Validasi konfigurasi saat start menolak nilai `RATE_LIMIT_*` di luar batas.
+
+**Kontrak.** Satu operasi baru (`getMetrics`); semua operasi yang dibatasi mendapat respons `429`, evaluate mendapat `503` untuk duplikat, dan aksi approval mendapat `APPROVAL_STATE_CONFLICT`. OpenAPI 0.20.0, 46 operasi, Postman diregenerasi.
+
+**Belum ada (disengaja).** Rotasi file log (image release tetap `LOG_FILES=false`, log ke stdout); TTL untuk error policy yang di-cache (REL-01); mewajibkan `step` pada aksi approval (M4-REL-04, mengubah kontrak); kode alasan stabil pada `POLICY_NOT_EVALUABLE` (M4-SEC-02); escape HTML pada JSON (M4-TOOL-02); tracing OpenTelemetry; alert; rate limit bersama antar instance; baseline performa (RF-024).
 
 ---
 
@@ -1596,7 +1622,7 @@ Review independen atas RF-001..RF-004 tidak menemukan cacat severity high pada a
 | 2 | `JWT_TTL=0` diterima dan guard mengubahnya menjadi token 100 tahun. | Validasi startup: `JWT_TTL` 1–1440 menit. |
 | 3 | `body_limit: 4096` ternyata KiB (4 MiB) pada endpoint login publik. | `body_limit: 64` (KiB), unit dicatat di `config/http.go`. |
 | 4 | Byte NUL di username/nama produk menghasilkan 500 dari PostgreSQL. | Username di luar format tersimpan langsung `401` tanpa query; nama/deskripsi produk dengan karakter kontrol menjadi `422 invalid_characters`. |
-| 5 | Login bcrypt cost 12 tanpa batas dapat menghabiskan CPU. | Semaphore pada password hasher (`HASH_MAX_CONCURRENT`, `HASH_QUEUE_TIMEOUT_MS`); saat penuh `503 SERVICE_BUSY` + `Retry-After`, tidak pernah `401`. Lihat ADR 0003. Rate limit per client/IP tetap di RF-023. |
+| 5 | Login bcrypt cost 12 tanpa batas dapat menghabiskan CPU. | Semaphore pada password hasher (`HASH_MAX_CONCURRENT`, `HASH_QUEUE_TIMEOUT_MS`); saat penuh `503 SERVICE_BUSY` + `Retry-After`, tidak pernah `401`. Lihat ADR 0003. Rate limit per client/IP: RF-023 (Bagian 15.5). |
 | L | `page` tanpa batas dapat overflow offset; cost bcrypt tanpa batas atas; log image release tidak terbaca; 404 berupa plain text; OpenAPI belum memuat 500/408/413; klaim runbook tentang `Down()` keliru. | `page` ≤ 10000; bcrypt cost 10–14; direktori log ditulis user `app` + `LOG_PRINT=true` di image; fallback 404 JSON `ROUTE_NOT_FOUND`; OpenAPI 0.4.1 lint bersih; runbook dikoreksi. |
 
 **Batas yang diterima:** `408` (timeout) dan `413` (body terlalu besar) dihasilkan driver Fiber sebelum kode aplikasi berjalan dan `goravel/fiber` v1.18.1 tidak menyediakan hook error handler, sehingga body keduanya tetap plain text dan didokumentasikan demikian di OpenAPI. Method yang tidak terdaftar pada path yang ada menghasilkan `404 ROUTE_NOT_FOUND`, bukan `405`.
@@ -1694,7 +1720,7 @@ Temuan yang tidak diperbaiki sekarang dicatat di `docs/BACKLOG.md` (keamanan: ma
 ### M5 — Portfolio Hardening
 
 - [x] **RF-022 Audit endpoints.** Permissioned searches, result/approval histories, sanitized fields. **Selesai pada branch `feature/RF-022-audit-endpoints`** (dari `main`, belum di-merge): `GET /audit/events` dan `GET /audit/decisions` (`audit:read`), event approval (`APPROVAL_REQUEST_OPENED`, `APPROVAL_ACTION_RECORDED`, `APPROVAL_REQUEST_CLOSED`), kolom `audit.events.seq`, OpenAPI 0.19.0 (45 operasi). Bagian 11.9, `docs/adr/0023-audit-search.md`.
-- [ ] **RF-023 Observability and security.** Structured log, metrics, timeouts, rate limits, security checks.
+- [x] **RF-023 Observability and security.** Structured log, metrics, timeouts, rate limits, security checks. **Selesai pada branch `feature/RF-023-observability-security`** (di atas RF-022, belum di-merge): `GET /metrics` (`metrics:read`), rate limit login, evaluate, dan analisis dengan `429`, `lock_timeout` 2 detik untuk duplikat idempotency, header keamanan, `409 APPROVAL_STATE_CONFLICT`, OpenAPI 0.20.0 (46 operasi). Bagian 15.5, `docs/adr/0024-observability-and-rate-limits.md`.
 - [ ] **RF-024 Tests and benchmark.** Golden cases, DB integration, E2E, race test, documented performance baseline; test dijalankan di disposable `rf-test-*` Compose projects dan `down -v` hanya untuk project tersebut.
 - [ ] **RF-025 CI/CD and local run.** GitHub Actions, Goravel/Fiber build + HTTP tests, Docker image build untuk release (jika relevan), Compose agent test/runbook, Artisan migration check, **Redocly OpenAPI 3.1 lint + regenerate Postman + byte/diff parity + operationId coverage checks**; CI menggunakan project namespace unik serta disposable test DB. Tooling Swagger/Postman pertama dibuat di DX-001, **bukan** menunggu RF-025.
 - [ ] **RF-026 Developer experience & demo.** README, architecture diagrams, ADRs, synthetic fixtures, demo walkthrough and screenshots/API sample output.
@@ -1949,5 +1975,5 @@ Setiap ADR mencatat **context, decision, alternatives, consequences, date**.
 - [ ] Agent dapat menjalankan stack dari Compose `api + db`, menguji dengan `rf-test-*` terisolasi, dan membersihkan test project tanpa menghapus volume development.
 - [ ] Tidak ada data pribadi sesungguhnya, keys, atau credentials di repo.
 
-**Status kini (diperbarui 23 November 2026, validasi M4): M1 (RF-001 sampai RF-004), M1 hardening, LOG-001, DX-001, DOC-001, M2 (RF-005 sampai RF-010), dan M3 (RF-011 sampai RF-016, PR #7 dari `feature/M3-decision-engine`) sudah ada di `main`. M4 (RF-017 sampai RF-021) selesai: tiap tiket ada di branch-nya (bertumpuk: `feature/RF-017-policy-simulator` dari `main`, lalu RF-018, RF-019, RF-020, `feature/RF-021-policy-diff-review`) dan semuanya dikumpulkan di branch `feature/M4-governance` (dari `main`, merge `--no-ff` per tiket), yang divalidasi sebagai satu kesatuan dan memuat perbaikan review (Bagian 17.4, `docs/VERIFICATION.md`, audit milestone di `docs/M4_NOTES.md`); branch itu sudah di-merge ke `main` (PR #8 dan #9). M5 dimulai: `RF-022 Audit endpoints` selesai pada `feature/RF-022-audit-endpoints` (dari `main`, 24 November 2026, belum di-merge; Bagian 11.9). Langkah berikutnya: `RF-023 Observability and security`. Temuan yang ditunda sampai setelah M5: `docs/BACKLOG.md` (M3) dan `docs/BACKLOG.md` (M4).** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.
+**Status kini (diperbarui 23 November 2026, validasi M4): M1 (RF-001 sampai RF-004), M1 hardening, LOG-001, DX-001, DOC-001, M2 (RF-005 sampai RF-010), dan M3 (RF-011 sampai RF-016, PR #7 dari `feature/M3-decision-engine`) sudah ada di `main`. M4 (RF-017 sampai RF-021) selesai: tiap tiket ada di branch-nya (bertumpuk: `feature/RF-017-policy-simulator` dari `main`, lalu RF-018, RF-019, RF-020, `feature/RF-021-policy-diff-review`) dan semuanya dikumpulkan di branch `feature/M4-governance` (dari `main`, merge `--no-ff` per tiket), yang divalidasi sebagai satu kesatuan dan memuat perbaikan review (Bagian 17.4, `docs/VERIFICATION.md`, audit milestone di `docs/M4_NOTES.md`); branch itu sudah di-merge ke `main` (PR #8 dan #9). M5 dimulai: `RF-022 Audit endpoints` selesai pada `feature/RF-022-audit-endpoints` (dari `main`, 24 November 2026, belum di-merge; Bagian 11.9). `RF-023 Observability and security` selesai pada `feature/RF-023-observability-security` (di atas RF-022, 24 November 2026, belum di-merge; Bagian 15.5). Langkah berikutnya: `RF-024 Tests and benchmark`. Temuan yang ditunda sampai setelah M5: `docs/BACKLOG.md` (M3) dan `docs/BACKLOG.md` (M4).** Lanjutkan satu tiket pada satu waktu, verifikasi output nyata, dan pertahankan `SYSTEM_DESIGN.md` sebagai source of truth.
 

@@ -22,6 +22,7 @@ func Boot() contractsfoundation.Application {
 		WithSeeders(Seeders).
 		WithMiddleware(func(handler contractsconfiguration.Middleware) {
 			handler.Prepend(middleware.NewRequestID())
+			handler.Prepend(middleware.NewSecurityHeaders())
 			// After RequestID, so every activity entry carries the correlation ID.
 			handler.Append(middleware.NewActivityLog())
 			// Replaces the default handler, which logs request headers and body.

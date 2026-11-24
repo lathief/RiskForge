@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.19.0
+  version: 0.20.0
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
-    Contract for the endpoints implemented so far (RF-001 to RF-022, plus M1 hardening).
+    Contract for the endpoints implemented so far (RF-001 to RF-023, plus M1 hardening).
 
     - All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.
     - Authorization is permission-based. Each operation lists the required permission
@@ -16,6 +16,12 @@ info:
       and may not carry it.
     - Semantic validation errors use HTTP 422 consistently.
     - Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.
+    - Rate limits (RF-023): login per client address, `POST /decisions/evaluate` per caller, and
+      `simulate`, `validate`, `diff`, and `review` per caller. A refused request is `429 RATE_LIMITED`
+      with `Retry-After`. Reads and the other writes have no limit besides the 3 second timeout.
+    - Every answer produced by the application carries `Cache-Control: no-store`,
+      `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and a
+      `Content-Security-Policy` that allows nothing. `408` and `413` come from the driver and do not.
     - Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,
       `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.
       They never affect authorization; `X-Request-User` is informational only.
@@ -50,6 +56,8 @@ tags:
     description: Policy simulator. Evaluates a draft or any version and stores nothing (RF-017).
   - name: Approval
     description: Approval workflow configuration, versioned tiers with role, scope, and quorum (RF-018), and approval requests with the approval state machine (RF-019).
+  - name: Metrics
+    description: Operator metrics of the process in the Prometheus text format (RF-023).
   - name: Audit
     description: Auditor searches of the append-only audit event log, which holds the approval history, and of the stored decisions (RF-022).
 
@@ -96,6 +104,50 @@ paths:
               schema: { $ref: "#/components/schemas/HealthStatus" }
               example: { status: unavailable }
 
+  /metrics:
+    get:
+      tags: [Metrics]
+      summary: Metrics of the process in the Prometheus text format
+      description: |
+        Counters, gauges, and histograms of this process (RF-023, SYSTEM_DESIGN.md 15.3), in the
+        Prometheus text exposition format 0.0.4. The values are per process and restart at zero
+        when it restarts. They hold counts and timings only, never an identifier, a user name, or
+        applicant data. Only the operator (`metrics:read`, the admin role) may read them, with a
+        bearer token; configure the scraper with that token.
+
+        - `riskforge_http_requests_total{module,code}` and `riskforge_http_request_duration_seconds{module}`:
+          every request, including 401, 403, 404, 408, 422, 429, and 500.
+        - `riskforge_decision_requests_total{outcome}` and `riskforge_decision_duration_seconds{outcome}`:
+          `APPROVE`, `REFER`, `REJECT`, `replayed`, and one value per failure (`input_error`,
+          `product_not_found`, `policy_not_active`, `idempotency_conflict`, `busy`, `policy_error`,
+          `evaluation_error`, `error`). A failure is never counted as `REJECT`.
+        - `riskforge_approval_actions_total{action}` and `riskforge_policy_publish_total`.
+        - `riskforge_policy_cache_{hits,misses,loads,waits}_total` and `riskforge_policy_cache_entries`.
+        - `riskforge_rate_limited_total{limiter}` and `riskforge_rate_limiter_table_full_total{limiter}`.
+        - `riskforge_uptime_seconds`, `riskforge_go_goroutines`, `riskforge_go_heap_alloc_bytes`.
+      operationId: getMetrics
+      x-required-permission: metrics:read
+      responses:
+        "200":
+          description: The metrics as text.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            text/plain:
+              schema: { type: string }
+              example: |
+                # HELP riskforge_decision_requests_total Decision evaluate calls by outcome.
+                # TYPE riskforge_decision_requests_total counter
+                riskforge_decision_requests_total{outcome="APPROVE"} 12
+                riskforge_decision_requests_total{outcome="REJECT"} 3
+                riskforge_decision_requests_total{outcome="replayed"} 1
+                # HELP riskforge_policy_cache_entries Compiled policies held in memory.
+                # TYPE riskforge_policy_cache_entries gauge
+                riskforge_policy_cache_entries 1
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
   /api/v1/auth/login:
     post:
       tags: [Auth]
@@ -135,6 +187,7 @@ paths:
                 error: { code: INVALID_CREDENTIALS, message: username or password is incorrect }
                 request_id: b9873824497dd1335aa351f4fd5338d0
         "408": { $ref: "#/components/responses/RequestTimeout" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         "413": { $ref: "#/components/responses/PayloadTooLarge" }
         "422": { $ref: "#/components/responses/ValidationError" }
         "500": { $ref: "#/components/responses/InternalError" }
@@ -1204,6 +1257,7 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
         "408": { $ref: "#/components/responses/RequestTimeout" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         "500": { $ref: "#/components/responses/InternalError" }
   /api/v1/policy-versions/{version_id}/simulate:
     parameters:
@@ -1272,6 +1326,7 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
         "408": { $ref: "#/components/responses/RequestTimeout" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         "413": { $ref: "#/components/responses/PayloadTooLarge" }
         "422":
           description: |
@@ -1681,7 +1736,9 @@ paths:
           description: |
             `APPROVAL_REQUEST_CLOSED`, `APPROVAL_STEP_NOT_ACTIVE`, or `APPROVAL_ALREADY_GIVEN`; for
             the final approval also `POLICY_VERSION_SUPERSEDED` or `POLICY_NOT_PUBLISHABLE`, in
-            which case nothing was recorded or published.
+            which case nothing was recorded or published. `APPROVAL_STATE_CONFLICT` means the state
+            of the request or of the version drifted from what the database triggers allow; it is
+            logged as an integrity alert and the action was not recorded.
           headers:
             X-Request-ID: { $ref: "#/components/headers/XRequestID" }
           content:
@@ -1756,6 +1813,7 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/ApprovalRequestNotFound" }
         "408": { $ref: "#/components/responses/RequestTimeout" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         "500": { $ref: "#/components/responses/InternalError" }
   /api/v1/policy-versions/{version_id}/diff:
     parameters:
@@ -1793,6 +1851,7 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
         "408": { $ref: "#/components/responses/RequestTimeout" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         "422":
           description: "`base_version_id` is not a version of the same policy (`not_in_policy`)."
           headers:
@@ -1920,6 +1979,7 @@ paths:
                 error: { code: PRODUCT_NOT_FOUND, message: product not found }
                 request_id: 7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d
         "408": { $ref: "#/components/responses/RequestTimeout" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         "409":
           description: |
             `POLICY_NOT_ACTIVE`: the product is retired or has no active policy version.
@@ -2006,6 +2066,7 @@ paths:
                 request_id: 2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e
         "408": { $ref: "#/components/responses/RequestTimeout" }
         "500": { $ref: "#/components/responses/InternalError" }
+        "503": { $ref: "#/components/responses/DuplicateInFlight" }
   /api/v1/audit/events:
     get:
       tags: [Audit]
@@ -4036,6 +4097,8 @@ components:
                 - IDEMPOTENCY_CONFLICT
                 - DECISION_NOT_FOUND
                 - SERVICE_BUSY
+                - RATE_LIMITED
+                - APPROVAL_STATE_CONFLICT
                 - INTERNAL_ERROR
             message: { type: string }
             details:
@@ -4290,6 +4353,39 @@ components:
             request_id: 5e4d3c2b1a0f9e8d7c6b5a493827160f
     ServiceBusy:
       description: Password hashing capacity is saturated. Retry after the given number of seconds.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+        Retry-After:
+          schema: { type: integer }
+          example: 1
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error: { code: SERVICE_BUSY, message: "the service is busy, retry shortly" }
+            request_id: 6f5e4d3c2b1a0f9e8d7c6b5a49382716
+    RateLimited:
+      description: |
+        The caller used up the rate limit of this route (token bucket per user, or per client
+        address for login). Retry after the number of seconds in `Retry-After`. The limits are
+        set in `config/ratelimit.go` (`RATE_LIMIT_*`).
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+        Retry-After:
+          schema: { type: integer, minimum: 1 }
+          example: 2
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error: { code: RATE_LIMITED, message: "too many requests, retry after the time in the Retry-After header" }
+            request_id: 7a6f5e4d3c2b1a0f9e8d7c6b5a493827
+    DuplicateInFlight:
+      description: |
+        Another request with the same `Idempotency-Key` is still being processed and did not
+        finish within the lock timeout (2 seconds). Nothing was evaluated or stored by this call.
+        Retry with the same key and the same body: once the first request has committed, the
+        retry returns its stored decision with `Idempotent-Replayed: true`.
       headers:
         X-Request-ID: { $ref: "#/components/headers/XRequestID" }
         Retry-After:

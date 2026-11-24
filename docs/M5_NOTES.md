@@ -1,6 +1,6 @@
 # Milestone 5 notes (portfolio hardening)
 
-Status: M5 in progress. RF-022 is done on `feature/RF-022-audit-endpoints`; RF-023 to RF-026 are not started. Deferred findings of earlier milestones (M3 and M4): [`BACKLOG.md`](BACKLOG.md).
+Status: M5 in progress. RF-022 is done on `feature/RF-022-audit-endpoints` and RF-023 on `feature/RF-023-observability-security` (on top of RF-022); RF-024 to RF-026 are not started. Deferred findings of earlier milestones (M3 and M4): [`BACKLOG.md`](BACKLOG.md).
 
 Limits, deviations from `SYSTEM_DESIGN.md`, and open decisions of milestone 5, one section per ticket.
 
@@ -29,3 +29,36 @@ Known limits:
 - `occurred_at` is the start of the transaction, not the commit time. Two transactions that overlap can commit in the opposite order of their `occurred_at` (M4-REL-03). `seq` orders by insertion, which is also not the commit order across transactions.
 - The actor is shown as id and username. Disabling or renaming a user later changes what the search shows for old events, because the username is joined at read time.
 - The audit trail records approval steps, but it is only as complete as the writers: any new state change must write its event in its own transaction.
+
+## Observability and security (RF-023)
+
+Branch `feature/RF-023-observability-security`, on top of RF-022. ADR `docs/adr/0024-observability-and-rate-limits.md`. Design: `SYSTEM_DESIGN.md` 15.5.
+
+| Item | Status | Notes |
+|---|---|---|
+| `GET /metrics` | Done | Bearer and `metrics:read` (admin only, new permission). Prometheus text format 0.0.4, no dependency. Outside `/api/v1`, like `/health/*`. |
+| Request metrics | Done | `riskforge_http_requests_total{module,code}` and a duration histogram, counted in `ActivityLog.finish`, so 401, 403, 404, 408, 422, 429, 500, and panics are included. |
+| Decision metrics | Done | `riskforge_decision_requests_total{outcome}` and duration: `APPROVE`, `REFER`, `REJECT`, `replayed`, and one value per failure. A failure is never counted as `REJECT` (tested). |
+| Approval and publish metrics | Done | `riskforge_approval_actions_total{action}` and `riskforge_policy_publish_total`, counted after the commit. A refused action is not counted (tested). |
+| Cache metrics (REL-02) | Done | `riskforge_policy_cache_{hits,misses,loads,waits}_total` and `_entries`, read from `PolicyResolver.CacheStats()` at scrape time. |
+| Rate limits (SEC-02, M4-SEC-04) | Done | Login per client address (30 per minute, burst 10), evaluate per user (1200, burst 100), simulate, validate, diff, and review per user (60, burst 20, one shared budget). `429 RATE_LIMITED` with `Retry-After`. `RATE_LIMIT_*` validated at start. |
+| Duplicate wait (SEC-05, TST-05) | Done | `SET LOCAL lock_timeout = 2000` before the claim; a duplicate that waits longer gets `503 SERVICE_BUSY` with `Retry-After: 1` and stores nothing. Tested with an open transaction that holds the key (waited about 2 s, answered before the 3 s timeout), and the retry after the rollback is evaluated. |
+| Security headers | Done | `Cache-Control: no-store`, `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and a closed CSP on every application answer, including 401, 403, and 404. |
+| State drift errors (M4-REL-02) | Done | `409 APPROVAL_STATE_CONFLICT`, logged as an integrity alert, instead of `500`. Unreachable through the API today; covered by the error mapping only. |
+| Configuration checks | Done | `RATE_LIMIT_*` bounds and `RATE_LIMIT_ENABLED` are checked by `support.ValidateConfig` at start. |
+| Smoke run | Changed | `scripts/postman/smoke-check.js` expects `403` for `GET /metrics`, because the smoke token is the auditor's. |
+| Log rotation | Not built | The release image keeps `LOG_FILES=false` (stdout only). New row REL-07. |
+| Stable reason codes for `POLICY_NOT_EVALUABLE` (M4-SEC-02) | Not built | Changes the response of the simulator, diff, and review. Stays open. |
+| Error TTL in the policy cache (REL-01) | Not built | Changes cache semantics; stays open. |
+| `step` required on approval actions (M4-REL-04) | Not built | Breaks existing clients; needs a decision on contract versions. |
+| JSON without HTML escaping (M4-TOOL-02) | Not built | The escaping comes from the HTTP driver's encoder. |
+| Tracing, alerts | Not built | `SYSTEM_DESIGN.md` 15.3 lists OpenTelemetry as optional. |
+
+Known limits:
+
+- Metrics and limits are per process. With several instances each has its own counters and its own budget (effective limit is the budget times the number of instances). Prometheus sums the counters.
+- Behind a reverse proxy the login limiter counts the proxy's address unless the proxy is trusted by the HTTP driver (SEC-10, to be decided at deployment).
+- When 100,000 clients are tracked and all are active, a new client is let through untracked and `riskforge_rate_limiter_table_full_total` counts it.
+- The limits are starting values without a baseline. RF-024 measures and may change them.
+- `riskforge_decision_duration_seconds` measures the use case. The end-to-end time is `riskforge_http_request_duration_seconds{module="decision"}`.
+- The test suites run with limiting off (`tests/test_case.go`); only the tests of RF-023 switch it on, and they restore the configuration (TST-06).

@@ -251,6 +251,10 @@ func (s *ContractBehaviourTestSuite) call(op operationDetail, token string) stri
 	}
 	s.Require().NoError(err)
 
+	// An allowed call may answer with text (GET /metrics, Prometheus format); only errors are JSON.
+	if resp.IsSuccessful() && !strings.Contains(resp.Headers().Get("Content-Type"), "json") {
+		return ""
+	}
 	body, err := resp.Json()
 	s.Require().NoError(err, "%s returned a non-JSON body", op.key)
 	errBody, _ := body["error"].(map[string]any)

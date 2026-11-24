@@ -629,6 +629,75 @@
               "_postman_previewlanguage": "json"
             },
             {
+              "name": "The caller used up the rate limit of this route (token bucket per user, or per client\naddress for login). Retry after the number of seconds in `Retry-After`. The limits are\nset in `config/ratelimit.go` (`RATE_LIMIT_*`).",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "login"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/auth/login"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"demo_analyst\",\n  \"password\": \"<DEMO_USER_PASSWORD>\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Too Many Requests",
+              "code": 429,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "Retry-After",
+                  "value": "2"
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"RATE_LIMITED\",\n    \"message\": \"too many requests, retry after the time in the Retry-After header\"\n  },\n  \"request_id\": \"7a6f5e4d3c2b1a0f9e8d7c6b5a493827\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
               "name": "Unexpected failure. The cause is logged server-side and never returned.",
               "originalRequest": {
                 "url": {
@@ -16085,6 +16154,82 @@
               "_postman_previewlanguage": "text"
             },
             {
+              "name": "The caller used up the rate limit of this route (token bucket per user, or per client\naddress for login). Retry after the number of seconds in `Retry-After`. The limits are\nset in `config/ratelimit.go` (`RATE_LIMIT_*`).",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "validate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/validate"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {}
+              },
+              "status": "Too Many Requests",
+              "code": 429,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "Retry-After",
+                  "value": "2"
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"RATE_LIMITED\",\n    \"message\": \"too many requests, retry after the time in the Retry-After header\"\n  },\n  \"request_id\": \"7a6f5e4d3c2b1a0f9e8d7c6b5a493827\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
               "name": "Unexpected failure. The cause is logged server-side and never returned.",
               "originalRequest": {
                 "url": {
@@ -16671,6 +16816,92 @@
                 }
               ],
               "body": "{\n  \"error\": {\n    \"code\": \"INPUT_VALIDATION_ERROR\",\n    \"message\": \"invalid base version\",\n    \"details\": [\n      {\n        \"field\": \"base_version_id\",\n        \"issue\": \"not_in_policy\",\n        \"message\": \"the base must be a version of the same policy\"\n      }\n    ]\n  },\n  \"request_id\": \"1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller used up the rate limit of this route (token bucket per user, or per client\naddress for login). Retry after the number of seconds in `Retry-After`. The limits are\nset in `config/ratelimit.go` (`RATE_LIMIT_*`).",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "diff"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [
+                    {
+                      "disabled": true,
+                      "description": {
+                        "content": "A version of the same policy to compare against. Defaults as described above.",
+                        "type": "text/plain"
+                      },
+                      "key": "base_version_id",
+                      "value": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"
+                    }
+                  ],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/diff"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Too Many Requests",
+              "code": 429,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "Retry-After",
+                  "value": "2"
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"RATE_LIMITED\",\n    \"message\": \"too many requests, retry after the time in the Retry-After header\"\n  },\n  \"request_id\": \"7a6f5e4d3c2b1a0f9e8d7c6b5a493827\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -17435,6 +17666,92 @@
               "_postman_previewlanguage": "json"
             },
             {
+              "name": "The caller used up the rate limit of this route (token bucket per user, or per client\naddress for login). Retry after the number of seconds in `Retry-After`. The limits are\nset in `config/ratelimit.go` (`RATE_LIMIT_*`).",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": {
+                      "content": "(Required) A key the caller makes unique per application request, 1 to 128 letters, digits, dot,\nunderscore, colon, or hyphen, starting with a letter or digit. Reuse it only to\nretry the same request.\n",
+                      "type": "text/plain"
+                    },
+                    "key": "Idempotency-Key",
+                    "value": "loan-application-demo-001-v1"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Too Many Requests",
+              "code": 429,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "Retry-After",
+                  "value": "2"
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"RATE_LIMITED\",\n    \"message\": \"too many requests, retry after the time in the Retry-After header\"\n  },\n  \"request_id\": \"7a6f5e4d3c2b1a0f9e8d7c6b5a493827\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
               "name": "A technical failure. `INTERNAL_ERROR`, `POLICY_CONFIGURATION_ERROR` (the active policy\ncannot be evaluated), or `EVALUATION_ERROR` (a failure while evaluating). No decision\nwas made, and in particular the application was not rejected.",
               "originalRequest": {
                 "url": {
@@ -17954,6 +18271,81 @@
                 }
               ],
               "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Another request with the same `Idempotency-Key` is still being processed and did not\nfinish within the lock timeout (2 seconds). Nothing was evaluated or stored by this call.\nRetry with the same key and the same body: once the first request has committed, the\nretry returns its stored decision with `Idempotent-Replayed: true`.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    ":decision_id"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{decisionId}}",
+                      "key": "decision_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/decisions/:decision_id"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Service Unavailable",
+              "code": 503,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "Retry-After",
+                  "value": "1"
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"SERVICE_BUSY\",\n    \"message\": \"the service is busy, retry shortly\"\n  },\n  \"request_id\": \"6f5e4d3c2b1a0f9e8d7c6b5a49382716\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -18575,6 +18967,95 @@
                 }
               ],
               "body": "{\n  \"error\": {\n    \"code\": \"INPUT_VALIDATION_ERROR\",\n    \"message\": \"the applicant data is invalid\",\n    \"details\": [\n      {\n        \"field\": \"applicant.monthly_income\",\n        \"issue\": \"below_min_value\"\n      }\n    ]\n  },\n  \"request_id\": \"4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller used up the rate limit of this route (token bucket per user, or per client\naddress for login). Retry after the number of seconds in `Retry-After`. The limits are\nset in `config/ratelimit.go` (`RATE_LIMIT_*`).",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "policy-versions",
+                    ":version_id",
+                    "simulate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{versionId}}",
+                      "key": "version_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/policy-versions/:version_id/simulate"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Too Many Requests",
+              "code": 429,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "Retry-After",
+                  "value": "2"
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"RATE_LIMITED\",\n    \"message\": \"too many requests, retry after the time in the Retry-After header\"\n  },\n  \"request_id\": \"7a6f5e4d3c2b1a0f9e8d7c6b5a493827\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -23017,7 +23498,7 @@
               "_postman_previewlanguage": "text"
             },
             {
-              "name": "`APPROVAL_REQUEST_CLOSED`, `APPROVAL_STEP_NOT_ACTIVE`, or `APPROVAL_ALREADY_GIVEN`; for\nthe final approval also `POLICY_VERSION_SUPERSEDED` or `POLICY_NOT_PUBLISHABLE`, in\nwhich case nothing was recorded or published.",
+              "name": "`APPROVAL_REQUEST_CLOSED`, `APPROVAL_STEP_NOT_ACTIVE`, or `APPROVAL_ALREADY_GIVEN`; for\nthe final approval also `POLICY_VERSION_SUPERSEDED` or `POLICY_NOT_PUBLISHABLE`, in\nwhich case nothing was recorded or published. `APPROVAL_STATE_CONFLICT` means the state\nof the request or of the version drifted from what the database triggers allow; it is\nlogged as an integrity alert and the action was not recorded.",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -23714,6 +24195,82 @@
               "_postman_previewlanguage": "text"
             },
             {
+              "name": "The caller used up the rate limit of this route (token bucket per user, or per client\naddress for login). Retry after the number of seconds in `Retry-After`. The limits are\nset in `config/ratelimit.go` (`RATE_LIMIT_*`).",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "approval-requests",
+                    ":request_id",
+                    "review"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "type": "any",
+                      "value": "{{approvalRequestId}}",
+                      "key": "request_id"
+                    }
+                  ],
+                  "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id/review"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Too Many Requests",
+              "code": 429,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "Retry-After",
+                  "value": "2"
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"RATE_LIMITED\",\n    \"message\": \"too many requests, retry after the time in the Retry-After header\"\n  },\n  \"request_id\": \"7a6f5e4d3c2b1a0f9e8d7c6b5a493827\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
               "name": "Unexpected failure. The cause is logged server-side and never returned.",
               "originalRequest": {
                 "url": {
@@ -23741,6 +24298,308 @@
                     }
                   ],
                   "raw": "{{baseUrl}}/api/v1/approval-requests/:request_id/review"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "Metrics",
+      "description": "Operator metrics of the process in the Prometheus text format (RF-023).",
+      "item": [
+        {
+          "name": "Metrics of the process in the Prometheus text format",
+          "request": {
+            "name": "Metrics of the process in the Prometheus text format",
+            "description": {
+              "content": "Counters, gauges, and histograms of this process (RF-023, SYSTEM_DESIGN.md 15.3), in the\nPrometheus text exposition format 0.0.4. The values are per process and restart at zero\nwhen it restarts. They hold counts and timings only, never an identifier, a user name, or\napplicant data. Only the operator (`metrics:read`, the admin role) may read them, with a\nbearer token; configure the scraper with that token.\n\n- `riskforge_http_requests_total{module,code}` and `riskforge_http_request_duration_seconds{module}`:\n  every request, including 401, 403, 404, 408, 422, 429, and 500.\n- `riskforge_decision_requests_total{outcome}` and `riskforge_decision_duration_seconds{outcome}`:\n  `APPROVE`, `REFER`, `REJECT`, `replayed`, and one value per failure (`input_error`,\n  `product_not_found`, `policy_not_active`, `idempotency_conflict`, `busy`, `policy_error`,\n  `evaluation_error`, `error`). A failure is never counted as `REJECT`.\n- `riskforge_approval_actions_total{action}` and `riskforge_policy_publish_total`.\n- `riskforge_policy_cache_{hits,misses,loads,waits}_total` and `riskforge_policy_cache_entries`.\n- `riskforge_rate_limited_total{limiter}` and `riskforge_rate_limiter_table_full_total{limiter}`.\n- `riskforge_uptime_seconds`, `riskforge_go_goroutines`, `riskforge_go_heap_alloc_bytes`.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "metrics"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": [],
+              "raw": "{{baseUrl}}/metrics"
+            },
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/plain"
+              }
+            ],
+            "method": "GET",
+            "body": {},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "The metrics as text.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "metrics"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/metrics"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "# HELP riskforge_decision_requests_total Decision evaluate calls by outcome.\n# TYPE riskforge_decision_requests_total counter\nriskforge_decision_requests_total{outcome=\"APPROVE\"} 12\nriskforge_decision_requests_total{outcome=\"REJECT\"} 3\nriskforge_decision_requests_total{outcome=\"replayed\"} 1\n# HELP riskforge_policy_cache_entries Compiled policies held in memory.\n# TYPE riskforge_policy_cache_entries gauge\nriskforge_policy_cache_entries 1\n",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "Missing, malformed, tampered, or expired token, or the user is disabled.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "metrics"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/metrics"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"UNAUTHENTICATED\",\n    \"message\": \"authentication is required\"\n  },\n  \"request_id\": \"ab37401e16e0bcc7ddf3f61598024191\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The caller lacks the required permission.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "metrics"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/metrics"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"FORBIDDEN\",\n    \"message\": \"you do not have permission to perform this action\"\n  },\n  \"request_id\": \"0f9e8d7c6b5a49382716051f2e3d4c5b\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "The request exceeded the 3 second limit. Produced by the HTTP driver; plain-text body.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "metrics"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/metrics"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "text/plain"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "GET",
+                "body": {}
+              },
+              "status": "Request Timeout",
+              "code": 408,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "Request Timeout",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "name": "Unexpected failure. The cause is logged server-side and never returned.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "metrics"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/metrics"
                 },
                 "header": [
                   {
@@ -25640,7 +26499,7 @@
     "name": "RiskForge API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": {
-      "content": "Contract for the endpoints implemented so far (RF-001 to RF-022, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; when `x-alternative-permissions` is also present, holding\n  any one of those permissions grants access too. The role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
+      "content": "Contract for the endpoints implemented so far (RF-001 to RF-023, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; when `x-alternative-permissions` is also present, holding\n  any one of those permissions grants access too. The role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Rate limits (RF-023): login per client address, `POST /decisions/evaluate` per caller, and\n  `simulate`, `validate`, `diff`, and `review` per caller. A refused request is `429 RATE_LIMITED`\n  with `Retry-After`. Reads and the other writes have no limit besides the 3 second timeout.\n- Every answer produced by the application carries `Cache-Control: no-store`,\n  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and a\n  `Content-Security-Policy` that allows nothing. `408` and `413` come from the driver and do not.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
       "type": "text/plain"
     },
     "_postman_id": "4b6e2f0a-9c3d-4e51-8a7b-1f2e3d4c5b6a"

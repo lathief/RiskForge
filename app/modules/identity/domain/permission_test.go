@@ -62,6 +62,13 @@ func TestSeparationOfDuties(t *testing.T) {
 	}
 }
 
+// Metrics describe the process. Only the operator reads them, and no business role does.
+func TestOnlyTheAdminReadsMetrics(t *testing.T) {
+	for _, r := range []Role{RoleAdmin, RoleRiskAnalyst, RoleRiskApprover, RoleAuditor, RoleAPIConsumer} {
+		assert.Equal(t, r == RoleAdmin, RoleHas(r, PermMetricsRead), "role %s", r)
+	}
+}
+
 func TestPrincipalCanUsesUnionOfRoles(t *testing.T) {
 	p := Principal{Roles: []Role{RoleAuditor, RoleAPIConsumer}}
 	assert.True(t, p.Can(PermAuditRead))

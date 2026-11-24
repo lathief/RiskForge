@@ -299,6 +299,24 @@ Run on branch `feature/RF-022-audit-endpoints` (from `main` at ebb85b4, M4 merge
 - `./scripts/coverage.sh rf-test-rf022cov`: unit **56.7%**, unit plus integration **89.9%** ([COVERAGE.md](COVERAGE.md)).
 - Not covered: search speed over a large `audit.events` or `decision.runs` (RF-024); `migrate:rollback` of this migration alone on a table with data; requests opened before RF-022 (they have no events by design).
 
+## M5: RF-023 (observability and security)
+
+Run on branch `feature/RF-023-observability-security` (on top of `feature/RF-022-audit-endpoints`) on 24 November 2026 in the disposable projects `rf-test-rf023`, `rf-test-rf023cov`, and the live stack `rf-live-rf023` (PostgreSQL 18), all removed with `down -v` on that project only.
+
+- `go vet ./...` clean; new and changed Go files `gofmt` clean. `go test -race -count=1 -timeout 25m -v ./...`: **855 tests passed, 0 failed, 0 skipped**, every package `ok` (822 at RF-022; 33 new: metrics registry, rate limiter, configuration bounds, the `metrics:read` matrix, and the observability and rate limit suites). `tests/feature` took 707 s.
+- Found by the first full run and fixed:
+  - **Data race with the driver's timeout.** The security header middleware first ran inside the driver's timeout goroutine, and its header write raced with the copy of the response that the timeout makes (`TestPanicAfterDeadlineReachesErrorLog`, `-race`). It now runs before the timeout, next to the request ID middleware, which sets its header there for the same reason. The test passed after the move, with no race reported.
+  - **`TestRequiredPermissionMatchesBehaviourForEveryRole`** expected every answer to be JSON; `GET /metrics` answers text. The helper now accepts a non-JSON successful answer and still reads the error code of every refusal.
+  - Two of my own tests had wrong expectations (label order in a regular expression; a request hash that is not 64 hex characters), found and fixed before the full run.
+- An earlier attempt to run the suite in the background with `nohup` never executed (the container died with the tool call), so it was run in the foreground; a `gofmt -l` with an empty file list in that command would also have waited on stdin forever. Neither affected a result.
+- `redocly lint`: OpenAPI 0.20.0 valid, no warnings (the first lint warned that `RATE_LIMITED` was not in the error code enum; added with `APPROVAL_STATE_CONFLICT`). `./scripts/generate-postman.sh`: 46 requests; `--check` up to date. `ContractParityTestSuite` (46 operations) and `ContractBehaviourTestSuite` pass.
+- `./scripts/smoke-postman.sh rf-live-rf023` on a fresh, seeded stack: **46/46** (`GET /metrics` answers 403 for the auditor, as the check expects).
+- `./scripts/m4-e2e.sh` on the same stack: **40/40**, so the limiters, the headers, and the claim lock timeout did not change the submit, approval, publish, and rollback flow. Then, by hand: `GET /metrics` as the admin returned the counters of that run (4 approvals, 2 publishes, decisions `APPROVE` 2, `REJECT` 1, `replayed` 1, cache loads 3); 13 wrong logins answered 401 and the next 429 with `Retry-After: 1`, which `riskforge_rate_limited_total{limiter="login"}` counted; the security headers were on the 200 and the 429 answers (`docs/API_EXAMPLES.md`).
+- The 2 second claim timeout was proved in the test suite with a transaction that holds the key (waited between 1.9 and 2.9 s, then `503 SERVICE_BUSY`, nothing stored, and the retry after the rollback evaluated). It was not reproduced by hand: a decision takes about 30 ms.
+- `./scripts/coverage.sh rf-test-rf023cov`: unit **57.3%**, unit plus integration **90.1%** ([COVERAGE.md](COVERAGE.md)).
+- Not covered: behavior behind a reverse proxy (SEC-10); several instances (per-process counters and budgets); the load at which a limiter table fills (the 100,000 client bound is unit tested); throughput and latency with limiting on (RF-024); `migrate:rollback` (no migration in this ticket).
+- Observation: `TestLoggingTestSuite` takes about 370 s in the same run, with single tests of 60 s, because it reads the `storage/logs` files, which the test and live runs of these tickets had grown to 505 MB (`query.log` 366 MB, `activity.log` 80 MB, the framework log 60 MB). That is REL-07 in practice. The files are git-ignored runtime output and were not deleted.
+
 ## Not verified yet
 
 | Item | Why | Planned in |

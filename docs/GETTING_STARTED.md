@@ -47,7 +47,7 @@ The seeders create synthetic demo users, the demo product `KTA_DEMO`, the eight-
 
 | Username | Role | Can |
 |---|---|---|
-| `demo_admin` | `ADMIN` | Manage products and dictionary variables. |
+| `demo_admin` | `ADMIN` | Manage products and dictionary variables, configure approval workflows, and read `GET /metrics` (RF-023). |
 | `demo_analyst` | `RISK_ANALYST` | Read products, manage dictionary variables; owns policy drafts: opens, edits, clones, and submits them. |
 | `demo_approver_1`, `demo_approver_2` | `RISK_APPROVER` | Read products and the dictionary; approve or reject submitted policies (M4): `demo_approver_1` holds the `RISK_LEAD` scope (step 1), `demo_approver_2` the `HEAD_OF_RISK` scope (step 2). |
 | `demo_auditor` | `AUDITOR` | Read-only access, and the only role that searches the audit log and the decision history (`GET /audit/events`, `GET /audit/decisions`, RF-022). |

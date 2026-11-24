@@ -13,6 +13,7 @@ import (
 	"goravel/app/http/auth"
 	"goravel/app/http/ctxkeys"
 	"goravel/app/platform/logging"
+	"goravel/app/platform/metrics"
 )
 
 // ActivityLog writes one activity.log entry per request: request and response headers,
@@ -124,6 +125,7 @@ func (m *ActivityLog) addUser(ctx http.Context, entry *logging.ActivityEntry) {
 
 func finish(logger *logging.Logger, entry logging.ActivityEntry, start time.Time, status int) {
 	entry.HTTPCode = status
+	metrics.ObserveHTTP(entry.Module, status, time.Since(start))
 	entry.ResponseTime = float64(time.Since(start).Microseconds()) / 1000
 	entry.MemoryUsage = logging.HeapBytes()
 	logger.Activity(entry)

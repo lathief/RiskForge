@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"goravel/app/modules/decision/application"
@@ -14,12 +15,35 @@ import (
 // through database.Manager.Querier, so it joins the transaction the use case opened.
 type DecisionRepository struct {
 	db *database.Manager
+	// lockTimeout bounds the wait of a duplicate request for the transaction that holds its key.
+	lockTimeout time.Duration
+}
+
+// DefaultClaimLockTimeout is how long a duplicate request waits for the request that holds its
+// Idempotency-Key. It is below the 3 second request timeout, so the waiter answers 503 with a
+// retry hint instead of being cut off by the driver (RF-023, SEC-05).
+const DefaultClaimLockTimeout = 2 * time.Second
+
+// WithLockTimeout returns a repository that waits at most d for a key held by another
+// transaction. d below one millisecond is raised to one millisecond.
+func (r *DecisionRepository) WithLockTimeout(d time.Duration) *DecisionRepository {
+	if d < time.Millisecond {
+		d = time.Millisecond
+	}
+	return &DecisionRepository{db: r.db, lockTimeout: d}
 }
 
 var _ application.Repository = (*DecisionRepository)(nil)
 
 func NewDecisionRepository(db *database.Manager) *DecisionRepository {
-	return &DecisionRepository{db: db}
+	return &DecisionRepository{db: db, lockTimeout: DefaultClaimLockTimeout}
+}
+
+// isLockTimeout reports whether PostgreSQL cancelled a statement because lock_timeout passed
+// (SQLSTATE 55P03).
+func isLockTimeout(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "55P03") || strings.Contains(msg, "lock timeout")
 }
 
 type claimRow struct {
@@ -32,12 +56,20 @@ type claimRow struct {
 // is read; if it rolls back, this insert succeeds and the caller owns the key.
 func (r *DecisionRepository) Claim(ctx context.Context, clientID, key, requestHash string) (application.Claim, error) {
 	q := r.db.Querier(ctx)
+	// SET LOCAL lasts until the end of this transaction. The wait of a duplicate for the first
+	// request is a lock wait on its transaction, so lock_timeout bounds it.
+	if err := q.Statement(fmt.Sprintf("SET LOCAL lock_timeout = %d", r.lockTimeout.Milliseconds())); err != nil {
+		return application.Claim{}, err
+	}
 	var inserted []string
 	if err := q.Select(&inserted,
 		`INSERT INTO decision.requests (client_id, idempotency_key, request_hash)
 		 VALUES ($1::uuid, $2, $3)
 		 ON CONFLICT (client_id, idempotency_key) DO NOTHING
 		 RETURNING id::text`, clientID, key, requestHash); err != nil {
+		if isLockTimeout(err) {
+			return application.Claim{}, application.ErrBusy
+		}
 		return application.Claim{}, err
 	}
 	if len(inserted) == 1 {

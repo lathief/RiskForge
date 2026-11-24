@@ -12,6 +12,7 @@ import (
 	"goravel/app/modules/decision/application"
 	identitydomain "goravel/app/modules/identity/domain"
 	"goravel/app/platform/logging"
+	"goravel/app/platform/metrics"
 )
 
 const codeDecisionNotFound = "DECISION_NOT_FOUND"
@@ -152,9 +153,40 @@ func toOutcomeResponse(o application.Outcome) outcomeResponse {
 // returns the stored decision (header Idempotent-Replayed: true); with a different request it
 // is a 409.
 func (c *DecisionController) Evaluate(ctx http.Context) http.Response {
+	start := time.Now()
+	resp, outcome := c.evaluate(ctx)
+	metrics.ObserveDecision(outcome, time.Since(start))
+	return resp
+}
+
+// outcomeOf names the metric label of a failed evaluate. A failure is never a REJECT.
+func outcomeOf(err error) string {
+	var invalid *application.InputError
+	switch {
+	case errors.As(err, &invalid):
+		return "input_error"
+	case errors.Is(err, application.ErrIdempotencyConflict):
+		return "idempotency_conflict"
+	case errors.Is(err, application.ErrProductNotFound):
+		return "product_not_found"
+	case errors.Is(err, application.ErrPolicyNotActive):
+		return "policy_not_active"
+	case errors.Is(err, application.ErrBusy):
+		return "busy"
+	case errors.Is(err, application.ErrPolicyConfiguration):
+		return "policy_error"
+	case errors.Is(err, application.ErrEvaluation):
+		return "evaluation_error"
+	default:
+		return "error"
+	}
+}
+
+// evaluate is Evaluate without the metrics; its second result is the outcome label.
+func (c *DecisionController) evaluate(ctx http.Context) (http.Response, string) {
 	body, resp := bindObject(ctx, map[string]bool{"application_id": true, "product_code": true, "applicant": true})
 	if resp != nil {
-		return resp
+		return resp, "input_error"
 	}
 	var details []responses.Detail
 	id, _ := stringField(body, "application_id", &details)
@@ -168,22 +200,24 @@ func (c *DecisionController) Evaluate(ctx http.Context) http.Response {
 		applicant = obj
 	}
 	if len(details) > 0 {
-		return responses.ValidationError(ctx, "invalid decision request", details...)
+		return responses.ValidationError(ctx, "invalid decision request", details...), "input_error"
 	}
 	principal, ok := auth.PrincipalFrom(ctx)
 	if !ok {
-		return responses.Unauthenticated(ctx)
+		return responses.Unauthenticated(ctx), "unauthenticated"
 	}
 
 	result, err := c.service.Evaluate(ctx.Context(), principal.UserID, ctx.Request().Header(application.IdempotencyKeyHeader, ""),
 		application.Request{ApplicationID: id, ProductCode: code, Applicant: applicant})
 	if err != nil {
-		return c.fail(ctx, err)
+		return c.fail(ctx, err), outcomeOf(err)
 	}
+	outcome := result.Decision.Outcome.FinalDecision
 	if result.Replayed {
 		ctx.Response().Header("Idempotent-Replayed", "true")
+		outcome = "replayed"
 	}
-	return ctx.Response().Json(http.StatusOK, toDecisionResponse(result.Decision))
+	return ctx.Response().Json(http.StatusOK, toDecisionResponse(result.Decision)), outcome
 }
 
 // Show returns a stored decision (SYSTEM_DESIGN.md 13.1). A caller reads the decisions of its
@@ -216,6 +250,8 @@ func (c *DecisionController) fail(ctx http.Context, err error) http.Response {
 		return responses.ValidationError(ctx, "the application data is invalid", details...)
 	case errors.Is(err, application.ErrIdempotencyConflict):
 		return responses.Conflict(ctx, responses.CodeIdempotencyConflict, "the Idempotency-Key was already used with a different request")
+	case errors.Is(err, application.ErrBusy):
+		return responses.ServiceBusy(ctx, "1")
 	case errors.Is(err, application.ErrDecisionNotFound):
 		return responses.NotFound(ctx, codeDecisionNotFound, "decision not found")
 	case errors.Is(err, application.ErrProductNotFound):

@@ -28,6 +28,8 @@ import (
 	simulationinfra "goravel/app/modules/simulation/infrastructure"
 	"goravel/app/platform/database"
 	"goravel/app/platform/logging"
+	"goravel/app/platform/metrics"
+	"goravel/app/platform/ratelimit"
 	"goravel/app/support"
 )
 
@@ -42,6 +44,7 @@ const (
 	moduleApproval   = "approval"
 	moduleAudit      = "audit"
 	moduleDocs       = "docs"
+	moduleMetrics    = "metrics"
 )
 
 func Api() {
@@ -56,6 +59,14 @@ func Api() {
 	facades.Route().Get("/health/live", health.Live)
 	facades.Route().Get("/health/ready", health.Ready)
 	facades.Route().Fallback(middleware.NotFound)
+
+	// Rate limits (RF-023, SEC-02, M4-SEC-04). The limiters are shared per process; each guards
+	// the routes named in config/ratelimit.go.
+	ratelimit.SetEnabled(facades.Config().GetBool("ratelimit.enabled", true))
+	Limiters.ConfigureFrom(facades.Config())
+	loginLimit := middleware.NewRateLimit(Limiters.Login, middleware.ByIP)
+	decisionLimit := middleware.NewRateLimit(Limiters.Decision, middleware.ByUser)
+	analysisLimit := middleware.NewRateLimit(Limiters.Analysis, middleware.ByUser)
 
 	// DX-001: Swagger UI and the raw contract, local/testing only (enforced at startup).
 	// These tooling routes are not part of the API contract and are excluded from the
@@ -100,8 +111,10 @@ func Api() {
 	// Decision API (RF-014, RF-015): reads the active policy through the policy module and
 	// stores decisions in the decision schema, one transaction per request.
 	decisionDB := dbManager.WithModule(moduleDecision)
+	policyResolver := decisioninfra.NewPolicyResolver(policyService)
+	registerCacheMetrics(policyResolver)
 	decisionController := controllers.NewDecisionController(
-		decisionapp.NewEvaluationService(decisioninfra.NewPolicyResolver(policyService),
+		decisionapp.NewEvaluationService(policyResolver,
 			decisioninfra.NewDecisionRepository(decisionDB), decisionDB))
 	// Audit search (RF-022): the auditor reads the event log and the decision history. Both
 	// only read, so they share the audit module's database manager.
@@ -137,6 +150,7 @@ func Api() {
 	canWritePolicies := middleware.NewRequirePermission(domain.PermPolicyWrite)
 	canSubmitPolicies := middleware.NewRequirePermission(domain.PermPolicySubmit)
 	canReadAudit := middleware.NewRequirePermission(domain.PermAuditRead)
+	canReadMetrics := middleware.NewRequirePermission(domain.PermMetricsRead)
 	canReadProducts := middleware.NewRequirePermission(domain.PermProductRead)
 	canWriteProducts := middleware.NewRequirePermission(domain.PermProductWrite)
 
@@ -149,8 +163,12 @@ func Api() {
 	approval := middleware.NewModule(moduleApproval)
 	audit := middleware.NewModule(moduleAudit)
 
+	// Metrics (RF-023): the operator reads them, with a bearer token and metrics:read.
+	metricsController := controllers.NewMetricsController(metrics.Default)
+	facades.Route().Middleware(middleware.NewModule(moduleMetrics), authenticate, canReadMetrics).Get("/metrics", metricsController.Show)
+
 	facades.Route().Prefix("/api/v1").Group(func(router route.Router) {
-		router.Middleware(identity).Post("/auth/login", authController.Login)
+		router.Middleware(identity, loginLimit).Post("/auth/login", authController.Login)
 		router.Middleware(identity, authenticate).Get("/auth/me", authController.Me)
 
 		router.Middleware(catalog, authenticate, canReadProducts).Get("/products", productController.Index)
@@ -177,10 +195,10 @@ func Api() {
 		router.Middleware(policy, authenticate, canWritePolicies).Delete("/policy-versions/{version_id}/decision-matrix", policyController.DeleteMatrix)
 		router.Middleware(policy, authenticate, canReadPolicies).Get("/policy-versions/{version_id}/test-cases", policyController.ShowTestCases)
 		router.Middleware(policy, authenticate, canWritePolicies).Put("/policy-versions/{version_id}/test-cases", policyController.ReplaceTestCases)
-		router.Middleware(policy, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/validate", policyController.ValidateVersion)
+		router.Middleware(policy, authenticate, analysisLimit, canSubmitPolicies).Post("/policy-versions/{version_id}/validate", policyController.ValidateVersion)
 		// Submit freezes the draft and opens its approval request in one transaction (RF-019).
 		router.Middleware(approval, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/submit", requestController.Submit)
-		router.Middleware(simulation, authenticate, canSimulatePolicies).Post("/policy-versions/{version_id}/simulate", simulationController.Simulate)
+		router.Middleware(simulation, authenticate, analysisLimit, canSimulatePolicies).Post("/policy-versions/{version_id}/simulate", simulationController.Simulate)
 		router.Middleware(approval, authenticate, canReadWorkflows).Get("/approval-workflows", workflowController.Index)
 		router.Middleware(approval, authenticate, canManageWorkflows).Post("/approval-workflows", workflowController.Store)
 		router.Middleware(approval, authenticate, canReadWorkflows).Get("/approval-workflows/{workflow_id}", workflowController.Show)
@@ -189,9 +207,9 @@ func Api() {
 		router.Middleware(approval, authenticate, canReadApprovals).Get("/approval-requests", requestController.Index)
 		router.Middleware(approval, authenticate, canReadApprovals).Get("/approval-requests/{request_id}", requestController.Show)
 		router.Middleware(approval, authenticate, canActOnApprovals).Post("/approval-requests/{request_id}/actions", requestController.Act)
-		router.Middleware(approval, authenticate, canReadApprovals).Get("/approval-requests/{request_id}/review", requestController.Review)
-		router.Middleware(policy, authenticate, canReadPolicies).Get("/policy-versions/{version_id}/diff", policyController.Diff)
-		router.Middleware(decision, authenticate, canEvaluateDecisions).Post("/decisions/evaluate", decisionController.Evaluate)
+		router.Middleware(approval, authenticate, analysisLimit, canReadApprovals).Get("/approval-requests/{request_id}/review", requestController.Review)
+		router.Middleware(policy, authenticate, analysisLimit, canReadPolicies).Get("/policy-versions/{version_id}/diff", policyController.Diff)
+		router.Middleware(decision, authenticate, decisionLimit, canEvaluateDecisions).Post("/decisions/evaluate", decisionController.Evaluate)
 		router.Middleware(decision, authenticate, canReadDecisions).Get("/decisions/{decision_id}", decisionController.Show)
 		router.Middleware(audit, authenticate, canReadAudit).Get("/audit/events", auditController.Events)
 		router.Middleware(audit, authenticate, canReadAudit).Get("/audit/decisions", auditController.Decisions)
