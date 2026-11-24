@@ -131,7 +131,7 @@ RF-017 to RF-021 were collected in `feature/M4-governance` (from `main`, one `--
 | Workflow config | COMPLETE | Versioned tiers, role and scope, quorum, demo workflow (RF-018); configuration changes audited (M4 review fix). |
 | Tier approval | COMPLETE | State machine (RF-019): active step only, server-side role and scope, unique votes, quorum of distinct approvers. |
 | Publish semantics | COMPLETE | Final approval publishes atomically with archive, binding, and audit (RF-020); one ACTIVE version per package enforced by the database (M4 review fix). |
-| Rollback semantics | COMPLETE | Clone of an archived version approved again; tested in `TestRollbackPublishesACopyOfTheArchivedVersion` and `scripts/m4-e2e.sh`. Older versions cannot overwrite newer ones (`409 POLICY_VERSION_SUPERSEDED`). |
+| Rollback semantics | COMPLETE | Clone of an archived version approved again; tested in `TestRollbackPublishesACopyOfTheArchivedVersion` and `scripts/e2e.sh`. Older versions cannot overwrite newer ones (`409 POLICY_VERSION_SUPERSEDED`). |
 | Diff and review | COMPLETE | RF-021 (above). |
 | Gate: self-approval blocked | COMPLETE | `TestTheSubmitterCanNeverApproveTheirOwnSubmission` (a user with both roles), domain test, trigger on `approval.actions`; live check. Weaker than possible: M4-SEC-01. |
 | Gate: concurrency tests pass | COMPLETE | Quorum, duplicate action, duplicate submit, two final approvals, decisions during publish, clone during final approval; each repeated three times with `-race`. |

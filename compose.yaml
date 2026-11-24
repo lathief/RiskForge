@@ -19,6 +19,11 @@ services:
       APP_KEY: ${APP_KEY:?Run ./scripts/init-agent-env.sh first}
       JWT_SECRET: ${JWT_SECRET:?Run ./scripts/init-agent-env.sh first}
       DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-}
+      # Passed through so scripts/benchmark.sh and scripts/e2e.sh can set them; the defaults are
+      # the application defaults, so a normal `up` is unchanged.
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      LOG_FILES: ${LOG_FILES:-true}
+      LOG_HTTP_BODIES: ${LOG_HTTP_BODIES:-true}
       # Swagger UI at /swagger and the contract at /openapi.yaml (dev/agent only).
       DOCS_ENABLED: ${DOCS_ENABLED:-true}
       DB_CONNECTION: postgres

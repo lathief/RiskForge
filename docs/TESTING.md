@@ -2,7 +2,7 @@
 
 RiskForge is tested at four levels: pure unit tests, PostgreSQL integration tests, HTTP tests through the real Goravel + Fiber stack, and contract tests that keep the code, the OpenAPI spec, and the Postman collection in sync. Everything runs in containers against a real PostgreSQL 18; nothing is mocked at the database boundary. The target strategy is `SYSTEM_DESIGN.md` section 16.
 
-Measured statement coverage of every package is in [COVERAGE.md](COVERAGE.md); `./scripts/coverage.sh` regenerates it.
+Measured statement coverage of every package is in [COVERAGE.md](COVERAGE.md); `./scripts/coverage.sh` regenerates it. `./scripts/test.sh` runs the whole set below in one disposable project (formatting, vet, every test with `-race`, and the concurrency tests repeated); `./scripts/e2e.sh` checks a live stack over HTTP; `./scripts/benchmark.sh` measures performance ([BENCHMARK.md](BENCHMARK.md)).
 ## Running the tests
 
 ```sh
@@ -102,6 +102,7 @@ Each suite boots the real application once (`tests/test_case.go`), migrates the 
 | `PolicyTestSuite` (approval request tests, `approval_request_test.go`, RF-019) | Submit opens a request pinned to the workflow version and checksum, or opens nothing and leaves the draft when there is no workflow or the draft is invalid; both tiers approve; a rejection closes the request; action validation and permissions; the submitter can never approve; a workflow change does not affect a running request; database guards on the approval history; `/auth/me` shows the approval scopes. |
 | `PolicyTestSuite` (publish tests, `publish_test.go`, RF-020) | The final approval publishes and the next decision uses it; an older approved version cannot replace a newer active one (`409 POLICY_VERSION_SUPERSEDED`); rollback publishes a copy of an archived version; the audit log is append-only; publish is the only way to move the binding. |
 | `PolicyTestSuite` (audit tests, `audit_test.go`, RF-022) | Only the auditor searches (every other role and no token refused); the approval history of a request is its four events in order, with actors and codes only and without the approver's comment; a rejection is part of the history; filters by action, actor, and time range, `order`, and paging; every invalid parameter is reported at once with 422; a stored sensitive key is redacted on read; searching writes no event or decision; events written by one statement keep their insertion order; the decision history filters by application, product, result, and policy version, pages newest first, and carries no input or trace. |
+| `PolicyTestSuite` (golden tests, `golden_test.go`, RF-024) | The ten golden cases of `SYSTEM_DESIGN.md` 12 through HTTP on the seeded policy: approve with the full trace; age 20 rejected and 21 passing; blacklist; soft RAC `REFER` with grade A; exact scores 0.00, 499.99, 500.00, 649.99, 650.00, and 900.00 on a draft whose scorecard maps one age to one score; null, missing, and wrongly typed inputs as `422` with nothing stored; zero income as `422`; overlapping bins and a matrix gap refused with the draft unchanged; simulating a draft leaving production alone; and the same input giving the same output on four evaluations, in the stored decision, and in the simulation. |
 | `PolicyTestSuite` (observability tests, `observability_test.go`, RF-023) | Every answer, including 401, 404, and 403, carries the security headers; only the admin reads `GET /metrics`, as Prometheus text; decision outcomes are counted (a replay, a refusal, a conflict, and a real rejection each in its own label, and a failure never as `REJECT`); approval actions and publishes are counted after the commit and a refused action is not; requests are counted by module and status, an unmatched route as `none`; the cache statistics are exported; a duplicate that waits for a held `Idempotency-Key` answers `503 SERVICE_BUSY` after about 2 seconds and stores nothing, and the retry after the rollback is evaluated; a duplicate of a committed request is not delayed. |
 | `PolicyTestSuite` (rate limit tests, `rate_limit_test.go`, RF-023) | Login is refused with `429`, `Retry-After`, and `RATE_LIMITED` after its burst, even with the right password; evaluate is limited per caller and the refused request stores nothing; simulate, validate, and diff share one budget and other routes of the version are not limited; the review is limited per approver and approving is not; an unauthenticated request is `401` and uses no budget; switching limits off lets every request through. |
 | `PolicyTestSuite` (diff tests, `policy_diff_test.go`, RF-021) | The review compares the submission with the active version, including the decision impact on the stored test cases; diff of any version against its base; an incomplete draft has a diff but no impact; permissions and errors of both endpoints. |
@@ -147,6 +148,17 @@ docker run --rm -v "$PWD/api/openapi:/spec:ro" redocly/cli:2.79.0 lint /spec/ope
 ```
 
 The contract tests cover operations, parameters, auth, and permissions. They do **not** compare request and response body schemas with the code; each endpoint's HTTP tests and code review keep those consistent.
+
+### End-to-end script, benchmarks, and the one-command run (RF-024)
+
+| What | Command | What it proves |
+|---|---|---|
+| Everything automated | `./scripts/test.sh [rf-test-<name>] [--repeat N] [--quick]` | `gofmt` (CR stripped, so it works on a Windows checkout), `go vet`, all packages with `-race`, and the concurrency tests again N times, in one disposable project; exit code 0 only if every step passed. |
+| The whole API over HTTP | `./scripts/e2e.sh --project rf-live-<name>` | 130 checks in five sections (M1 to M5) against a real stack, then the Postman collection against the same stack. `docs/SCRIPTS.md` lists them. |
+| Engine-only benchmarks | `go test -run XXX -bench . -benchmem ./database/seeders ./app/platform/... ./app/modules/decision/application` | The cost of one policy evaluation (`BenchmarkEvaluate`, per kind of result, and `BenchmarkEvaluateParallel`), of compiling a snapshot, of the idempotency hash, of a metrics update, and of a rate limit check. `TestBenchmarkApplicantsDecideAsNamed` keeps each benchmark input honest. |
+| End-to-end benchmark | `./scripts/benchmark.sh` | HTTP and database latency percentiles and throughput at several concurrency levels, with peak CPU and memory; results in [BENCHMARK.md](BENCHMARK.md). `./scripts/benchmark.sh --self-test` checks the statistics code. |
+
+Benchmarks are not gates: nothing fails because a number moved. They are a record to compare against.
 
 ## Writing tests
 

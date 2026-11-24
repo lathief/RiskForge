@@ -13,11 +13,12 @@
 | [TESTING.md](TESTING.md) | Run and write unit, integration, HTTP, concurrency, and contract tests. | Current |
 | [COVERAGE.md](COVERAGE.md) | See how much of each package the unit tests, and unit plus integration tests, cover. | Current (measured at the end of M4) |
 | [DECISION_ENGINE.md](DECISION_ENGINE.md) | Understand how RAC, scorecard, and matrix will be evaluated, including precedence and edge cases. | **Implemented** (M3, RF-011..RF-016): features, RAC, scorecard, matrix, Decision API, persistence, idempotency, and the policy cache |
+| [BENCHMARK.md](BENCHMARK.md) | See the performance baseline: engine-only and end-to-end latency, throughput, resource use, the environment, and how to read it. | Current (RF-024, one machine) |
 | [SCRIPTS.md](SCRIPTS.md) | Run `scripts/*` (secrets, Postman generator and smoke test, Swagger UI update) and Artisan database commands. | Current |
 | [VERIFICATION.md](VERIFICATION.md) | See what was run to accept each ticket and what was observed. | Current |
 | [M3_NOTES.md](M3_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 3 (RF-011 to RF-016), plus its milestone audit and review fixes. | Current (M3 complete) |
 | [M4_NOTES.md](M4_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 4 (RF-017 onward). | Current (RF-017 to RF-021, M4 complete) |
-| [M5_NOTES.md](M5_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 5 (RF-022 onward). | Current (RF-022 and RF-023 done, M5 in progress) |
+| [M5_NOTES.md](M5_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 5 (RF-022 onward). | Current (RF-022 to RF-024 done, M5 in progress) |
 | [BACKLOG.md](BACKLOG.md) | Track the security, reliability, design, and tooling findings of the milestone 3 and milestone 4 reviews that are not fixed yet and are planned after milestone 5. One file; ids with `M4-` come from milestone 4. | Current, open items |
 | [M1_NOTES.md](M1_NOTES.md) | See what milestone 1 built, as read from the code: architecture, endpoints, access control, logs, tooling, and its known limits. | Current (M1) |
 | [M2_NOTES.md](M2_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 2 (RF-005 to RF-010). | Current (M2) |
@@ -48,7 +49,7 @@ What each folder contains. Folders marked *scaffold* come from the Goravel v1.18
 | `api/openapi/` | `openapi.yaml`, the single source of truth for the HTTP contract (OpenAPI 3.1). |
 | `api/postman/` | Postman collection **generated** from the contract, plus a non-secret environment template. Never edited by hand. |
 | `public/swagger/` | Swagger UI page and its pinned, vendored assets (`vendor/`). Served only in local/testing. |
-| `scripts/` | Developer tooling run through throwaway containers: `init-agent-env.sh` (local secrets), `generate-postman.sh` (collection generator), `smoke-postman.sh` (runs the collection), `update-swagger-ui.sh` (vendor Swagger UI). `postman/` holds the pinned tool versions (`package.json`, `package-lock.json`) and the generator's helper scripts. See [SCRIPTS.md](SCRIPTS.md). |
+| `scripts/` | Developer tooling run through throwaway containers: `init-agent-env.sh` (local secrets), `generate-postman.sh` (collection generator), `smoke-postman.sh` (runs the collection), `update-swagger-ui.sh` (vendor Swagger UI), `e2e.sh` (end-to-end check of the whole API), `test.sh` (all tests in one disposable project), `benchmark.sh` and `bench/` (performance baseline), `coverage.sh`. `postman/` holds the pinned tool versions (`package.json`, `package-lock.json`) and the generator's helper scripts. See [SCRIPTS.md](SCRIPTS.md). |
 | `tests/` | Framework-level tests. `test_case.go` boots the app once, `routes.go` registers test-only probe routes, `feature/` holds HTTP and PostgreSQL integration suites. Unit tests live next to the code they test (`*_test.go`). |
 | `docs/` | These guides and `adr/` (Architecture Decision Records). |
 | `storage/` | Runtime output, git-ignored: `storage/logs/{activity,error,lifetime,query}.log` and framework logs. |

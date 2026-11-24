@@ -8,6 +8,10 @@ Every script lives in `scripts/` and runs its tools inside throwaway Docker cont
 | [`generate-postman.sh`](#generate-postmansh) | Generate the Postman collection from the OpenAPI contract, or check it is current. | Only to install pinned tools | `api/postman/` |
 | [`smoke-postman.sh`](#smoke-postmansh) | Run the collection against a running stack. | Only to install pinned tools | Nothing |
 | [`update-swagger-ui.sh`](#update-swagger-uish) | Vendor a pinned, integrity-checked Swagger UI. | Yes (npm registry) | `public/swagger/vendor/` |
+| [`e2e.sh`](#e2esh) | End-to-end check of the whole API (M1 to M5) against a live stack, or a disposable one. | Only to build the stack | The stack's data |
+| [`test.sh`](#testsh) | gofmt, vet, every test with `-race`, and the concurrency tests repeated, in a disposable project. | Only to download modules | `storage/test/` |
+| [`benchmark.sh`](#benchmarksh) | Engine-only and end-to-end performance baseline in a disposable project. | Only to build the stack | `storage/benchmark/` |
+| [`coverage.sh`](#coveragesh) | Statement coverage per package, unit and unit plus integration. | Only to download modules | Nothing (prints Markdown) |
 
 Database work (migrate, seed, reset) goes through Artisan inside the `api` container; see [Artisan](#artisan-database-commands) at the end.
 
@@ -111,12 +115,43 @@ postman smoke: 46/46 requests as expected
 The stack must be up, migrated, and seeded with the current `DEMO_USER_PASSWORD`. A test project whose users were created by the Go test suite has a different password, so login fails there.
 
 `GET /decisions/{decision_id}` runs with a placeholder `decisionId` (the read-only auditor cannot create a decision) and is expected to answer `404 DECISION_NOT_FOUND`, which still proves the route and the permission. Policy and workflow ids are not fixed, so before running Newman the script asks the API for the first policy and the first approval workflow (`scripts/postman/resolve-ids.js`, `GET /api/v1/policies?per_page=1` and `GET /api/v1/approval-workflows?per_page=1`) and passes their ids and latest version ids as `policyId`, `versionId`, `workflowId`, and `workflowVersionId`. A stack without a policy or a workflow fails early with "seed the stack first". The auditor holds `approval:read`, so the workflow reads answer 200 and the workflow writes 403. `GET /approval-requests/{request_id}` runs with a placeholder `approvalRequestId` (seeding opens no approval request and the auditor cannot submit) and is expected to answer `404 APPROVAL_REQUEST_NOT_FOUND`.
-## m4-e2e.sh
+## e2e.sh
 ```sh
-./scripts/m4-e2e.sh                          # stack at http://127.0.0.1:3000
-API=http://127.0.0.1:3001 ./scripts/m4-e2e.sh  # another address
+./scripts/e2e.sh                            # a stack you started, at http://127.0.0.1:3000
+API=http://127.0.0.1:3001 ./scripts/e2e.sh  # another address
+./scripts/e2e.sh --project rf-live-e2e      # start a disposable stack, run everything, remove it
+./scripts/e2e.sh --project rf-test-e2e --keep --no-smoke
+./scripts/e2e.sh --only M3,M5               # some sections only
 ```
-Runs the Milestone 4 governance flow end to end against a live, migrated, and seeded stack (logins use `DEMO_USER_PASSWORD` from `.env.agent`): clone and edit a draft, simulate it, read the diff and impact against the active version, submit it, approve both tiers (the last approval publishes it), check that the next decision uses the new version while a replay keeps the old one, then roll back by cloning version 1 and approving it again. The unhappy paths include a maker configured as approver, invalid simulation data, a second submit, the wrong role or tier, reject without a comment, a double action, a stale step, actions on a closed request, and read permissions. It prints one line per check, ends with `m4 e2e: 40 checks passed`, and exits 1 on the first failed check. The script creates policies, versions, workflows, and approval requests, so run it only on a disposable Compose project (for example `rf-live-m4`) and remove that project afterwards with `down -v` on its explicit name.
+The end-to-end check of the whole API over HTTP (it replaces `m4-e2e.sh`, which only covered governance). It follows `SYSTEM_DESIGN.md` 16.1 (draft, simulate, submit, tier approvals, active policy, evaluate, audit lookup) in five sections, 130 checks in all (25, 12, 22, 45, and 26 per section), one `ok` line each, and stops at the first failure:
+
+| Section | What it proves |
+|---|---|
+| M1 | Health, `X-Request-ID`, the JSON 404, anonymous 401, wrong credentials, a tampered token, `/auth/me` and the permissions of roles, the security headers, product create, conflict, validation, retire, paging. |
+| M2 | Dictionary reads and write permission, RAC expression errors (`unknown_variable`, `type_error`), scorecard overlap, matrix gap, the full validation report, unknown version. |
+| M3 | The golden cases through HTTP: approve, hard reject on age and blacklist, soft RAC `REFER` with grade A, null, wrong type, and zero income as `422` and never a decision, money as a JSON number, unknown product, missing `Idempotency-Key`, replay (`Idempotent-Replayed`), key reuse with another body, the consumer and the auditor reading a decision. |
+| M4 | Simulate without side effects, diff and impact, submit, review, quorum and the refusals (wrong tier, twice, stale step, comment required), publish and archive, the next decision on the new version, a rejection, and a rollback by clone. |
+| M5 | The approval history in the audit log (opened, actions, closed), the publication event, the decision history without input or trace, metrics for the admin only, no application data in them, and the analysis rate limit ending in `429` with `Retry-After`. |
+
+With `--project NAME` (a name that starts with `rf-test-` or `rf-live-`) the script creates the stack on `127.0.0.1:$E2E_PORT` (default 3200), migrates and seeds it, runs the checks, runs the Postman collection against it (`smoke-postman.sh`, skip with `--no-smoke`), and removes the project with `down -v` unless `--keep` is given. The first start compiles the app and takes a few minutes. Without `--project` the script changes data in the stack it talks to (a new product, policy versions, decisions, approvals), so never point it at a stack whose data you keep. Logins use `DEMO_USER_PASSWORD` from `.env.agent`, so the stack must have been seeded with the current value. The stack keeps the default rate limits, because section M5 checks them: run the script about once a minute at most against the same stack, or the login budget (burst 10) may run out.
+
+## test.sh
+```sh
+./scripts/test.sh                       # project rf-test-all
+./scripts/test.sh rf-test-rf024 --repeat 5
+./scripts/test.sh --quick --keep
+```
+The whole automated run in one disposable project: `gofmt` (with the CRLF of a Windows checkout stripped first, which makes the check usable there, TST-02), `go vet`, every package with `-race` (unit, integration, golden, HTTP, and contract tests), and then the concurrency tests again `--repeat` times (default 3; `--quick` skips them). The output goes to `storage/test/<timestamp>.log` (and `.log.full`, `.log.conc`), and the summary lists the counts and the failures. The exit code is 0 only if every step passed. A full run takes about 12 minutes plus 4 minutes per repetition.
+
+## benchmark.sh
+```sh
+./scripts/benchmark.sh                          # project rf-test-bench, 8 s per row, 1, 8, and 32 workers
+./scripts/benchmark.sh --duration 20 --concurrency 1,4,16,64
+./scripts/benchmark.sh --dev-logging            # keep the dev log files and bodies on
+./scripts/benchmark.sh --self-test              # check the statistics code only
+```
+The performance baseline of `docs/BENCHMARK.md`. It starts a disposable project with the rate limits off and, unless `--dev-logging` is given, the log files and bodies off like the release image, then measures separately: the engine alone (Go benchmarks: policy evaluation, idempotency hash, metrics, limiter) and the end-to-end routes (`scripts/bench/load.js` in a Node container on the project network: health, `auth/me`, evaluate with a new and a replayed key, read a decision, simulate), with p50, p95, p99, requests per second, errors, and the peak CPU and memory of the `api` and `db` containers. It prints the result and writes it to `storage/benchmark/<timestamp>.md`. The load generator shares the machine with the stack, so compare runs on one machine, and read the environment lines in the output. It exits `3` if any request failed.
+
 ## coverage.sh
 ```sh
 ./scripts/coverage.sh                 # project rf-test-coverage

@@ -1,6 +1,6 @@
 # Test coverage
 
-Statement coverage of the Go code, measured at RF-023 (branch `feature/RF-023-observability-security`, on top of `feature/RF-022-audit-endpoints`, which is on `main` with milestones 1 to 4). The numbers come from `./scripts/coverage.sh`, which runs the tests in a disposable `rf-test-*` Compose project with a real PostgreSQL and removes the project afterwards. There is no coverage gate yet; CI with a threshold arrives with RF-025. Re-measure after each ticket and update this file. Do not run it while another stack (for example `rf-dev`) is writing to `storage/logs` (see `AGENT_RUNBOOK.md`).
+Statement coverage of the Go code, measured at RF-024 (branch `feature/RF-024-tests-benchmark`, on top of RF-023, RF-022, and `main` with milestones 1 to 4). RF-024 changed no application code, so the tables are those of RF-023, measured again. The numbers come from `./scripts/coverage.sh`, which runs the tests in a disposable `rf-test-*` Compose project with a real PostgreSQL and removes the project afterwards. There is no coverage gate yet; CI with a threshold arrives with RF-025. Re-measure after each ticket and update this file. Do not run it while another stack (for example `rf-dev`) is writing to `storage/logs` (see `AGENT_RUNBOOK.md`).
 
 ```sh
 ./scripts/coverage.sh                 # prints the two tables below as Markdown (project rf-test-coverage)
@@ -28,6 +28,7 @@ Both count every statement in `app/`, including packages that have no unit test 
 | M4 (RF-017 to RF-021) | 57.5% | 89.9% | Simulator, approval workflows and requests, atomic publish with `audit.events`, policy diff and review, M4 review fixes |
 | RF-022 | 56.7% | 89.9% | Audit event search, decision history, approval events, redaction of event data, `audit.events.seq` |
 | RF-023 | 57.3% | 90.1% | Metrics registry, token bucket limiter, rate limit and security header middleware, metrics endpoint, claim lock timeout |
+| RF-024 | 57.3% | 90.1% | No application code changed: golden cases, benchmarks, and scripts add tests, not statements, so every package keeps its numbers |
 
 ## Unit tests
 | Package | Statements | Covered | Coverage |

@@ -1,6 +1,6 @@
 # Milestone 5 notes (portfolio hardening)
 
-Status: M5 in progress. RF-022 is done on `feature/RF-022-audit-endpoints` and RF-023 on `feature/RF-023-observability-security` (on top of RF-022); RF-024 to RF-026 are not started. Deferred findings of earlier milestones (M3 and M4): [`BACKLOG.md`](BACKLOG.md).
+Status: M5 in progress. RF-022 is done on `feature/RF-022-audit-endpoints` and RF-023 on `feature/RF-023-observability-security` (on top of RF-022), and RF-024 on `feature/RF-024-tests-benchmark` (on top of RF-023); RF-025 and RF-026 are not started. Deferred findings of earlier milestones (M3 and M4): [`BACKLOG.md`](BACKLOG.md).
 
 Limits, deviations from `SYSTEM_DESIGN.md`, and open decisions of milestone 5, one section per ticket.
 
@@ -62,3 +62,30 @@ Known limits:
 - The limits are starting values without a baseline. RF-024 measures and may change them.
 - `riskforge_decision_duration_seconds` measures the use case. The end-to-end time is `riskforge_http_request_duration_seconds{module="decision"}`.
 - The test suites run with limiting off (`tests/test_case.go`); only the tests of RF-023 switch it on, and they restore the configuration (TST-06).
+
+## Tests and benchmark (RF-024)
+
+Branch `feature/RF-024-tests-benchmark`, on top of RF-023. ADR `docs/adr/0025-tests-e2e-and-benchmark.md`. Design: `SYSTEM_DESIGN.md` 16.3. No endpoint, no change to the request path, and no new migration: OpenAPI stays 0.20.0 (46 operations), and the Postman collection is unchanged (`generate-postman.sh --check` and the smoke run were repeated).
+
+| Item | Status | Notes |
+|---|---|---|
+| Golden cases | Done | The ten cases of `SYSTEM_DESIGN.md` 12 through HTTP in `tests/feature/golden_test.go`, one test each. Case 5 (exact scores on the matrix boundaries) uses a draft with a scorecard that maps one age to one score, because the demo scorecard cannot reach 500 or 650. |
+| DB integration | Done (existing) | Unchanged: the PostgreSQL suites of M1 to M5 (constraints, triggers, locking, idempotency, audit). `scripts/test.sh` runs them all with `-race`. |
+| E2E | Done | `scripts/e2e.sh` (renamed from `m4-e2e.sh`): 130 checks in five sections (M1 to M5), a disposable stack with `--project`, and the Postman collection run against it. |
+| Race test | Done | `scripts/test.sh` runs every package with `-race` and then the concurrency tests again (`--repeat`, default 3). |
+| Engine benchmarks | Done | `BenchmarkEvaluate` (approve, refer, hard reject), `BenchmarkEvaluateParallel`, `BenchmarkRequestHash`, `BenchmarkObserveHTTP`, `BenchmarkWriteText`, `BenchmarkAllowOneClient`, `BenchmarkAllowManyClients`; the existing `BenchmarkResolveAndEvaluate` is now part of the baseline. |
+| End-to-end benchmark | Done | `scripts/benchmark.sh` and `scripts/bench/load.js`: six routes at 1, 8, and 32 workers, p50/p95/p99, throughput, errors, and the peak CPU and memory of the containers. |
+| Documented baseline | Done | `docs/BENCHMARK.md`: environment, dataset, method, two runs (release-like and dev logging), how to read them, and what they do not say. |
+| Disposable projects | Done | Every script uses `rf-test-*` or `rf-live-*` projects and `down -v` on that project only; `benchmark.sh` and `test.sh` accept only `rf-test-*`. |
+| Compose pass-through | Done | `RATE_LIMIT_ENABLED`, `LOG_FILES`, and `LOG_HTTP_BODIES`, with the application defaults. |
+| Formatting fix | Done | `test.sh` found `app/modules/policy/domain/diff.go` (RF-021) not gofmt clean; fixed (whitespace only). |
+| CI | Not built | RF-025 calls these scripts. |
+| Performance gate or SLO | Not built | One machine and one run per configuration are not a basis. |
+| Benchmarks of login, publish, and large databases | Not built | See "What these numbers do not say" in `docs/BENCHMARK.md`. |
+| Fixing what the benchmark found | Not built | REL-08 (database round trips), REL-07 (log files). |
+
+Known limits:
+
+- `scripts/e2e.sh` checks text with `grep` and `sed`. It keeps the default rate limits (its M5 section tests them), so two runs on one stack within a minute can exhaust the login budget (TST-07).
+- The benchmark numbers are one run per configuration on a laptop with the load generator on the same machine, and they vary by 20% or more between runs.
+- A full `test.sh` run takes about 12 minutes plus about 4 per repetition. The tool that ran it limited a command to 30 minutes, so the default repetition is 3 and the run in `docs/VERIFICATION.md` used 2.

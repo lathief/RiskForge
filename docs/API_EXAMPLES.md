@@ -696,7 +696,7 @@ The request was approved earlier and version 3 (a rollback copy of version 1) is
 Errors: an unknown version or request is `404 POLICY_VERSION_NOT_FOUND` or `404 APPROVAL_REQUEST_NOT_FOUND`, and a `base_version_id` of another policy is `422 INPUT_VALIDATION_ERROR` (`base_version_id: not_in_policy`).
 ## Audit search (RF-022)
 
-Only an auditor (`audit:read`) may search. Every other role, including the admin, gets `403 FORBIDDEN`. Both operations only read; searching writes no event. `TOKEN` below is the `demo_auditor` token. Responses are from a real run after `./scripts/m4-e2e.sh` (ids and times differ on your stack).
+Only an auditor (`audit:read`) may search. Every other role, including the admin, gets `403 FORBIDDEN`. Both operations only read; searching writes no event. `TOKEN` below is the `demo_auditor` token. Responses are from a real run after `./scripts/e2e.sh` (ids and times differ on your stack).
 
 ### Approval history of one request
 
@@ -772,7 +772,7 @@ curl -s "$API/audit/events?from=yesterday&order=sideways&per_page=500" -H "Autho
 
 ### Metrics
 
-Only the admin (`metrics:read`) reads `GET /metrics`. Every other role gets `403`, and no token `401`. `ADMIN_TOKEN` below is the `demo_admin` token. The values are from a real run after `./scripts/m4-e2e.sh` on a fresh stack (the output is cut to the lines that matter):
+Only the admin (`metrics:read`) reads `GET /metrics`. Every other role gets `403`, and no token `401`. `ADMIN_TOKEN` below is the `demo_admin` token. The values are from a real run after `./scripts/e2e.sh` on a fresh stack (the output is cut to the lines that matter):
 
 ```sh
 curl -si "$HOST/metrics" -H "Authorization: Bearer $ADMIN_TOKEN"
