@@ -29,7 +29,7 @@ RiskForge separates the two:
 | **Decision run** | One evaluation of one application against one policy version, stored with its input, result, and trace. | Implemented (RF-015) |
 | **Idempotency key** | A client-supplied key that makes retries safe: the same key and payload return the same decision instead of evaluating twice. | Implemented (RF-015) |
 
-## How a decision is made (planned flow)
+## How a decision is made
 
 ```mermaid
 flowchart LR

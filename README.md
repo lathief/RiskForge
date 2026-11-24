@@ -4,7 +4,7 @@
 
 Built as a **modular monolith** on Goravel v1.18 with the official Fiber HTTP driver and PostgreSQL 18, developed ticket by ticket with tests, ADRs, and verification evidence for every change. All data is synthetic.
 
-> **Status:** Milestone 1 (foundation, identity and RBAC, product catalog) is complete and hardened through three review rounds ([verification log](docs/VERIFICATION.md)). Milestone 2 (policy configuration) is implemented: the data dictionary (RF-005), the policy package and version model (RF-006), RAC management (RF-007), scorecard management (RF-008), decision matrix management (RF-009), and full policy validation with golden test cases (RF-010). The known limits of M2 are listed in [M2_NOTES.md](docs/M2_NOTES.md). Milestone 3 (decision engine, RF-011 to RF-016) is merged to `main`. Milestone 4 (governance, RF-017 to RF-021: simulator, approval workflows, maker-checker approval, atomic publishing with audit events, policy diff and review) is merged to `main`; its limits are in [M4_NOTES.md](docs/M4_NOTES.md). Milestone 5 (hardening) has started with the audit endpoints (RF-022, `GET /audit/events` and `GET /audit/decisions`) and observability and security (RF-023: `GET /metrics`, rate limits with `429`, a bound on duplicate waits, security headers); and tests and a performance baseline (RF-024: the ten golden cases through HTTP, `scripts/e2e.sh`, `scripts/test.sh`, `scripts/benchmark.sh`, [BENCHMARK.md](docs/BENCHMARK.md)), and a CI pipeline whose gates run locally with `./scripts/ci.sh` (RF-025, [CI.md](docs/CI.md)); see [M5_NOTES.md](docs/M5_NOTES.md). See [Roadmap](#roadmap).
+> **Status:** Milestones 1 to 4 are merged to `main`: foundation, identity and RBAC, product catalog, policy configuration, the decision engine, and governance (simulator, multi-level approval, atomic publishing, policy diff and review). Milestone 5 (hardening) is implemented on stacked ticket branches that are not merged yet: audit search (RF-022), metrics, rate limits and security headers (RF-023), golden tests, an end-to-end script and a performance baseline (RF-024), a CI pipeline whose gates also run locally (RF-025), and this demo and documentation pass (RF-026). The known limits of each milestone are in [M2_NOTES.md](docs/M2_NOTES.md), [M3_NOTES.md](docs/M3_NOTES.md), [M4_NOTES.md](docs/M4_NOTES.md) and [M5_NOTES.md](docs/M5_NOTES.md); open findings are in [BACKLOG.md](docs/BACKLOG.md). See [Roadmap](#roadmap).
 
 ## What this project demonstrates
 
@@ -30,6 +30,13 @@ curl http://127.0.0.1:3000/health/ready                       # first start comp
 ```
 
 Then open <http://127.0.0.1:3000/swagger>, or follow [GETTING_STARTED.md](docs/GETTING_STARTED.md) for your first authenticated request.
+
+## See it work
+One command starts a fresh stack, runs a story with synthetic applicants, and removes the stack: decisions (approve, refer, reject, invalid input), an idempotent replay, a policy change that two approvers publish, the next decision under the new policy, the audit trail, and the metrics.
+```sh
+./scripts/demo.sh --project rf-live-demo
+```
+The real output, the applicants, and what to notice are in [DEMO.md](docs/DEMO.md).
 
 ## Tech stack
 
@@ -76,7 +83,8 @@ Contract: [api/openapi/openapi.yaml](api/openapi/openapi.yaml). Real requests an
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Diagrams, module boundaries, request lifecycle, transactions. |
 | [DOMAIN_GUIDE.md](docs/DOMAIN_GUIDE.md) | Credit concepts: product, RAC, scorecard, decision matrix, policy, approval. |
 | [API_EXAMPLES.md](docs/API_EXAMPLES.md) | `curl` calls with captured responses and errors. |
-| [DECISION_ENGINE.md](docs/DECISION_ENGINE.md) | Planned engine behaviour: pipeline, precedence, edge cases. |
+| [DEMO.md](docs/DEMO.md) | One end-to-end story on a fresh stack with its real output, the synthetic people and applicants. |
+| [DECISION_ENGINE.md](docs/DECISION_ENGINE.md) | Engine behaviour: pipeline, precedence, edge cases. |
 | [TESTING.md](docs/TESTING.md) | How tests are organized and run, and what each suite proves. |
 | [CI.md](docs/CI.md) | The CI pipeline, the same gates on your machine, reading a failure, and the vulnerability baseline. |
 | [BENCHMARK.md](docs/BENCHMARK.md) | Performance baseline: engine-only and end-to-end latency percentiles, throughput, resource use, and how to re-measure. |
@@ -97,7 +105,7 @@ Contract: [api/openapi/openapi.yaml](api/openapi/openapi.yaml). Real requests an
 | M2 Policy configuration | Data dictionary, versioned policy drafts, RAC, scorecard, matrix validation | Done (RF-005 to RF-010); golden tests are executed since RF-013 |
 | M3 Decision engine | Features, RAC, scorecard and matrix evaluation, idempotent decision API | Done (RF-011 to RF-016: feature builder, RAC evaluator, scorecard and matrix evaluator with golden tests, Decision API, durable decisions with idempotency, compiled policy cache; one branch per ticket, `feature/RF-011-feature-builder` to `feature/RF-016-policy-cache`, merged to `main` through `feature/M3-decision-engine`) |
 | M4 Governance | Simulator, multi-level approval, atomic publishing | Done (RF-017 to RF-021: policy simulator, approval workflow configuration, approval state machine, atomic publishing, policy diff and review; one branch per ticket, collected in `feature/M4-governance`, merged to `main`, PR #8 and #9) |
-| M5 Hardening | Audit search, metrics, CI/CD, benchmarks, demo | In progress: RF-022 audit endpoints (`feature/RF-022-audit-endpoints`) and RF-023 observability and security (`feature/RF-023-observability-security`), RF-024 tests and benchmark (`feature/RF-024-tests-benchmark`), and RF-025 CI/CD and local run (`feature/RF-025-ci-cd-local-run`) done, limits in [M5_NOTES.md](docs/M5_NOTES.md); RF-026 planned |
+| M5 Hardening | Audit search, metrics, CI/CD, benchmarks, demo | Done on stacked branches, not merged (RF-022 `feature/RF-022-audit-endpoints`, RF-023 `feature/RF-023-observability-security`, RF-024 `feature/RF-024-tests-benchmark`, RF-025 `feature/RF-025-ci-cd-local-run`, RF-026 `feature/RF-026-developer-experience-demo`); limits in [M5_NOTES.md](docs/M5_NOTES.md) |
 
 Ticket-level detail is in `SYSTEM_DESIGN.md` section 18.
 

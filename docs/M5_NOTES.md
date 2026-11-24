@@ -1,6 +1,6 @@
 # Milestone 5 notes (portfolio hardening)
 
-Status: M5 in progress. RF-022 is done on `feature/RF-022-audit-endpoints` and RF-023 on `feature/RF-023-observability-security` (on top of RF-022), and RF-024 on `feature/RF-024-tests-benchmark` (on top of RF-023), and RF-025 on `feature/RF-025-ci-cd-local-run` (on top of RF-024); RF-026 is not started. Deferred findings of earlier milestones (M3 and M4): [`BACKLOG.md`](BACKLOG.md).
+Status: M5 is implemented on stacked ticket branches, none merged. RF-022 is on `feature/RF-022-audit-endpoints`, RF-023 on `feature/RF-023-observability-security`, RF-024 on `feature/RF-024-tests-benchmark`, RF-025 on `feature/RF-025-ci-cd-local-run`, and RF-026 on `feature/RF-026-developer-experience-demo`, each on top of the one before. The milestone validation (`SYSTEM_DESIGN.md` 19.4) is the next step.
 
 Limits, deviations from `SYSTEM_DESIGN.md`, and open decisions of milestone 5, one section per ticket.
 
@@ -118,3 +118,19 @@ Known limits:
 - The workflow has not run on GitHub. The first run may differ in the Docker defaults of the runner, the ownership of files that containers write into the checkout, and Docker Hub limits.
 - A full `ci.sh` takes about 45 minutes on the machine of these runs (the `tests` gate 25 with its repetitions, `e2e` 5 to 10); in GitHub the jobs run in parallel, so the pipeline takes as long as the slowest, about 30 minutes.
 - The 17 baseline vulnerabilities are real and reachable by the scan. Most traces go through HTTP/2 and client code that the fasthttp server does not use, but the Go 1.25 line has no fix.
+## Developer experience and demo (RF-026)
+Branch `feature/RF-026-developer-experience-demo`, on top of RF-025. ADR `docs/adr/0027-demo-and-developer-experience.md`. Guide: `docs/DEMO.md`. Design: `SYSTEM_DESIGN.md` 16.5. No code under `app/` and no API change.
+| Item | Status | Notes |
+|---|---|---|
+| Demo walkthrough | Done | `scripts/demo.sh`: twelve steps, fresh Compose project and database with `--project`, every step checked, exit 1 on a difference. Output recorded in `docs/DEMO.md`. |
+| Synthetic fixtures | Done | `scripts/demo/applications/*.json` (approve, refer, two rejects, invalid input) and the test `TestDemoFixturesGetTheirDocumentedOutcome` that runs them through HTTP on every pull request. |
+| README | Done | Status and roadmap brought up to date, a "See it work" section, a link to `docs/DEMO.md`. |
+| Architecture diagrams | Done, one not rendered | Seven diagrams existed; one new diagram (the gates from a change to a verified release) in `docs/ARCHITECTURE.md`. Stale "planned" markers for audit search were removed. The new diagram was not rendered: the `mermaid-cli` image could not be pulled. |
+| ADRs | Done | ADR 0027. The index of ADRs is the folder `docs/adr/`. |
+| Screenshots | Not built | Real API output is used instead (ADR 0027, point 6). |
+| `demo.sh` in CI | Not built | `e2e.sh` proves the same flow; the fixtures have their own test. |
+| `docs/DEMO.md` equal to the script output | Not checked | A person re-records it (run the script, paste the output). |
+Known limits:
+- A second run of `demo.sh` against the same stack does not start from the same state, because the first run published the stricter policy. Use `--project` for a repeatable demo.
+- The script reads JSON with `grep` and `sed` (no `jq`), like `e2e.sh` (TST-07), so a renamed field makes a step print less, and only the checks (`expect`) fail the run.
+- The run takes about 4 minutes, most of it the first start of the stack (compilation).

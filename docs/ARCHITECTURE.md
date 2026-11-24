@@ -1,6 +1,6 @@
 # Architecture
 
-RiskForge is a **modular monolith**: one Go process (Goravel v1.18 with the official Fiber HTTP driver) and one PostgreSQL 18 database. Business capabilities live in separate modules with explicit boundaries, so they can be reasoned about and tested independently without the operational cost of microservices. The full target design is in `SYSTEM_DESIGN.md` sections 5 to 12; this page describes what runs today and marks what is planned.
+RiskForge is a **modular monolith**: one Go process (Goravel v1.18 with the official Fiber HTTP driver) and one PostgreSQL 18 database. Business capabilities live in separate modules with explicit boundaries, so they can be reasoned about and tested independently without the operational cost of microservices. The full target design is in `SYSTEM_DESIGN.md` sections 5 to 12; this page describes what runs today.
 
 ## High-level view
 
@@ -19,7 +19,7 @@ flowchart TD
         API --> ENGINE[decision + ruleengine + simulation - M3, RF-017]
         API --> APPROVAL[approval module - workflows RF-018, requests RF-019, atomic publish RF-020]
         APPROVAL --> POLICY
-        APPROVAL --> AUDIT[audit module - event log RF-020, search planned M5]
+        APPROVAL --> AUDIT[audit module - event log RF-020, search RF-022]
         PLATFORM[platform: transactions, structured logging, metrics, rate limit]
     end
 
@@ -33,7 +33,7 @@ flowchart TD
     PLATFORM --> LOGS[[storage/logs: activity, error, lifetime, query]]
 ```
 
-All modules in the diagram exist; audit search (M5) is planned and described in `SYSTEM_DESIGN.md`.
+All modules in the diagram exist. `GET /metrics` and the rate limits (RF-023) belong to the HTTP layer and the platform box.
 
 ## Modules
 
@@ -149,7 +149,28 @@ flowchart LR
         db[("db: postgres:18, no host port, named volume")]
         api -->|backend network| db
     end
-    host[Host: curl, browser, Postman] -->|127.0.0.1 only| api
+    host["Host: curl, browser, Postman"] -->|127.0.0.1 only| api
 ```
 
 Every developer, agent, or test run uses its own Compose project name (`rf-dev`, `rf-test-<ticket>`), so networks and database volumes never collide. The release image (`Dockerfile`) is a static binary on Alpine running as a non-root user, without `.env`, docs assets, or the API spec.
+## From a change to a verified release
+Every check is a script, and the CI workflow and your machine run the same ones (`./scripts/ci.sh`, [CI.md](CI.md)). Each gate that needs a database creates its own Compose project and removes only that project.
+```mermaid
+flowchart LR
+    Change[Commit on a ticket branch] --> Docs[docs-check]
+    Change --> Contract["contract-check: OpenAPI lint, Postman parity"]
+    Change --> Mig["migration-check: up, down, up"]
+    Change --> Tests["test.sh: gofmt, vet, race, concurrency"]
+    Change --> E2E["e2e.sh: 130 checks + Postman run"]
+    Change --> Image["image-check: release image"]
+    Change --> Vuln["vuln-check: govulncheck vs baseline"]
+    Docs --> Gate{CI passed}
+    Contract --> Gate
+    Mig --> Gate
+    Tests --> Gate
+    E2E --> Gate
+    Image --> Gate
+    Vuln --> Gate
+    Gate --> Review[Review and merge]
+    Demo["demo.sh: the story on a fresh stack"] -.-> Review
+```

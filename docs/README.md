@@ -10,6 +10,7 @@
 | [ARCHITECTURE.md](ARCHITECTURE.md) | See how a request travels through Goravel/Fiber, middleware, modules, and PostgreSQL. | Current, with planned modules marked |
 | [DOMAIN_GUIDE.md](DOMAIN_GUIDE.md) | Understand the credit vocabulary: product, RAC, scorecard, decision matrix, policy, approval. | Concepts, each marked with its status (product, dictionary, policy configuration, decision engine, and governance implemented) |
 | [API_EXAMPLES.md](API_EXAMPLES.md) | Copy working `curl` calls with real responses and errors. | Current (46 operations) |
+| [DEMO.md](DEMO.md) | Run one story end to end on a fresh stack and see its real output: decisions, a policy change through two approvers, the audit trail, and the metrics. | Current (RF-026) |
 | [TESTING.md](TESTING.md) | Run and write unit, integration, HTTP, concurrency, and contract tests. | Current |
 | [COVERAGE.md](COVERAGE.md) | See how much of each package the unit tests, and unit plus integration tests, cover. | Current (measured at the end of M4) |
 | [DECISION_ENGINE.md](DECISION_ENGINE.md) | Understand how RAC, scorecard, and matrix will be evaluated, including precedence and edge cases. | **Implemented** (M3, RF-011..RF-016): features, RAC, scorecard, matrix, Decision API, persistence, idempotency, and the policy cache |
@@ -19,13 +20,13 @@
 | [VERIFICATION.md](VERIFICATION.md) | See what was run to accept each ticket and what was observed. | Current |
 | [M3_NOTES.md](M3_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 3 (RF-011 to RF-016), plus its milestone audit and review fixes. | Current (M3 complete) |
 | [M4_NOTES.md](M4_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 4 (RF-017 onward). | Current (RF-017 to RF-021, M4 complete) |
-| [M5_NOTES.md](M5_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 5 (RF-022 onward). | Current (RF-022 to RF-025 done, M5 in progress) |
+| [M5_NOTES.md](M5_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 5 (RF-022 onward). | Current (RF-022 to RF-026 done, milestone validation next) |
 | [BACKLOG.md](BACKLOG.md) | Track the security, reliability, design, and tooling findings of the milestone 3 and milestone 4 reviews that are not fixed yet and are planned after milestone 5. One file; ids with `M4-` come from milestone 4. | Current, open items |
 | [M1_NOTES.md](M1_NOTES.md) | See what milestone 1 built, as read from the code: architecture, endpoints, access control, logs, tooling, and its known limits. | Current (M1) |
 | [M2_NOTES.md](M2_NOTES.md) | Know the limits, deviations from the design, and open decisions of milestone 2 (RF-005 to RF-010). | Current (M2) |
 | [adr/](adr/) | Know *why* a technical decision was made and what it costs. | Current |
 
-Planned guides, written when the code they describe exists: `SECURITY.md` (threat model and controls), `DATABASE.md` (schemas, locking, migrations), `DEMO_SCENARIOS.md` (end-to-end synthetic applications, after M3), `OBSERVABILITY.md` (logs, request ID, metrics), `TRADEOFFS.md` (technology choices and limits), and `../CONTRIBUTING.md` (pull request standards).
+Planned guides, written when the code they describe exists: `SECURITY.md` (threat model and controls), `DATABASE.md` (schemas, locking, migrations), `OBSERVABILITY.md` (logs, request ID, metrics), `TRADEOFFS.md` (technology choices and limits), and `../CONTRIBUTING.md` (pull request standards).
 
 Other references: [`../AGENT_RUNBOOK.md`](../AGENT_RUNBOOK.md) (exact commands and conventions for developers and AI agents), [`../api/openapi/openapi.yaml`](../api/openapi/openapi.yaml) (API contract), Swagger UI at `/swagger` when `rf-dev` runs.
 

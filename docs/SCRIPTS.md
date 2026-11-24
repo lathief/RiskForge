@@ -9,6 +9,7 @@ Every script lives in `scripts/` and runs its tools inside throwaway Docker cont
 | [`smoke-postman.sh`](#smoke-postmansh) | Run the collection against a running stack. | Only to install pinned tools | Nothing |
 | [`update-swagger-ui.sh`](#update-swagger-uish) | Vendor a pinned, integrity-checked Swagger UI. | Yes (npm registry) | `public/swagger/vendor/` |
 | [`e2e.sh`](#e2esh) | End-to-end check of the whole API (M1 to M5) against a live stack, or a disposable one. | Only to build the stack | The stack's data |
+| [`demo.sh`](#demosh) | Narrated walkthrough with synthetic applicants, from a decision to a published policy change and the audit trail. | Only to build the stack | The stack's data |
 | [`test.sh`](#testsh) | gofmt, vet, every test with `-race`, and the concurrency tests repeated, in a disposable project. | Only to download modules | `storage/test/` |
 | [`benchmark.sh`](#benchmarksh) | Engine-only and end-to-end performance baseline in a disposable project. | Only to build the stack | `storage/benchmark/` |
 | [`ci.sh`](#cish) | Every gate of the CI pipeline on your machine, with the same scripts. | Yes (some gates) | `storage/ci/` |
@@ -140,6 +141,14 @@ The end-to-end check of the whole API over HTTP (it replaces `m4-e2e.sh`, which 
 | M5 | The approval history in the audit log (opened, actions, closed), the publication event, the decision history without input or trace, metrics for the admin only, no application data in them, and the analysis rate limit ending in `429` with `Retry-After`. |
 
 With `--project NAME` (a name that starts with `rf-test-` or `rf-live-`) the script creates the stack on `127.0.0.1:$E2E_PORT` (default 3200), migrates and seeds it, runs the checks, runs the Postman collection against it (`smoke-postman.sh`, skip with `--no-smoke`), and removes the project with `down -v` unless `--keep` is given. The first start compiles the app and takes a few minutes. Without `--project` the script changes data in the stack it talks to (a new product, policy versions, decisions, approvals), so never point it at a stack whose data you keep. Logins use `DEMO_USER_PASSWORD` from `.env.agent`, so the stack must have been seeded with the current value. The stack keeps the default rate limits, because section M5 checks them: run the script about once a minute at most against the same stack, or the login budget (burst 10) may run out.
+
+## demo.sh
+```sh
+./scripts/demo.sh --project rf-live-demo          # fresh disposable stack, run the story, remove it
+./scripts/demo.sh --project rf-live-demo --keep   # leave the stack running (port 3300, DEMO_PORT)
+API=http://127.0.0.1:3000 ./scripts/demo.sh       # a stack you started (it changes its data)
+```
+The story of [DEMO.md](DEMO.md) in twelve steps: login as the six roles, read the active policy, evaluate the applicants in `scripts/demo/applications/` (approve, refer, two rejects, one invalid request), replay a request, draft a stricter policy, simulate and diff it, submit, approve in two tiers, evaluate the same applicant again, read the audit trail, and read the metrics. Each step prints the request and the fields that matter, and stops with exit code 1 when a response differs from what the story expects. With `--project NAME` (starting with `rf-test-` or `rf-live-`) it creates, migrates, seeds, and removes the project like `e2e.sh`; without it the script changes the data of the stack it talks to, and a second run does not start from the same state, because the first run already published the stricter policy.
 
 ## test.sh
 ```sh
