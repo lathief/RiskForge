@@ -11,6 +11,12 @@ Every script lives in `scripts/` and runs its tools inside throwaway Docker cont
 | [`e2e.sh`](#e2esh) | End-to-end check of the whole API (M1 to M5) against a live stack, or a disposable one. | Only to build the stack | The stack's data |
 | [`test.sh`](#testsh) | gofmt, vet, every test with `-race`, and the concurrency tests repeated, in a disposable project. | Only to download modules | `storage/test/` |
 | [`benchmark.sh`](#benchmarksh) | Engine-only and end-to-end performance baseline in a disposable project. | Only to build the stack | `storage/benchmark/` |
+| [`ci.sh`](#cish) | Every gate of the CI pipeline on your machine, with the same scripts. | Yes (some gates) | `storage/ci/` |
+| [`docs-check.sh`](#docs-checksh) | Links, repository paths, and the lists of scripts and guides in the Markdown files. | Only to pull Node | Nothing |
+| [`contract-check.sh`](#contract-checksh) | OpenAPI lint, Postman byte parity, and the contract tests. | Only to build | Nothing |
+| [`migration-check.sh`](#migration-checksh) | Every migration up, down, and up again. | Only to download modules | Nothing |
+| [`image-check.sh`](#image-checksh) | Build the release image and check what it contains and how it starts. | Only to build | Nothing |
+| [`vuln-check.sh`](#vuln-checksh) | govulncheck against a baseline, and optionally Trivy on the image. | Yes | Nothing |
 | [`coverage.sh`](#coveragesh) | Statement coverage per package, unit and unit plus integration. | Only to download modules | Nothing (prints Markdown) |
 
 Database work (migrate, seed, reset) goes through Artisan inside the `api` container; see [Artisan](#artisan-database-commands) at the end.
@@ -151,6 +157,52 @@ The whole automated run in one disposable project: `gofmt` (with the CRLF of a W
 ./scripts/benchmark.sh --self-test              # check the statistics code only
 ```
 The performance baseline of `docs/BENCHMARK.md`. It starts a disposable project with the rate limits off and, unless `--dev-logging` is given, the log files and bodies off like the release image, then measures separately: the engine alone (Go benchmarks: policy evaluation, idempotency hash, metrics, limiter) and the end-to-end routes (`scripts/bench/load.js` in a Node container on the project network: health, `auth/me`, evaluate with a new and a replayed key, read a decision, simulate), with p50, p95, p99, requests per second, errors, and the peak CPU and memory of the `api` and `db` containers. It prints the result and writes it to `storage/benchmark/<timestamp>.md`. The load generator shares the machine with the stack, so compare runs on one machine, and read the environment lines in the output. It exits `3` if any request failed.
+
+## ci.sh
+```sh
+./scripts/ci.sh                        # every gate, about 45 minutes
+./scripts/ci.sh --quick                # without the repeated concurrency run
+./scripts/ci.sh --only docs,contract   # some gates
+./scripts/ci.sh --skip vuln,image      # all but some (those two need the network)
+```
+The pipeline of `.github/workflows/ci.yml` on your machine, with the same scripts, so a failure in CI is reproduced by one command here ([CI.md](CI.md)). The gates run in this order and all of them run, even after one fails: `docs`, `contract`, `migrations`, `tests`, `e2e`, `image`, `vuln` (and `vulnimage`, the Trivy scan of the image, only with `--only vulnimage`). Each gate gets its own Compose project named after `--id` (`rf-test-ci-<id>-...`, `rf-live-ci-<id>`), creates it, and removes it with `down -v` on that project only. Output goes to `storage/ci/<id>/<gate>.log`, a failing gate shows its last 25 lines, and the run ends with a table of PASS and FAIL and the time of each gate. The exit code is 0 only if every gate that ran passed.
+
+## docs-check.sh
+```sh
+./scripts/docs-check.sh               # every Markdown file of the repository
+./scripts/docs-check.sh --self-test   # the checker itself
+```
+Runs `scripts/check-docs.js` in the pinned Node container. It fails when a relative Markdown link points at a file that does not exist or at a heading that the target does not have, when a `code span` names a repository path (`scripts/...`, `docs/...`, `api/...`, `app/...`, `tests/...`, `.github/...`) that does not exist, when a script of `scripts/` is not described in this file, or when a guide of `docs/` is not listed in `docs/README.md`. Fenced code blocks, patterns (`docs/<name>.md`, `*`, `{}`), runtime paths under `storage/`, and the names that the guides mention because they were renamed (`m4-e2e.sh`, `POST_M5_BACKLOG.md`) are not checked.
+
+## contract-check.sh
+```sh
+./scripts/contract-check.sh                    # project rf-test-contract
+./scripts/contract-check.sh rf-test-ci-1234    # a unique project name
+./scripts/contract-check.sh --no-tests         # lint and Postman parity only, no database
+```
+The API documentation gate of `SYSTEM_DESIGN.md` 5.6.3: Redocly lint of OpenAPI 3.1 without warnings, the Postman collection regenerated from scratch and compared byte by byte with the committed one (`generate-postman.sh --check`), and the contract tests in a disposable database: `(METHOD, path)` parity of the routes, the spec, and the collection, parameters, auth, unique `operationId`s in lower camel case, a summary and one declared tag per operation, the collection naming every operation by its summary under its tag, the standard error responses (`401`, `403`, `408`, `500`) of secured operations, `429` on the rate-limited ones, the `x-required-permission` claims against the running code for every demo role, and the Swagger UI routes.
+
+## migration-check.sh
+```sh
+./scripts/migration-check.sh                  # project rf-test-migrations
+./scripts/migration-check.sh rf-test-ci-1234 --keep
+```
+Proves in a disposable database that every migration can be applied, undone, and applied again. It runs `migrate` (and a second `migrate` that must do nothing), fingerprints the whole schema (schemas, columns, defaults, indexes, constraints, triggers, functions), runs `migrate:rollback --step=1` once per migration (18 at RF-025: each must succeed and each must change the fingerprint), checks that no application table or schema is left, runs `migrate` again and compares the fingerprint, then `migrate:reset` and `migrate` and compares again. Rolling back deletes data, so the database is created here and removed with `down -v` on that project only.
+
+## image-check.sh
+```sh
+./scripts/image-check.sh         # builds the release image and checks it
+./scripts/image-check.sh --keep  # leave it as riskforge-release-check:local
+```
+Builds the `Dockerfile` and checks, with a disposable PostgreSQL on a private network, that the image has no `.env`, no `api/` contract, no Swagger UI, and no source; runs as a non-root user; refuses to start with a failure status when the docs are enabled in production, when `APP_KEY` is missing, or when the configuration is incomplete, without printing a secret; runs the migrations with its own binary; answers `/health/ready`; does not serve `/swagger` or `/openapi.yaml`; sets the security headers; requires a token on `/metrics`; logs to stdout and writes no log file; and stops on SIGTERM with exit code 0 and a `stopped` event. Nothing is pushed.
+
+## vuln-check.sh
+```sh
+./scripts/vuln-check.sh                    # govulncheck on the Go code
+./scripts/vuln-check.sh --image            # and Trivy on the OS packages of the release image
+./scripts/vuln-check.sh --update-baseline  # list the IDs of this scan in the baseline file
+```
+Runs `govulncheck` (pinned `GOVULNCHECK_VERSION`) and compares the reachable findings with `scripts/vuln-baseline.txt`. A finding that is not in the baseline fails the run (exit 1), so a new advisory or dependency is looked at before it is merged; a baseline line that is no longer found is reported so it can be deleted. A baseline line is a debt with a reason, not an approval. The first scan at RF-025 found 26 vulnerabilities; the dependency bumps of that ticket removed 9, and the 17 left need Go 1.26 or a Goravel upgrade (BACKLOG SEC-11). `--image` also runs Trivy (pinned `TRIVY_IMAGE`) on a tar file of the image, so no Docker socket is mounted. Exit code 2 means the scan could not run (no network). It needs access to `vuln.go.dev`, the module proxy, and for `--image` the Trivy database.
 
 ## coverage.sh
 ```sh

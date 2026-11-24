@@ -1,6 +1,6 @@
 # Milestone 5 notes (portfolio hardening)
 
-Status: M5 in progress. RF-022 is done on `feature/RF-022-audit-endpoints` and RF-023 on `feature/RF-023-observability-security` (on top of RF-022), and RF-024 on `feature/RF-024-tests-benchmark` (on top of RF-023); RF-025 and RF-026 are not started. Deferred findings of earlier milestones (M3 and M4): [`BACKLOG.md`](BACKLOG.md).
+Status: M5 in progress. RF-022 is done on `feature/RF-022-audit-endpoints` and RF-023 on `feature/RF-023-observability-security` (on top of RF-022), and RF-024 on `feature/RF-024-tests-benchmark` (on top of RF-023), and RF-025 on `feature/RF-025-ci-cd-local-run` (on top of RF-024); RF-026 is not started. Deferred findings of earlier milestones (M3 and M4): [`BACKLOG.md`](BACKLOG.md).
 
 Limits, deviations from `SYSTEM_DESIGN.md`, and open decisions of milestone 5, one section per ticket.
 
@@ -89,3 +89,32 @@ Known limits:
 - `scripts/e2e.sh` checks text with `grep` and `sed`. It keeps the default rate limits (its M5 section tests them), so two runs on one stack within a minute can exhaust the login budget (TST-07).
 - The benchmark numbers are one run per configuration on a laptop with the load generator on the same machine, and they vary by 20% or more between runs.
 - A full `test.sh` run takes about 12 minutes plus about 4 per repetition. The tool that ran it limited a command to 30 minutes, so the default repetition is 3 and the run in `docs/VERIFICATION.md` used 2.
+
+## CI/CD and local run (RF-025)
+
+Branch `feature/RF-025-ci-cd-local-run`, on top of RF-024. ADR `docs/adr/0026-ci-pipeline-and-quality-gates.md`. Guide: `docs/CI.md`. Design: `SYSTEM_DESIGN.md` 16.4. One contract change that does not alter any request or response: the `operationId` `me` is now `getCurrentUser` (OpenAPI 0.20.1; the Postman collection is unchanged, because its requests are named after the summaries).
+
+| Item | Status | Notes |
+|---|---|---|
+| GitHub Actions | Done, not run on GitHub | `.github/workflows/ci.yml`: parallel jobs `docs`, `contract`, `migrations`, `tests`, `e2e`, `image`, `vulnerabilities`, `vulnerabilities-image`, and the status job `CI passed`. Read-only permissions, no secret, actions pinned to a commit. Checked with actionlint; every job runs a script that was run here (TST-08). |
+| Unique namespace, disposable DB | Done | Compose projects `rf-test-ci-<run>-<job>` and `rf-live-ci-<run>`, new PostgreSQL each, `down -v` on that project only. |
+| Goravel/Fiber build and HTTP tests | Done | The `tests` job: `scripts/test.sh --repeat 3` (gofmt, vet, `-race` on everything, concurrency repeated). |
+| Redocly lint, Postman byte parity, operationId coverage | Done | The `contract` job. New tests: unique lower camel case operationId, unique summary, one declared tag, collection names and folders equal to the spec, `401`/`403`/`408`/`500` on secured operations, `429` on limited ones. |
+| Artisan migration check | Done | `scripts/migration-check.sh`: 18 migrations up, down one step at a time (each must change the schema), up again, reset, up; the fingerprints match (M4-TOOL-03). |
+| Docker image for release | Done (build and check, no push) | `scripts/image-check.sh`. Found that Goravel exits with status 0 without `APP_KEY`; fixed with `app/preflight`. |
+| Compose agent run and runbook | Done | `scripts/ci.sh` and the runbook section; `compose.yaml` unchanged. |
+| E2E and smoke in CI | Done | The `e2e` job (130 checks and the Postman collection, M4-TOOL-01). |
+| Dependency vulnerability scan | Done, with a baseline | `scripts/vuln-check.sh`: 26 findings at the first scan, 9 fixed by dependency bumps, 17 in `scripts/vuln-baseline.txt` with reasons; new findings fail the pipeline. SEC-11 (High) tracks the Go 1.26 and Goravel decision. |
+| Image scan (Trivy) | Written, not run | Its database could not be downloaded here; the job reports without blocking (TST-08). |
+| Documentation check | Done | `scripts/docs-check.sh`: links, anchors, repository paths in code spans, and the lists of scripts and guides. It found no stale link at the start; it did find that five new scripts were not described, which is the point. |
+| Format | Done | `.gitattributes` LF rules (TST-02). |
+| Dependabot, PR template | Done | `.github/dependabot.yml`, `.github/pull_request_template.md` (the Definition of Done of 16.2). |
+| Publishing the image (CD) | Not built | No registry, credentials, or tag policy is decided. |
+| Go modules cache between runs | Not built | TST-09. |
+| Move to Go 1.26 and upgrade Goravel | Not built | SEC-11: needs a decision and a new ADR. |
+
+Known limits:
+
+- The workflow has not run on GitHub. The first run may differ in the Docker defaults of the runner, the ownership of files that containers write into the checkout, and Docker Hub limits.
+- A full `ci.sh` takes about 45 minutes on the machine of these runs (the `tests` gate 25 with its repetitions, `e2e` 5 to 10); in GitHub the jobs run in parallel, so the pipeline takes as long as the slowest, about 30 minutes.
+- The 17 baseline vulnerabilities are real and reachable by the scan. Most traces go through HTTP/2 and client code that the fasthttp server does not use, but the Go 1.25 line has no fix.

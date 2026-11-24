@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.20.0
+  version: 0.20.1
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
     Contract for the endpoints implemented so far (RF-001 to RF-023, plus M1 hardening).
@@ -198,7 +198,7 @@ paths:
       tags: [Auth]
       summary: Current caller with effective roles and permissions
       description: Roles are read from the database on every request, so changes apply immediately.
-      operationId: me
+      operationId: getCurrentUser
       responses:
         "200":
           description: The authenticated caller.

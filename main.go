@@ -8,6 +8,9 @@ import (
 
 	"goravel/app/facades"
 	"goravel/app/platform/logging"
+	// Imported for its init: it must refuse to start without APP_KEY before the framework
+	// builds its configuration and exits with status 0 (see the package comment).
+	_ "goravel/app/preflight"
 	"goravel/app/support"
 	"goravel/bootstrap"
 )
