@@ -92,10 +92,20 @@ func TestATableOfActiveClientsStaysBounded(t *testing.T) {
 		l.Allow(fmt.Sprint("k", i))
 	}
 	// Every tracked client has spent a token and none has refilled: nothing can be swept.
-	ok, _ := l.Allow("newcomer")
-	assert.True(t, ok, "an untracked newcomer is let through")
-	assert.Equal(t, uint64(1), l.FullCount())
+	// Newcomers share one bucket (burst 2), so a flood of new keys cannot pass untracked.
+	ok, _, untracked := l.Take("newcomer")
+	assert.True(t, ok, "the first newcomer uses the shared bucket")
+	assert.True(t, untracked)
+	ok, _, _ = l.Take("another")
+	assert.True(t, ok)
+	ok, wait, untracked := l.Take("a third")
+	assert.False(t, ok, "the shared bucket is spent: a flood of new keys is throttled together")
+	assert.True(t, untracked)
+	assert.Positive(t, wait)
+	assert.Equal(t, uint64(3), l.FullCount())
 	assert.Len(t, l.buckets, MaxKeys)
+	_, _, untracked = l.Take("k0")
+	assert.False(t, untracked, "a tracked client keeps its own bucket")
 	// After they refill, the sweep frees the table and the newcomer is tracked.
 	c.advance(time.Minute)
 	ok, _ = l.Allow("newcomer")

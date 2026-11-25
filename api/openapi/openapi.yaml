@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.20.1
+  version: 0.20.2
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
     Contract for the endpoints implemented so far (RF-001 to RF-023, plus M1 hardening).
@@ -762,6 +762,8 @@ paths:
           description: |
             `POLICY_VERSION_FROZEN`: the version is not a DRAFT (also a second or concurrent submit).
             `APPROVAL_WORKFLOW_NOT_CONFIGURED`: the product and policy scope have no approval workflow.
+            `APPROVAL_STATE_CONFLICT`: an approval request already exists for the version although it is a DRAFT
+            (the database refused the second request); logged as an integrity alert, nothing was recorded.
           headers:
             X-Request-ID: { $ref: "#/components/headers/XRequestID" }
           content:
@@ -2112,11 +2114,11 @@ paths:
           schema: { type: string, format: uuid, example: 7c6b5a4d-3e2f-4b1a-8d9c-0e1f2a3b4c5d }
         - name: from
           in: query
-          description: Only events at or after this time.
+          description: Only events at or after this time. RFC 3339; URL-encode a `+` offset as `%2B` (`2026-11-21T08:00:00%2B07:00`), because an unencoded `+` reads as a space and answers 422.
           schema: { type: string, format: date-time, example: "2026-11-21T00:00:00Z" }
         - name: to
           in: query
-          description: Only events before this time. Must be after `from`.
+          description: Only events before this time. Must be after `from`. RFC 3339; URL-encode a `+` offset as `%2B`.
           schema: { type: string, format: date-time, example: "2026-11-22T00:00:00Z" }
         - name: order
           in: query
@@ -2172,11 +2174,11 @@ paths:
           schema: { $ref: "#/components/schemas/PolicyVersionId" }
         - name: from
           in: query
-          description: Only decisions at or after this time.
+          description: Only decisions at or after this time. RFC 3339; URL-encode a `+` offset as `%2B`.
           schema: { type: string, format: date-time, example: "2026-11-21T00:00:00Z" }
         - name: to
           in: query
-          description: Only decisions before this time. Must be after `from`.
+          description: Only decisions before this time. Must be after `from`. RFC 3339; URL-encode a `+` offset as `%2B`.
           schema: { type: string, format: date-time, example: "2026-11-22T00:00:00Z" }
         - name: page
           in: query

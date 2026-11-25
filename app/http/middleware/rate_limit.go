@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"math"
+	"net/netip"
 	"strconv"
 	"time"
 
@@ -18,8 +19,27 @@ type KeyFunc func(ctx http.Context) string
 
 // ByIP counts requests per client address. It is the only choice before authentication, as for
 // login. Behind a reverse proxy every client shares the proxy's address unless the proxy is
-// configured as a trusted proxy of the HTTP driver (docs/adr/0024-observability-and-rate-limits.md).
-func ByIP(ctx http.Context) string { return "ip:" + ctx.Request().Ip() }
+// configured as a trusted proxy of the HTTP driver (HTTP_PROXY_HEADER and HTTP_TRUSTED_PROXIES,
+// docs/adr/0024-observability-and-rate-limits.md).
+func ByIP(ctx http.Context) string { return "ip:" + clientAddress(ctx.Request().Ip()) }
+
+// clientAddress is the part of an address that identifies one client for limiting. An IPv4 address
+// is its own client. A whole IPv6 /64 is one client, because one subscriber or one host usually
+// holds the whole prefix and could otherwise take a new address for every attempt. A value that
+// is not an address is kept as it is.
+func clientAddress(ip string) string {
+	a, err := netip.ParseAddr(ip)
+	if err != nil {
+		return ip
+	}
+	a = a.WithZone("").Unmap()
+	if a.Is6() {
+		if p, err := a.Prefix(64); err == nil {
+			return p.String()
+		}
+	}
+	return a.String()
+}
 
 // ByUser counts requests per authenticated user, and per address when there is none. Put it
 // after Authenticate.
@@ -49,9 +69,8 @@ func (m *RateLimit) Handle(ctx http.Context) {
 		ctx.Request().Next()
 		return
 	}
-	before := m.limiter.FullCount()
-	ok, wait := m.limiter.Allow(m.key(ctx))
-	if m.limiter.FullCount() != before {
+	ok, wait, untracked := m.limiter.Take(m.key(ctx))
+	if untracked {
 		metrics.RateLimiterFull.Inc(m.limiter.Name())
 	}
 	if !ok {

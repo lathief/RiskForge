@@ -25,6 +25,8 @@ func Boot() contractsfoundation.Application {
 			handler.Prepend(middleware.NewSecurityHeaders())
 			// After RequestID, so every activity entry carries the correlation ID.
 			handler.Append(middleware.NewActivityLog())
+			// After ActivityLog, so a request refused for load is still logged and counted.
+			handler.Append(middleware.NewInFlightLimit())
 			// Replaces the default handler, which logs request headers and body.
 			handler.Recover(middleware.Recover)
 		}).

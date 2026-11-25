@@ -19,6 +19,7 @@ func validValues() map[string]string {
 	values["hashing.limits.max_concurrent"] = "0"
 	values["hashing.limits.queue_timeout_ms"] = "1000"
 	values["ratelimit.enabled"] = "true"
+	values["http.max_in_flight"] = "64"
 	for _, k := range []string{"login", "decision", "analysis"} {
 		values["ratelimit."+k+".per_minute"] = "60"
 		values["ratelimit."+k+".burst"] = "10"
@@ -112,12 +113,31 @@ func TestValidateConfigRateLimitSwitch(t *testing.T) {
 	}
 }
 
+func TestValidateConfigProxy(t *testing.T) {
+	check := func(header, trusted string) error {
+		values := validValues()
+		values["http.proxy_header_env"] = header
+		values["http.trusted_proxy_env"] = trusted
+		return ValidateConfig(func(k string) string { return values[k] })
+	}
+	assert.NoError(t, check("", ""), "no proxy is the default")
+	assert.NoError(t, check("X-Forwarded-For", "10.0.0.0/8"))
+	assert.NoError(t, check("X-Real-IP", "10.0.0.5, 2001:db8::/32"))
+	assert.ErrorContains(t, check("X-Forwarded-For", ""), "HTTP_TRUSTED_PROXIES", "a header nobody vouches for is client controlled")
+	assert.ErrorContains(t, check("", "10.0.0.1"), "no effect", "trusted proxies without a header are a typo")
+	assert.ErrorContains(t, check("X-Forwarded-For", "proxy.internal"), "addresses or CIDR")
+	assert.ErrorContains(t, check("X-Forwarded-For", "10.0.0.1,,not-an-ip"), "addresses or CIDR")
+	assert.ErrorContains(t, check("X Forwarded", "10.0.0.1"), "header name")
+	assert.ErrorContains(t, check("X-Fwd\r\nSet-Cookie: a", "10.0.0.1"), "header name")
+}
+
 func TestValidateConfigBounds(t *testing.T) {
 	cases := map[string][]string{
 		"hashing.bcrypt.rounds":           {"9", "15", "", "abc"},
 		"jwt.ttl":                         {"0", "-5", "1441", ""},
 		"hashing.limits.max_concurrent":   {"-1", "65"},
 		"hashing.limits.queue_timeout_ms": {"0", "2501"},
+		"http.max_in_flight":              {"-1", "10001", "", "many"},
 		"ratelimit.login.per_minute":      {"0", "100001", "", "x"},
 		"ratelimit.login.burst":           {"0", "10001"},
 		"ratelimit.decision.per_minute":   {"0", "-1"},

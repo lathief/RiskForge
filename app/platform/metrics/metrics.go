@@ -3,6 +3,7 @@ package metrics
 import (
 	"runtime"
 	"strconv"
+	"sync/atomic"
 	"time"
 )
 
@@ -35,16 +36,25 @@ var (
 	RateLimited = Default.NewCounterVec("riskforge_rate_limited_total",
 		"Requests refused by a rate limiter, by limiter.", "limiter")
 	// RateLimiterFull counts requests of a client the limiter could not track because its
-	// table was full; they were let through.
+	// table was full; they were counted against one bucket shared by all such clients.
 	RateLimiterFull = Default.NewCounterVec("riskforge_rate_limiter_table_full_total",
-		"Requests let through untracked because a limiter table was full, by limiter.", "limiter")
+		"Requests counted against the shared bucket because a limiter table was full, by limiter.", "limiter")
+	// RequestsShed counts requests refused with 503 because the process already handled its
+	// maximum number of requests (HTTP_MAX_IN_FLIGHT).
+	RequestsShed = Default.NewCounterVec("riskforge_requests_shed_total",
+		"Requests refused with 503 because too many were in flight.")
 )
 
 var started = time.Now()
 
+// InFlight is the number of requests being handled now; the in-flight gate keeps it current.
+var InFlight atomic.Int64
+
 func init() {
 	Default.NewGaugeFunc("riskforge_uptime_seconds", "Seconds since the process started.",
 		func() float64 { return time.Since(started).Seconds() })
+	Default.NewGaugeFunc("riskforge_http_in_flight", "HTTP requests being handled now.",
+		func() float64 { return float64(InFlight.Load()) })
 	Default.NewGaugeFunc("riskforge_go_goroutines", "Number of goroutines.",
 		func() float64 { return float64(runtime.NumGoroutine()) })
 	Default.NewGaugeFunc("riskforge_go_heap_alloc_bytes", "Bytes of allocated heap objects.", func() float64 {

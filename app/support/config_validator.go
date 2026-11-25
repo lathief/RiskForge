@@ -3,6 +3,7 @@ package support
 
 import (
 	"fmt"
+	"net/netip"
 	"strconv"
 	"strings"
 )
@@ -32,6 +33,8 @@ var boundedSettings = []intRange{
 	// Must leave time for the hash itself inside the 3s request timeout.
 	{"hashing.limits.queue_timeout_ms", 1, 2500, "wait for a hashing slot in milliseconds"},
 	// Rate limits (RF-023). 0 would refuse every request and a huge value is no limit at all.
+	// 0 switches the limit off; above 10000 the limit protects nothing.
+	{"http.max_in_flight", 0, 10000, "requests handled at once before 503 SERVICE_BUSY"},
 	{"ratelimit.login.per_minute", 1, 100000, "login requests per minute per client address"},
 	{"ratelimit.login.burst", 1, 10000, "login burst per client address"},
 	{"ratelimit.decision.per_minute", 1, 100000, "decision requests per minute per caller"},
@@ -75,6 +78,37 @@ var requiredConfigKeys = []string{
 	"database.connections.postgres.password",
 }
 
+// validateProxy refuses a proxy header without trusted proxies: the header is then set by the
+// client, so the address that rate limiting and logs rely on is whatever the client says. The
+// proxies must be addresses or CIDR prefixes.
+func validateProxy(header, trusted string) error {
+	header, trusted = strings.TrimSpace(header), strings.TrimSpace(trusted)
+	if header == "" {
+		if trusted != "" {
+			return fmt.Errorf("invalid configuration, http.trusted_proxies (HTTP_TRUSTED_PROXIES) has no effect without HTTP_PROXY_HEADER")
+		}
+		return nil
+	}
+	for _, r := range header {
+		if !(r == '-' || r >= '0' && r <= '9' || r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z') {
+			return fmt.Errorf("invalid configuration, http.proxy_header (HTTP_PROXY_HEADER) must be a header name")
+		}
+	}
+	if trusted == "" {
+		return fmt.Errorf("invalid configuration, HTTP_PROXY_HEADER needs HTTP_TRUSTED_PROXIES: without them any client could choose its own address")
+	}
+	for _, p := range strings.Split(trusted, ",") {
+		p = strings.TrimSpace(p)
+		if _, err := netip.ParsePrefix(p); err == nil {
+			continue
+		}
+		if _, err := netip.ParseAddr(p); err != nil {
+			return fmt.Errorf("invalid configuration, HTTP_TRUSTED_PROXIES must list addresses or CIDR prefixes")
+		}
+	}
+	return nil
+}
+
 // ValidateConfig returns an error describing the first class of invalid settings.
 // get resolves a config key to its string value. Values are never included in the error.
 func ValidateConfig(get func(key string) string) error {
@@ -98,6 +132,9 @@ func ValidateConfig(get func(key string) string) error {
 	}
 	if _, err := strconv.ParseBool(strings.TrimSpace(get("ratelimit.enabled"))); err != nil {
 		return fmt.Errorf("invalid configuration, ratelimit.enabled (RATE_LIMIT_ENABLED) must be true or false")
+	}
+	if err := validateProxy(get("http.proxy_header_env"), get("http.trusted_proxy_env")); err != nil {
+		return err
 	}
 	for _, s := range boundedSettings {
 		n, err := strconv.Atoi(strings.TrimSpace(get(s.key)))

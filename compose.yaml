@@ -24,6 +24,9 @@ services:
       RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
       LOG_FILES: ${LOG_FILES:-true}
       LOG_HTTP_BODIES: ${LOG_HTTP_BODIES:-true}
+      HTTP_MAX_IN_FLIGHT: ${HTTP_MAX_IN_FLIGHT:-64}
+      HTTP_PROXY_HEADER: ${HTTP_PROXY_HEADER:-}
+      HTTP_TRUSTED_PROXIES: ${HTTP_TRUSTED_PROXIES:-}
       # Swagger UI at /swagger and the contract at /openapi.yaml (dev/agent only).
       DOCS_ENABLED: ${DOCS_ENABLED:-true}
       DB_CONNECTION: postgres

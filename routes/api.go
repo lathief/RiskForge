@@ -64,6 +64,7 @@ func Api() {
 	// the routes named in config/ratelimit.go.
 	ratelimit.SetEnabled(facades.Config().GetBool("ratelimit.enabled", true))
 	Limiters.ConfigureFrom(facades.Config())
+	middleware.InFlight.SetLimit(facades.Config().GetInt("http.max_in_flight", middleware.DefaultMaxInFlight))
 	loginLimit := middleware.NewRateLimit(Limiters.Login, middleware.ByIP)
 	decisionLimit := middleware.NewRateLimit(Limiters.Decision, middleware.ByUser)
 	analysisLimit := middleware.NewRateLimit(Limiters.Analysis, middleware.ByUser)

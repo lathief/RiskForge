@@ -42,6 +42,8 @@ const (
 	LoginBusyPath = "/test/login-busy"
 	// SlowPath answers 200 only after the 3 s request timeout has passed.
 	SlowPath = "/test/slow"
+	// OkPath answers 200 at once.
+	OkPath = "/test/ok"
 	// SlowPanicPath panics after the request timeout has passed.
 	SlowPanicPath = "/test/slow-panic"
 	// SlowPanicMessage is the value SlowPanicPath panics with.
@@ -90,6 +92,7 @@ func registerTestRoutes() {
 	// Slow handlers behave like real ones: they stop when the request context ends and do
 	// not write a response afterwards (Fiber v3 writes 408 to the context at the deadline and
 	// abandons it; writing to it later is a data race inside the driver).
+	route.Get(OkPath, ok)
 	route.Get(SlowPath, func(ctx http.Context) http.Response {
 		waitPastDeadline(ctx)
 		return nil

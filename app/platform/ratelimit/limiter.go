@@ -27,6 +27,7 @@ type Limiter struct {
 	rate      float64 // tokens per second
 	burst     float64
 	buckets   map[string]*bucket
+	shared    *bucket // one bucket for every client that finds the table full
 	lastSweep time.Time
 	full      atomic.Uint64
 }
@@ -56,20 +57,34 @@ func (l *Limiter) Configure(perMinute, burst int) {
 	for _, b := range l.buckets {
 		b.tokens = math.Min(b.tokens, l.burst)
 	}
+	if l.shared != nil {
+		l.shared.tokens = math.Min(l.shared.tokens, l.burst)
+	}
 }
 
 // Reset forgets every client, so each starts with a full burst.
 func (l *Limiter) Reset() {
 	l.mu.Lock()
 	l.buckets = map[string]*bucket{}
+	l.shared = nil
 	l.mu.Unlock()
 }
 
-// FullCount is the number of requests let through untracked because the table was full.
+// FullCount is the number of requests that found the table full and were counted against the
+// shared bucket instead of their own.
 func (l *Limiter) FullCount() uint64 { return l.full.Load() }
 
 // Allow takes one token for key. When none is left it returns false and how long until one is.
 func (l *Limiter) Allow(key string) (bool, time.Duration) {
+	ok, wait, _ := l.Take(key)
+	return ok, wait
+}
+
+// Take is Allow that also reports whether key was found untracked because the table was full.
+// Such clients share one bucket: memory stays bounded, a flood of new keys (for example the
+// addresses of an IPv6 network) is throttled together instead of passing, and real new clients
+// are slowed down but not locked out, because the shared bucket refills like any other.
+func (l *Limiter) Take(key string) (allowed bool, wait time.Duration, untracked bool) {
 	now := l.now()
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -79,12 +94,16 @@ func (l *Limiter) Allow(key string) (bool, time.Duration) {
 			l.sweep(now)
 		}
 		if len(l.buckets) >= MaxKeys {
-			// Every tracked client is active. Memory stays bounded; the newcomer is not tracked.
+			if l.shared == nil {
+				l.shared = &bucket{tokens: l.burst, last: now}
+			}
+			b = l.shared
+			untracked = true
 			l.full.Add(1)
-			return true, 0
+		} else {
+			b = &bucket{tokens: l.burst, last: now}
+			l.buckets[key] = b
 		}
-		b = &bucket{tokens: l.burst, last: now}
-		l.buckets[key] = b
 	}
 	elapsed := now.Sub(b.last).Seconds()
 	if elapsed > 0 {
@@ -93,10 +112,10 @@ func (l *Limiter) Allow(key string) (bool, time.Duration) {
 	}
 	if b.tokens >= 1 {
 		b.tokens--
-		return true, 0
+		return true, 0, untracked
 	}
-	wait := time.Duration(math.Ceil((1-b.tokens)/l.rate*1000)) * time.Millisecond
-	return false, wait
+	wait = time.Duration(math.Ceil((1-b.tokens)/l.rate*1000)) * time.Millisecond
+	return false, wait, untracked
 }
 
 // sweep drops clients whose bucket has refilled completely: they are the same as new clients.
