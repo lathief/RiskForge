@@ -13,13 +13,13 @@ import (
 	contractstesting "github.com/goravel/framework/contracts/testing/http"
 	"github.com/stretchr/testify/suite"
 
-	"goravel/app/facades"
-	dictionaryapp "goravel/app/modules/dictionary/application"
-	dictionarydomain "goravel/app/modules/dictionary/domain"
-	dictionaryinfra "goravel/app/modules/dictionary/infrastructure"
-	"goravel/app/platform/database"
-	"goravel/database/seeders"
-	"goravel/tests"
+	"github.com/lathief/RiskForge/app/facades"
+	dictionaryapp "github.com/lathief/RiskForge/app/modules/dictionary/application"
+	dictionarydomain "github.com/lathief/RiskForge/app/modules/dictionary/domain"
+	dictionaryinfra "github.com/lathief/RiskForge/app/modules/dictionary/infrastructure"
+	"github.com/lathief/RiskForge/app/platform/database"
+	"github.com/lathief/RiskForge/database/seeders"
+	"github.com/lathief/RiskForge/tests"
 )
 
 const variablesPath = "/api/v1/dictionary/variables"

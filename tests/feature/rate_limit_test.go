@@ -6,11 +6,11 @@ import (
 	"github.com/goravel/framework/contracts/http"
 	contractstesting "github.com/goravel/framework/contracts/testing/http"
 
-	"goravel/app/facades"
-	"goravel/app/platform/metrics"
-	"goravel/app/platform/ratelimit"
-	"goravel/database/seeders"
-	"goravel/routes"
+	"github.com/lathief/RiskForge/app/facades"
+	"github.com/lathief/RiskForge/app/platform/metrics"
+	"github.com/lathief/RiskForge/app/platform/ratelimit"
+	"github.com/lathief/RiskForge/database/seeders"
+	"github.com/lathief/RiskForge/routes"
 )
 
 // Rate limits (RF-023, SEC-02, M4-SEC-04). The suites run with limiting off (tests/test_case.go);

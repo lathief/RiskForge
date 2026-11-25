@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"testing"
 
-	"goravel/app/modules/decision/application"
-	"goravel/app/modules/decision/infrastructure"
+	"github.com/lathief/RiskForge/app/modules/decision/application"
+	"github.com/lathief/RiskForge/app/modules/decision/infrastructure"
 )
 
 // Engine-only benchmarks (RF-024, SYSTEM_DESIGN.md 15.3 and 16.1). They measure the policy

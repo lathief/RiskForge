@@ -1,36 +1,19 @@
-# Known reachable vulnerabilities, accepted for now (RF-025, BACKLOG SEC-08 and SEC-11).
+# Known reachable vulnerabilities, accepted for now (BACKLOG SEC-15; history in SEC-08 and SEC-11).
 #
 # scripts/vuln-check.sh fails on any govulncheck finding that is NOT listed here, so a new advisory
 # or a new dependency is looked at before it is merged. A line here is a debt, not an approval: each
 # has a reason and the work that removes it. Format: ID | where | fixed in | title | reason.
 # Delete a line when the scan stops reporting it (the script says so).
 #
-# First scan, 24 November 2026, Go 1.25.14, github.com/goravel/framework v1.18.1: 26 findings.
-# RF-025 removed 9 by raising indirect dependencies within their line (go.mod: pgx 5.9.2, x/text
-# 0.41.0, x/net 0.58.0, x/crypto 0.55.0, grpc 1.83.2, brotli 1.2.7, compress 1.20.2); the build, vet,
-# and the whole test suite pass with them. The 17 below cannot be removed without a decision:
-#   A. standard library only (8): the fixes exist only in Go 1.26.x, and the Go 1.25 line has none
-#      (ADR 0001 pins Go 1.25). Needs: move go.mod, the Dockerfile, and compose to Go 1.26 (ADR).
-#   B. golang.org/x/net and the standard library (5: 6603, 6610, 6611, 6612, 6617): fixed in x/net
-#      v0.60.0 and Go 1.26.x, both of which require Go 1.26.
-#   C. OpenTelemetry (6505, 6508, 6615, 6974): fixed in otel 1.45 to 1.47 and log 0.21, but the
-#      log API changed and Goravel v1.18.1 (telemetry package) no longer compiles with it. Needs a
-#      Goravel upgrade. RiskForge does not enable the telemetry exporters (config/telemetry.go).
+# First scan (RF-025, 24 November 2026, Go 1.25.14): 26 findings; raising indirect dependencies
+# within their line removed 9. The M5 validation (25 November 2026) moved to Go 1.26 (ADR 0029),
+# which removed the 13 in the standard library and golang.org/x/net (x/net v0.63.0), and raised
+# OpenTelemetry to v1.46.0, which removed GO-2026-6505. The 3 below are all in the OpenTelemetry
+# log signal: their fixes need go.opentelemetry.io/otel/log v0.21 or later, whose API Goravel
+# v1.18.1 (the latest release, telemetry/instrumentation/log) does not compile with. Goravel's
+# development branch already uses otel 1.47, so a Goravel release after v1.18.1 removes them.
+# RiskForge does not enable the telemetry exporters (config/telemetry.go).
 #
-GO-2026-6505 | go.opentelemetry.io/otel/exporters/otlp/otlptrace (+grpc, http), otel/sdk | v1.45.0 | OpenTelemetry-Go: exporter config logging may leak endpoint URLs in info logs | C. Goravel upgrade; the exporters are not enabled.
-GO-2026-6508 | go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc | v0.21.0 | OpenTelemetry-Go: log gRPC exporter ignores env TLS certs, bypassing mTLS or pinning | C. Goravel upgrade; the exporters are not enabled.
-GO-2026-6599 | stdlib html/template | go1.26.9 | Reset context tracking on consecutive template expressions in html/template | A. Go 1.26; the API renders no HTML template.
-GO-2026-6600 | stdlib html/template | go1.26.9 | Recognize yield as regexp preceder keyword in html/template | A. Go 1.26; the API renders no HTML template.
-GO-2026-6603 | golang.org/x/net, stdlib net/http | x/net v0.60.0, go1.26.9 | HTTP/2 server memory exhaustion due to Trailer headers | A and B. The server is fasthttp (Fiber), not net/http; the traces go through the framework's HTTP client code.
-GO-2026-6605 | stdlib net/http | go1.26.9 | HTTP/1 client connection desynchronization after CONNECT rejection | A. Go 1.26; the API makes no outgoing HTTP request.
-GO-2026-6607 | stdlib crypto/tls | go1.26.9 | Reject malformed ECH outer extension references in crypto/tls | A. Go 1.26; TLS ends at the ingress (SYSTEM_DESIGN.md 15.1), the process serves plain HTTP.
-GO-2026-6608 | stdlib net/textproto, mime/multipart | go1.26.9 | Memory limit bypass when parsing MIME headers | A. Go 1.26; the request body is limited to 64 KiB and the API reads JSON only.
-GO-2026-6610 | golang.org/x/net, stdlib net/http | x/net v0.60.0, go1.26.9 | HTTP/2 transport accepts malformed framing-related headers | A and B. HTTP/2 client code; no outgoing request.
-GO-2026-6611 | golang.org/x/net, stdlib net/http | x/net v0.60.0, go1.26.9 | Excessive CPU consumption from repeated initial window changes | A and B. HTTP/2; the server speaks HTTP/1.1 through fasthttp.
-GO-2026-6612 | golang.org/x/net, stdlib net/http | x/net v0.60.0, go1.26.9 | Double flow control refund on HTTP/2 server streams | A and B. HTTP/2; the server speaks HTTP/1.1 through fasthttp.
-GO-2026-6613 | stdlib net/http | go1.26.9 | HTTP/1 server connection desynchronization after 2xx CONNECT response | A. Go 1.26; the HTTP server is fasthttp.
-GO-2026-6615 | go.opentelemetry.io/otel/sdk/log | v0.21.0 | OpenTelemetry-Go: BatchProcessor can busy-spin when export buffer is full | C. Goravel upgrade; the exporters are not enabled.
-GO-2026-6617 | golang.org/x/net, stdlib net/http | x/net v0.60.0, go1.26.9 | HTTP/2 server crash due to HPACK encoder race | A and B. HTTP/2; the server speaks HTTP/1.1 through fasthttp.
-GO-2026-6809 | stdlib crypto/x509 | go1.26.10 | Distrust compromised intermediate certificates in crypto/x509 | A. Go 1.26; no certificate is verified by the API itself (the database connection uses the driver's settings).
-GO-2026-6859 | stdlib net/http | go1.26.11 | HTTP/1 server crash due to MaxBytesReader header race | A. Go 1.26; the HTTP server is fasthttp.
-GO-2026-6974 | go.opentelemetry.io/otel/sdk, sdk/log, trace | v1.47.0 | OpenTelemetry-Go: AttributeValueLengthLimit bypass via U+FFFD runes | C. Goravel upgrade; the exporters are not enabled.
+GO-2026-6508 | go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc | v0.21.0 | OpenTelemetry-Go: log gRPC exporter ignores env TLS certs, bypassing mTLS or pinning | Goravel release after v1.18.1; the log exporters are not enabled.
+GO-2026-6615 | go.opentelemetry.io/otel/sdk/log | v0.21.0 | OpenTelemetry-Go: BatchProcessor can busy-spin when export buffer is full | Goravel release after v1.18.1; no log exporter, so no export buffer fills.
+GO-2026-6974 | go.opentelemetry.io/otel/sdk, sdk/log, trace | v1.47.0 | OpenTelemetry-Go: AttributeValueLengthLimit bypass via U+FFFD runes | Goravel release after v1.18.1 (needs otel/log v1.47); no exporter is enabled, so no attribute leaves the process.

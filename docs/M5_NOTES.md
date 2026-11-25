@@ -189,5 +189,15 @@ Branch `feature/M5-hardening` (from RF-026), 24 and 25 November 2026. Design: `S
 
 The blockers of the first validation pass are closed: the collection is regenerated and every gate passes in Compose. What is left is a decision and a first run elsewhere, not a defect:
 
-1. Decide SEC-11 (Go 1.26 and the Goravel upgrade) or keep the 17 findings in the baseline explicitly.
+1. SEC-11 is done (ADR 0029): Go 1.26.11, `x/net` v0.63.0, OpenTelemetry v1.46.0, module path `github.com/lathief/RiskForge`. 3 findings remain in the OpenTelemetry log signal until a Goravel release after v1.18.1 (SEC-15).
 2. The workflow ran on GitHub for the first time (PR #10): `docs`, `contract`, `migrations`, `image`, `vulnerabilities`, and Trivy passed. `tests` failed because the `api` container could not create `storage/logs` in a checkout owned by the runner user; fixed with `cap_add: DAC_OVERRIDE`, confirmed by the third run (881 passed). `e2e` failed because `go build` in the `api` container could not stamp VCS data from a `.git` owned by the runner user, so the stack never became ready; fixed with `-buildvcs=false`. **Run 45596210311 (`736f83d`) passed every job, `CI passed` included (5 min 54 s).** The Trivy job is now blocking and part of `CI passed`; making `CI passed` the required check of `main` is a repository setting (`docs/CI.md`). When both pass, make `CI passed` the required check (TST-08).
+
+### SEC-11: Go 1.26 and the module path (ADR 0029)
+
+| Item | Status | Notes |
+|---|---|---|
+| Go 1.26 | Done | `go 1.26.11` in `go.mod`; `golang:1.26-bookworm` for dev and CI; builder `golang:1.26-alpine` pinned by digest. |
+| Standard library and `x/net` findings (13) | Fixed | Go 1.26.11 and `x/net` v0.63.0. |
+| OpenTelemetry | Partly fixed | v1.46.0 for trace and metric (GO-2026-6505 fixed); the log signal stays at v0.20.0 because Goravel v1.18.1 does not compile with v0.21 or later. 3 findings remain (SEC-15). |
+| Module path | Done | `goravel` became `github.com/lathief/RiskForge`; 178 Go files changed their imports, nothing else. |
+| Goravel upgrade | Not possible yet | v1.18.1 is the latest release. |

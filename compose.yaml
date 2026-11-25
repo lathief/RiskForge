@@ -3,7 +3,7 @@
 # Keep the original Goravel scaffold and app entrypoint; do not create a second Fiber server.
 services:
   api:
-    image: ${GO_IMAGE:-golang:1.25-bookworm}
+    image: ${GO_IMAGE:-golang:1.26-bookworm}
     working_dir: /workspace
     init: true
     # Build, then exec the binary so it is PID 1's direct child and receives SIGTERM on

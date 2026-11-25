@@ -10,10 +10,10 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/auth"
-	"goravel/app/http/ctxkeys"
-	"goravel/app/platform/logging"
-	"goravel/app/platform/metrics"
+	"github.com/lathief/RiskForge/app/http/auth"
+	"github.com/lathief/RiskForge/app/http/ctxkeys"
+	"github.com/lathief/RiskForge/app/platform/logging"
+	"github.com/lathief/RiskForge/app/platform/metrics"
 )
 
 // ActivityLog writes one activity.log entry per request: request and response headers,

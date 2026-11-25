@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"goravel/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/modules/policy/domain"
 )
 
 // GetScorecard returns a version and its scorecard, or a nil scorecard when none is configured.

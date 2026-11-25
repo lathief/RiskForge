@@ -6,7 +6,7 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/facades"
+	"github.com/lathief/RiskForge/app/facades"
 )
 
 // The auditor's searches (RF-022, SYSTEM_DESIGN.md 11.7, 13.1): the audit event log, which also

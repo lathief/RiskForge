@@ -1,8 +1,8 @@
 package routes
 
 import (
-	decisioninfra "goravel/app/modules/decision/infrastructure"
-	"goravel/app/platform/metrics"
+	decisioninfra "github.com/lathief/RiskForge/app/modules/decision/infrastructure"
+	"github.com/lathief/RiskForge/app/platform/metrics"
 )
 
 // registerCacheMetrics exports the statistics of the compiled policy cache (RF-016) so the hit

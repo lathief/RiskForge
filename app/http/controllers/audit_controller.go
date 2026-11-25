@@ -6,10 +6,10 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/responses"
-	auditapp "goravel/app/modules/audit/application"
-	decisionapp "goravel/app/modules/decision/application"
-	"goravel/app/platform/logging"
+	"github.com/lathief/RiskForge/app/http/responses"
+	auditapp "github.com/lathief/RiskForge/app/modules/audit/application"
+	decisionapp "github.com/lathief/RiskForge/app/modules/decision/application"
+	"github.com/lathief/RiskForge/app/platform/logging"
 )
 
 // AuditController serves the auditor's searches (RF-022): the audit event log, which also holds

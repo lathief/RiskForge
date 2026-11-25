@@ -7,11 +7,11 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/auth"
-	"goravel/app/http/responses"
-	"goravel/app/modules/identity/application"
-	"goravel/app/modules/identity/domain"
-	"goravel/app/platform/logging"
+	"github.com/lathief/RiskForge/app/http/auth"
+	"github.com/lathief/RiskForge/app/http/responses"
+	"github.com/lathief/RiskForge/app/modules/identity/application"
+	"github.com/lathief/RiskForge/app/modules/identity/domain"
+	"github.com/lathief/RiskForge/app/platform/logging"
 )
 
 const (

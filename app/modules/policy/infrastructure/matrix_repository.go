@@ -3,7 +3,7 @@ package infrastructure
 import (
 	"context"
 
-	"goravel/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/modules/policy/domain"
 )
 
 type matrixRow struct {

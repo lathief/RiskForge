@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"goravel/app/modules/ruleengine"
+	"github.com/lathief/RiskForge/app/modules/ruleengine"
 )
 
 // fakePrepare stands in for the dictionary's BuildFacts: it applies fakeCheck, converts the

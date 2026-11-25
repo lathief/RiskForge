@@ -4,9 +4,9 @@ import (
 	"sync"
 	"time"
 
-	"goravel/app/http/middleware"
-	"goravel/app/platform/metrics"
-	"goravel/tests"
+	"github.com/lathief/RiskForge/app/http/middleware"
+	"github.com/lathief/RiskForge/app/platform/metrics"
+	"github.com/lathief/RiskForge/tests"
 )
 
 // Load shedding (M5 validation). Beyond HTTP_MAX_IN_FLIGHT a request is refused at once with 503

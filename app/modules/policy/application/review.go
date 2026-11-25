@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"goravel/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/modules/policy/domain"
 )
 
 // ConcludeReview records the outcome of the approval of a submitted version (RF-019): a

@@ -10,7 +10,7 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/facades"
+	"github.com/lathief/RiskForge/app/facades"
 )
 
 // ErrInvalidToken is returned for any token that is missing, malformed, tampered with, or expired.

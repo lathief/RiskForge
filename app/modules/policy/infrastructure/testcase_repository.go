@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"goravel/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/modules/policy/domain"
 )
 
 type testCaseRow struct {

@@ -7,7 +7,7 @@ From a fresh clone to an authenticated API call in about ten minutes. Everything
 | Tool | Version | Why |
 |---|---|---|
 | Git | any recent | Clone the repository. |
-| Docker Engine + Compose v2 | Compose v2 (`docker compose`) | Runs the Go toolchain (`golang:1.25`) and PostgreSQL 18. |
+| Docker Engine + Compose v2 | Compose v2 (`docker compose`) | Runs the Go toolchain (`golang:1.26`) and PostgreSQL 18. |
 | `curl` | any | The examples below. Postman or Swagger UI work too. |
 | Bash | Git Bash on Windows | Runs `scripts/*.sh`. |
 

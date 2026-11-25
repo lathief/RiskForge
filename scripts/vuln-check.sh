@@ -28,7 +28,7 @@ for arg in "$@"; do
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
   esac
 done
-GO_IMAGE="${GO_IMAGE:-golang:1.25-bookworm}"
+GO_IMAGE="${GO_IMAGE:-golang:1.26-bookworm}"
 GOVULNCHECK_VERSION="${GOVULNCHECK_VERSION:-v1.1.4}"
 TRIVY_IMAGE="${TRIVY_IMAGE:-aquasec/trivy:0.58.1}"
 BASELINE="scripts/vuln-baseline.txt"

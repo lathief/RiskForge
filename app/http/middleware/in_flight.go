@@ -6,8 +6,8 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/responses"
-	"goravel/app/platform/metrics"
+	"github.com/lathief/RiskForge/app/http/responses"
+	"github.com/lathief/RiskForge/app/platform/metrics"
 )
 
 // InFlight is the process-wide limit on requests being handled at once. The API sets it from

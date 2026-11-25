@@ -3,7 +3,7 @@ package routes
 import (
 	"github.com/goravel/framework/contracts/config"
 
-	"goravel/app/platform/ratelimit"
+	"github.com/lathief/RiskForge/app/platform/ratelimit"
 )
 
 // LimiterSet holds the rate limiters of the API (RF-023). They are package state so a test can

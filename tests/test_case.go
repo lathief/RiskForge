@@ -3,8 +3,8 @@ package tests
 import (
 	"github.com/goravel/framework/testing"
 
-	"goravel/app/platform/ratelimit"
-	"goravel/bootstrap"
+	"github.com/lathief/RiskForge/app/platform/ratelimit"
+	"github.com/lathief/RiskForge/bootstrap"
 )
 
 // TestBcryptRounds is the bcrypt cost tests expect. The hash service is built during boot,

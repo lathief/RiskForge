@@ -9,10 +9,10 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/facades"
-	approvaldomain "goravel/app/modules/approval/domain"
-	decisionapp "goravel/app/modules/decision/application"
-	policyapp "goravel/app/modules/policy/application"
+	"github.com/lathief/RiskForge/app/facades"
+	approvaldomain "github.com/lathief/RiskForge/app/modules/approval/domain"
+	decisionapp "github.com/lathief/RiskForge/app/modules/decision/application"
+	policyapp "github.com/lathief/RiskForge/app/modules/policy/application"
 )
 
 // Atomic publishing (RF-020, SYSTEM_DESIGN.md 9.4): the final approval switches the active

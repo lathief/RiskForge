@@ -11,8 +11,8 @@ import (
 
 	"github.com/goravel/framework/contracts/database/db"
 
-	"goravel/app/platform/logging"
-	"goravel/app/platform/tx"
+	"github.com/lathief/RiskForge/app/platform/logging"
+	"github.com/lathief/RiskForge/app/platform/tx"
 )
 
 type txKey struct{}

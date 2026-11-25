@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"goravel/app/modules/decision/application"
-	"goravel/app/modules/decision/infrastructure"
-	policyapp "goravel/app/modules/policy/application"
-	policydomain "goravel/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/modules/decision/application"
+	"github.com/lathief/RiskForge/app/modules/decision/infrastructure"
+	policyapp "github.com/lathief/RiskForge/app/modules/policy/application"
+	policydomain "github.com/lathief/RiskForge/app/modules/policy/domain"
 )
 
 // fakeActive stands in for the policy module: it names one version as active and serves its

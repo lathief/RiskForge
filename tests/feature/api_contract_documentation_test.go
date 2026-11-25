@@ -9,7 +9,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"goravel/app/facades"
+	"github.com/lathief/RiskForge/app/facades"
 )
 
 // The operationId coverage gate of RF-025 (SYSTEM_DESIGN.md 5.6.2 and 5.6.3): beyond the

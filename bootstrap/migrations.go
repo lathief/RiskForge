@@ -3,7 +3,7 @@ package bootstrap
 import (
 	"github.com/goravel/framework/contracts/database/schema"
 
-	"goravel/database/migrations"
+	"github.com/lathief/RiskForge/database/migrations"
 )
 
 func Migrations() []schema.Migration {

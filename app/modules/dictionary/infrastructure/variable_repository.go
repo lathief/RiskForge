@@ -5,9 +5,9 @@ import (
 	"context"
 	"time"
 
-	"goravel/app/modules/dictionary/application"
-	"goravel/app/modules/dictionary/domain"
-	"goravel/app/platform/database"
+	"github.com/lathief/RiskForge/app/modules/dictionary/application"
+	"github.com/lathief/RiskForge/app/modules/dictionary/domain"
+	"github.com/lathief/RiskForge/app/platform/database"
 )
 
 // variableSelect reads each variable as of schema version $1: the latest version whose

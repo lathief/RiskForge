@@ -9,10 +9,10 @@ import (
 	contractstesting "github.com/goravel/framework/contracts/testing/http"
 	"github.com/stretchr/testify/suite"
 
-	"goravel/app/facades"
-	"goravel/app/modules/identity/domain"
-	"goravel/database/seeders"
-	"goravel/tests"
+	"github.com/lathief/RiskForge/app/facades"
+	"github.com/lathief/RiskForge/app/modules/identity/domain"
+	"github.com/lathief/RiskForge/database/seeders"
+	"github.com/lathief/RiskForge/tests"
 )
 
 const demoPassword = "demo-password-123"

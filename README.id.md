@@ -57,7 +57,7 @@ Output nyata, daftar pemohon, dan hal yang perlu diperhatikan ada di [DEMO.md](d
 
 ## Teknologi
 
-Go 1.25 · Goravel v1.18 · Fiber v3 (lewat `goravel/fiber`) · PostgreSQL 18 · JWT (HS256) · bcrypt · OpenAPI 3.1 · Swagger UI 5 · Postman / Newman · Docker Compose · testify
+Go 1.26 · Goravel v1.18 · Fiber v3 (lewat `goravel/fiber`) · PostgreSQL 18 · JWT (HS256) · bcrypt · OpenAPI 3.1 · Swagger UI 5 · Postman / Newman · Docker Compose · testify
 
 ## API yang sudah ada
 

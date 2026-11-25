@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"goravel/app/modules/identity/application"
+	"github.com/lathief/RiskForge/app/modules/identity/application"
 )
 
 // blockingHash implements hash.Hash. Check blocks until release is closed and records

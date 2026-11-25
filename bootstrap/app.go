@@ -9,11 +9,11 @@ import (
 	contractsconfiguration "github.com/goravel/framework/contracts/foundation/configuration"
 	"github.com/goravel/framework/foundation"
 
-	"goravel/app/facades"
-	"goravel/app/http/middleware"
-	"goravel/app/platform/logging"
-	"goravel/config"
-	"goravel/routes"
+	"github.com/lathief/RiskForge/app/facades"
+	"github.com/lathief/RiskForge/app/http/middleware"
+	"github.com/lathief/RiskForge/app/platform/logging"
+	"github.com/lathief/RiskForge/config"
+	"github.com/lathief/RiskForge/routes"
 )
 
 func Boot() contractsfoundation.Application {

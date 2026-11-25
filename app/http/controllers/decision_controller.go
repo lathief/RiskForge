@@ -7,12 +7,12 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/auth"
-	"goravel/app/http/responses"
-	"goravel/app/modules/decision/application"
-	identitydomain "goravel/app/modules/identity/domain"
-	"goravel/app/platform/logging"
-	"goravel/app/platform/metrics"
+	"github.com/lathief/RiskForge/app/http/auth"
+	"github.com/lathief/RiskForge/app/http/responses"
+	"github.com/lathief/RiskForge/app/modules/decision/application"
+	identitydomain "github.com/lathief/RiskForge/app/modules/identity/domain"
+	"github.com/lathief/RiskForge/app/platform/logging"
+	"github.com/lathief/RiskForge/app/platform/metrics"
 )
 
 const codeDecisionNotFound = "DECISION_NOT_FOUND"

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"goravel/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/modules/policy/domain"
 )
 
 // ActiveRef says which version is active for a product and scope, without its snapshot. The

@@ -8,7 +8,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"goravel/app/platform/logging"
+	"github.com/lathief/RiskForge/app/platform/logging"
 )
 
 // Paging bounds, the same as every list in the API.

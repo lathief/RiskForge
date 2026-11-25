@@ -8,13 +8,13 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/facades"
-	"goravel/app/http/controllers"
-	"goravel/app/http/middleware"
-	identityapp "goravel/app/modules/identity/application"
-	"goravel/app/modules/identity/domain"
-	identityinfra "goravel/app/modules/identity/infrastructure"
-	"goravel/app/platform/database"
+	"github.com/lathief/RiskForge/app/facades"
+	"github.com/lathief/RiskForge/app/http/controllers"
+	"github.com/lathief/RiskForge/app/http/middleware"
+	identityapp "github.com/lathief/RiskForge/app/modules/identity/application"
+	"github.com/lathief/RiskForge/app/modules/identity/domain"
+	identityinfra "github.com/lathief/RiskForge/app/modules/identity/infrastructure"
+	"github.com/lathief/RiskForge/app/platform/database"
 )
 
 // Test-only routes are registered once, right after boot and before any request.

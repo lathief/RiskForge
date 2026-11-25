@@ -5,8 +5,8 @@
 // first" and exits with status 0, so a container without its key looks like a process that
 // finished normally and no restart policy or orchestrator notices (found by
 // scripts/image-check.sh). main.go imports this package for its side effect, and the package
-// sorts before goravel/config, so its init runs first: it prints one structured line to stderr
-// and exits with status 1. Artisan commands are exempt, because key:generate runs before a key
+// sorts before github.com/lathief/RiskForge/config (the module's config package), so its init
+// runs first: it prints one structured line to stderr and exits with status 1. Artisan commands are exempt, because key:generate runs before a key
 // exists.
 package preflight
 
@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"os"
 
-	"goravel/app/support"
+	"github.com/lathief/RiskForge/app/support"
 )
 
 func init() {

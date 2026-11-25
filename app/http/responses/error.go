@@ -4,7 +4,7 @@ package responses
 import (
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/ctxkeys"
+	"github.com/lathief/RiskForge/app/http/ctxkeys"
 )
 
 // Error codes returned to clients.

@@ -6,10 +6,10 @@ import (
 	"context"
 	"errors"
 
-	decision "goravel/app/modules/decision/application"
-	decisioninfra "goravel/app/modules/decision/infrastructure"
-	policyapp "goravel/app/modules/policy/application"
-	"goravel/app/modules/simulation/application"
+	decision "github.com/lathief/RiskForge/app/modules/decision/application"
+	decisioninfra "github.com/lathief/RiskForge/app/modules/decision/infrastructure"
+	policyapp "github.com/lathief/RiskForge/app/modules/policy/application"
+	"github.com/lathief/RiskForge/app/modules/simulation/application"
 )
 
 // DraftLoader is the part of the policy use cases the source needs.

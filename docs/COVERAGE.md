@@ -1,6 +1,6 @@
 # Test coverage
 
-Statement coverage of the Go code, measured at the M5 validation (branch `feature/M5-hardening`: RF-022 to RF-026 and the validation fixes, on top of `main` with milestones 1 to 4). The validation added the in-flight gate (`app/http/middleware/in_flight.go`), the shared bucket of the limiter, the proxy check of `app/support`, and the `aggregate_id` check of the audit search, all with unit tests. The numbers come from the measurement of `./scripts/coverage.sh`. **This run was made on the host** (Go 1.25.0 on Windows, tests against a throwaway PostgreSQL 18 container), because Docker had lost its volumes and the network was down, so the Compose `api` service could not be built; the host toolchain prints `no such tool "covdata"` for packages without tests, which does not change the profile. There is no coverage gate in CI ([CI.md](CI.md)). Re-measure after each ticket and update this file. Do not run it while another stack (for example `rf-dev`) is writing to `storage/logs` (see `AGENT_RUNBOOK.md`).
+Statement coverage of the Go code, measured at the M5 validation on Go 1.26.11 (branch `feature/M5-hardening`: RF-022 to RF-026 and the validation fixes, on top of `main` with milestones 1 to 4). The validation added the in-flight gate (`app/http/middleware/in_flight.go`), the shared bucket of the limiter, the proxy check of `app/support`, and the `aggregate_id` check of the audit search, all with unit tests; the move to Go 1.26 and the module path `github.com/lathief/RiskForge` (ADR 0029) changed no statement, and the numbers did not move. They come from `./scripts/coverage.sh`, which runs the tests in a disposable `rf-test-*` Compose project with a real PostgreSQL and prints package paths relative to the module. There is no coverage gate in CI ([CI.md](CI.md)). Re-measure after each ticket and update this file. Do not run it while another stack (for example `rf-dev`) is writing to `storage/logs` (see `AGENT_RUNBOOK.md`).
 
 ```sh
 ./scripts/coverage.sh                 # prints the two tables below as Markdown (project rf-test-coverage)
@@ -30,7 +30,7 @@ Both count every statement in `app/`, including packages that have no unit test 
 | RF-023 | 57.3% | 90.1% | Metrics registry, token bucket limiter, rate limit and security header middleware, metrics endpoint, claim lock timeout |
 | RF-024 | 57.3% | 90.1% | No application code changed: golden cases, benchmarks, and scripts add tests, not statements, so every package keeps its numbers |
 | RF-025 | 57.2% | 90.0% | `app/support` `AppKeyMissing` (tested) and `app/preflight` (6 statements, its `init` runs only in the server binary and is covered by `scripts/image-check.sh`, not by Go coverage); the new contract tests add no statements |
-| M5 validation | 57.7% | 90.1% | In-flight gate and its client address key (unit tested, the middleware unit figure rose from 8.8% to 23.4%), shared limiter bucket, proxy configuration check, `aggregate_id` check; measured on the host, see above |
+| M5 validation | 57.7% | 90.1% | In-flight gate and its client address key (unit tested, the middleware unit figure rose from 8.8% to 23.4%), shared limiter bucket, proxy configuration check, `aggregate_id` check; measured first on the host, then again in Compose on Go 1.26 with the same result |
 
 ## Unit tests
 | Package | Statements | Covered | Coverage |

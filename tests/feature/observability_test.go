@@ -8,10 +8,10 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/facades"
-	"goravel/app/http/middleware"
-	"goravel/app/platform/database"
-	"goravel/app/platform/metrics"
+	"github.com/lathief/RiskForge/app/facades"
+	"github.com/lathief/RiskForge/app/http/middleware"
+	"github.com/lathief/RiskForge/app/platform/database"
+	"github.com/lathief/RiskForge/app/platform/metrics"
 )
 
 // Observability and security (RF-023, SYSTEM_DESIGN.md 15): security headers, metrics, and the

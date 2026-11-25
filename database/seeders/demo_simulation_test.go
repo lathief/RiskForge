@@ -8,12 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"goravel/app/modules/decision/application"
-	"goravel/app/modules/decision/infrastructure"
-	policyapp "goravel/app/modules/policy/application"
-	policydomain "goravel/app/modules/policy/domain"
-	simulationapp "goravel/app/modules/simulation/application"
-	simulationinfra "goravel/app/modules/simulation/infrastructure"
+	"github.com/lathief/RiskForge/app/modules/decision/application"
+	"github.com/lathief/RiskForge/app/modules/decision/infrastructure"
+	policyapp "github.com/lathief/RiskForge/app/modules/policy/application"
+	policydomain "github.com/lathief/RiskForge/app/modules/policy/domain"
+	simulationapp "github.com/lathief/RiskForge/app/modules/simulation/application"
+	simulationinfra "github.com/lathief/RiskForge/app/modules/simulation/infrastructure"
 )
 
 // The policy simulator (RF-017) in front of the real demo policy: it must give exactly what the

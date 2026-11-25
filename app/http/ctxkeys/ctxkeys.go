@@ -1,7 +1,7 @@
 // Package ctxkeys defines the keys under which request-scoped values are stored on the Goravel context.
 package ctxkeys
 
-import "goravel/app/platform/logging"
+import "github.com/lathief/RiskForge/app/platform/logging"
 
 const (
 	// RequestID holds the correlation ID (string). Shared with the logging package so

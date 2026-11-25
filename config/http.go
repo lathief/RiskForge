@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"goravel/app/facades"
+	"github.com/lathief/RiskForge/app/facades"
 
 	fiberfacades "github.com/goravel/fiber/facades"
 	"github.com/goravel/framework/contracts/route"

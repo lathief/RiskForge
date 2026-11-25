@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"goravel/app/modules/decision/application"
-	"goravel/app/platform/database"
+	"github.com/lathief/RiskForge/app/modules/decision/application"
+	"github.com/lathief/RiskForge/app/platform/database"
 )
 
 // DecisionRepository stores decisions in the decision schema (RF-015). Every statement goes

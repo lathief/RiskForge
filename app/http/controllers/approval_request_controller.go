@@ -6,13 +6,13 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/auth"
-	"goravel/app/http/responses"
-	"goravel/app/modules/approval/application"
-	"goravel/app/modules/approval/domain"
-	policyapp "goravel/app/modules/policy/application"
-	"goravel/app/platform/logging"
-	"goravel/app/platform/metrics"
+	"github.com/lathief/RiskForge/app/http/auth"
+	"github.com/lathief/RiskForge/app/http/responses"
+	"github.com/lathief/RiskForge/app/modules/approval/application"
+	"github.com/lathief/RiskForge/app/modules/approval/domain"
+	policyapp "github.com/lathief/RiskForge/app/modules/policy/application"
+	"github.com/lathief/RiskForge/app/platform/logging"
+	"github.com/lathief/RiskForge/app/platform/metrics"
 )
 
 const (

@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"strings"
 
-	"goravel/app/facades"
-	catalogapp "goravel/app/modules/catalog/application"
-	cataloginfra "goravel/app/modules/catalog/infrastructure"
-	dictionaryapp "goravel/app/modules/dictionary/application"
-	dictionaryinfra "goravel/app/modules/dictionary/infrastructure"
-	policyapp "goravel/app/modules/policy/application"
-	"goravel/app/modules/policy/domain"
-	policyinfra "goravel/app/modules/policy/infrastructure"
-	"goravel/app/platform/database"
+	"github.com/lathief/RiskForge/app/facades"
+	catalogapp "github.com/lathief/RiskForge/app/modules/catalog/application"
+	cataloginfra "github.com/lathief/RiskForge/app/modules/catalog/infrastructure"
+	dictionaryapp "github.com/lathief/RiskForge/app/modules/dictionary/application"
+	dictionaryinfra "github.com/lathief/RiskForge/app/modules/dictionary/infrastructure"
+	policyapp "github.com/lathief/RiskForge/app/modules/policy/application"
+	"github.com/lathief/RiskForge/app/modules/policy/domain"
+	policyinfra "github.com/lathief/RiskForge/app/modules/policy/infrastructure"
+	"github.com/lathief/RiskForge/app/platform/database"
 )
 
 // DemoPolicyScope is the scope of the demo policy.

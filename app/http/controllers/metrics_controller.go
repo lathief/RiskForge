@@ -5,7 +5,7 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/platform/metrics"
+	"github.com/lathief/RiskForge/app/platform/metrics"
 )
 
 // metricsContentType is the Prometheus text exposition format.

@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/suite"
 	"gopkg.in/yaml.v3"
 
-	"goravel/app/facades"
-	"goravel/tests"
+	"github.com/lathief/RiskForge/app/facades"
+	"github.com/lathief/RiskForge/tests"
 )
 
 // ContractParityTestSuite is the DX-001 verification gate (SYSTEM_DESIGN.md 5.6.2): the

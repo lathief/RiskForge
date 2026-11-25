@@ -5,9 +5,9 @@ import (
 	"context"
 	"time"
 
-	"goravel/app/modules/catalog/application"
-	"goravel/app/modules/catalog/domain"
-	"goravel/app/platform/database"
+	"github.com/lathief/RiskForge/app/modules/catalog/application"
+	"github.com/lathief/RiskForge/app/modules/catalog/domain"
+	"github.com/lathief/RiskForge/app/platform/database"
 )
 
 const productColumns = `id::text AS id, code, name, description, status, created_at, updated_at`

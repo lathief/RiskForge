@@ -3,7 +3,7 @@ package migrations
 import (
 	"fmt"
 
-	"goravel/app/facades"
+	"github.com/lathief/RiskForge/app/facades"
 )
 
 // logicalSchemas are the PostgreSQL schemas from SYSTEM_DESIGN.md section 7.

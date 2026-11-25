@@ -8,10 +8,10 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/auth"
-	"goravel/app/http/responses"
-	"goravel/app/platform/metrics"
-	"goravel/app/platform/ratelimit"
+	"github.com/lathief/RiskForge/app/http/auth"
+	"github.com/lathief/RiskForge/app/http/responses"
+	"github.com/lathief/RiskForge/app/platform/metrics"
+	"github.com/lathief/RiskForge/app/platform/ratelimit"
 )
 
 // KeyFunc names the client a request counts against.

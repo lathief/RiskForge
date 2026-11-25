@@ -149,7 +149,7 @@ Failures short-circuit with the standard error envelope and the same `request_id
 ```mermaid
 flowchart LR
     subgraph Compose["docker compose -p <project>"]
-        api["api: golang:1.25, source bind-mounted, 127.0.0.1:3000"]
+        api["api: golang:1.26, source bind-mounted, 127.0.0.1:3000"]
         db[("db: postgres:18, no host port, named volume")]
         api -->|backend network| db
     end
