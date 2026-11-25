@@ -7,10 +7,10 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/facades"
-	decisionapp "goravel/app/modules/decision/application"
-	decisioninfra "goravel/app/modules/decision/infrastructure"
-	"goravel/app/platform/database"
+	"github.com/lathief/RiskForge/app/facades"
+	decisionapp "github.com/lathief/RiskForge/app/modules/decision/application"
+	decisioninfra "github.com/lathief/RiskForge/app/modules/decision/infrastructure"
+	"github.com/lathief/RiskForge/app/platform/database"
 )
 
 // The compiled policy cache (RF-016) against the real database and the real HTTP application.

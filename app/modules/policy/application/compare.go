@@ -5,7 +5,7 @@ import (
 	"errors"
 	"sort"
 
-	"goravel/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/modules/policy/domain"
 )
 
 // ErrBaseNotInPolicy means the requested base version belongs to another policy package.

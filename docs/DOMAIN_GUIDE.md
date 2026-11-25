@@ -29,7 +29,7 @@ RiskForge separates the two:
 | **Decision run** | One evaluation of one application against one policy version, stored with its input, result, and trace. | Implemented (RF-015) |
 | **Idempotency key** | A client-supplied key that makes retries safe: the same key and payload return the same decision instead of evaluating twice. | Implemented (RF-015) |
 
-## How a decision is made (planned flow)
+## How a decision is made
 
 ```mermaid
 flowchart LR
@@ -79,6 +79,7 @@ stateDiagram-v2
 - Only drafts can be edited. A submitted version is frozen by a checksum, and every approval refers to that exact content.
 - Approval is multi-level (for example Risk Lead, then Head of Risk). The maker can never approve their own submission, and an approver cannot edit the draft under review.
 - The last approval switches the active version, archives the previous one, and records the audit event in one database transaction.
+- Every step of the approval (submit, each approval or rejection, the closing) is an audit event written in the transaction of that step. An auditor reads the history of a request with `GET /audit/events?aggregate_type=APPROVAL_REQUEST&aggregate_id=<request id>&order=asc`, and the results of past decisions with `GET /audit/decisions` (RF-022). The audit log holds identifiers and codes, not applicant data and not the approver's comment.
 - Rolling back means publishing a new version copied from a known-good one, through the same approval process. History is never edited.
 
 ## What is a business result and what is an error
@@ -97,8 +98,8 @@ Rejecting an applicant because a database timed out would turn an outage into a 
 
 | Role | Today | When policies exist |
 |---|---|---|
-| `ADMIN` | Creates and updates products; defines and versions dictionary variables; configures approval workflows (RF-018: versioned tiers with role, scope, and quorum). Cannot read policies. | Manages users and approval workflow configuration. Cannot approve policies or edit them. |
+| `ADMIN` | Creates and updates products; defines and versions dictionary variables; configures approval workflows (RF-018: versioned tiers with role, scope, and quorum); reads `GET /metrics` (RF-023, `metrics:read`). Cannot read policies. | Manages users and approval workflow configuration. Cannot approve policies or edit them. |
 | `RISK_ANALYST` | Reads products; defines and versions dictionary variables; opens, edits, clones, validates, simulates (RF-017), and submits policy drafts, with their RAC rules, scorecard, decision matrix, and test cases. | Creates, edits, simulates, and submits drafts. Cannot approve. |
 | `RISK_APPROVER` | Reads products, the dictionary, and the approval workflows (RF-018); approves or rejects the active tier of an approval request when they hold its scope (`RISK_LEAD`, `HEAD_OF_RISK`), never their own submission (RF-019). | Reviews diffs and approves or rejects. Cannot edit drafts. |
-| `AUDITOR` | Reads products, the dictionary, and the approval workflows (RF-018). | Reads decision traces and histories. Read-only everywhere. |
-| `API_CONSUMER` (the Loan Application) | No product or dictionary access. | Calls the decision API and reads its own decisions. |
+| `AUDITOR` | Reads products, the dictionary, policies and their versions, the approval workflows and requests, every stored decision with its trace, and the audit log and decision history (`GET /audit/events`, `GET /audit/decisions`, RF-022). Cannot read `GET /metrics`. | Reads decision traces and histories. Read-only everywhere. |
+| `API_CONSUMER` (the Loan Application) | Evaluates applications (`POST /decisions/evaluate`) and reads its own decisions. No product or dictionary access. | Calls the decision API and reads its own decisions. |

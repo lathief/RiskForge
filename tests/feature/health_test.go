@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	"goravel/tests"
+	"github.com/lathief/RiskForge/tests"
 )
 
 type HealthTestSuite struct {

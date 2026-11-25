@@ -5,8 +5,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"goravel/app/modules/audit/application"
-	"goravel/app/platform/database"
+	"github.com/lathief/RiskForge/app/modules/audit/application"
+	"github.com/lathief/RiskForge/app/platform/database"
 )
 
 // EventRepository appends to audit.events through the transaction carried by ctx.

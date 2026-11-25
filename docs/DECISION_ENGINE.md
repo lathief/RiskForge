@@ -233,7 +233,7 @@ Scores and points are decimal strings. `status` is the processing state (`COMPLE
 |---|---|---|
 | Business result | `APPROVE`, `REFER`, `REJECT` | The policy was evaluated successfully. |
 | Processing state | `RECEIVED`, `COMPLETED`, `FAILED` | Internal lifecycle of a run. |
-| Errors | `INPUT_VALIDATION_ERROR`, `POLICY_NOT_ACTIVE`, `POLICY_CONFIGURATION_ERROR`, `EVALUATION_ERROR`, `IDEMPOTENCY_CONFLICT`, `FORBIDDEN` | No valid business decision was produced. |
+| Errors | `INPUT_VALIDATION_ERROR`, `POLICY_NOT_ACTIVE`, `POLICY_CONFIGURATION_ERROR`, `EVALUATION_ERROR`, `IDEMPOTENCY_CONFLICT`, `FORBIDDEN`, `RATE_LIMITED` (`429`), `SERVICE_BUSY` (`503`, retriable) | No valid business decision was produced. |
 
 A PostgreSQL failure, parser error, timeout, or bug is an error response, never `REJECT`: otherwise an outage becomes a wrong credit decision about a person.
 
@@ -252,7 +252,7 @@ A PostgreSQL failure, parser error, timeout, or bug is an error response, never 
 | New key | Evaluated and stored; `200` with `decision_id` and `created_at` |
 | Same key, same request (key order and white space do not matter) | The stored decision, byte for byte, with the header `Idempotent-Replayed: true`. Nothing is evaluated and the active policy is not consulted, so it still works after the policy changed |
 | Same key, different request | `409 IDEMPOTENCY_CONFLICT` |
-| Duplicate while the first is still running | Waits for the first (the unique index makes it wait; the request timeout bounds it) and returns its decision. Never a second run |
+| Duplicate while the first is still running | Waits for the first for at most 2 seconds (`lock_timeout` on the claim) and returns its decision; after that the answer is `503 SERVICE_BUSY` with `Retry-After: 1`, nothing is stored, and a retry with the same key returns the stored decision. Never a second run |
 | Any request that gives no decision (422, 404, 409, 500) | Rolled back with its key. The key stays free, so a corrected retry is evaluated |
 
 The key belongs to the calling user (there are no API clients yet). `GET /decisions/{decision_id}` returns a stored decision as it was returned: the consumer reads its own, an auditor reads all, anyone else gets `404 DECISION_NOT_FOUND`. Details: ADR 0016 and [M3_NOTES.md](M3_NOTES.md).

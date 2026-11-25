@@ -35,6 +35,7 @@ const PATH_VARIABLES = {
   workflow_id: "{{workflowId}}",
   workflow_version_id: "{{workflowVersionId}}",
   request_id: "{{approvalRequestId}}",
+  user_id: "{{userId}}",
 };
 const METHODS = ["get", "put", "post", "delete", "patch", "head", "options", "trace"];
 

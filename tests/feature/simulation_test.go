@@ -6,7 +6,7 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/database/seeders"
+	"github.com/lathief/RiskForge/database/seeders"
 )
 
 // The policy simulator (RF-017, SYSTEM_DESIGN.md 12). It evaluates any version with the code of

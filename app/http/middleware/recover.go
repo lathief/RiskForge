@@ -3,8 +3,8 @@ package middleware
 import (
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/responses"
-	"goravel/app/platform/logging"
+	"github.com/lathief/RiskForge/app/http/responses"
+	"github.com/lathief/RiskForge/app/platform/logging"
 )
 
 // Recover replaces Goravel's default panic handler, which logs the full request including

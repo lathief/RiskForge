@@ -10,7 +10,7 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/facades"
+	"github.com/lathief/RiskForge/app/facades"
 )
 
 // ErrInvalidToken is returned for any token that is missing, malformed, tampered with, or expired.
@@ -27,18 +27,19 @@ func Issue(ctx http.Context, userID string) (token string, ttl time.Duration, er
 	return token, time.Duration(minutes) * time.Minute, nil
 }
 
-// Verify validates the signature and expiry of a bearer token and returns the user ID.
-// An expired token is rejected even though the guard still reports its claims.
-func Verify(ctx http.Context, token string) (string, error) {
+// Verify validates the signature and expiry of a bearer token and returns the user ID
+// together with the token's issue time. An expired token is rejected even though the
+// guard still reports its claims.
+func Verify(ctx http.Context, token string) (userID string, issuedAt time.Time, err error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
-		return "", ErrInvalidToken
+		return "", time.Time{}, ErrInvalidToken
 	}
 	payload, err := facades.Auth(ctx).Parse(token)
 	if err != nil || payload == nil || payload.Key == "" {
-		return "", ErrInvalidToken
+		return "", time.Time{}, ErrInvalidToken
 	}
-	return payload.Key, nil
+	return payload.Key, payload.IssuedAt, nil
 }
 
 // BearerToken extracts the token from an "Authorization: Bearer <token>" header value.

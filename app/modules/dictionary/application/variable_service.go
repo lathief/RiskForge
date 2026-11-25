@@ -5,8 +5,8 @@ import (
 	"context"
 	"errors"
 
-	"goravel/app/modules/dictionary/domain"
-	"goravel/app/platform/tx"
+	"github.com/lathief/RiskForge/app/modules/dictionary/domain"
+	"github.com/lathief/RiskForge/app/platform/tx"
 )
 
 var (

@@ -4,16 +4,16 @@ import (
 	"context"
 	"errors"
 
-	"goravel/app/modules/approval/application"
-	"goravel/app/modules/approval/domain"
-	auditapp "goravel/app/modules/audit/application"
-	auditinfra "goravel/app/modules/audit/infrastructure"
-	catalogapp "goravel/app/modules/catalog/application"
-	catalogdomain "goravel/app/modules/catalog/domain"
-	identitydomain "goravel/app/modules/identity/domain"
-	policyapp "goravel/app/modules/policy/application"
-	policydomain "goravel/app/modules/policy/domain"
-	"goravel/app/platform/database"
+	"github.com/lathief/RiskForge/app/modules/approval/application"
+	"github.com/lathief/RiskForge/app/modules/approval/domain"
+	auditapp "github.com/lathief/RiskForge/app/modules/audit/application"
+	auditinfra "github.com/lathief/RiskForge/app/modules/audit/infrastructure"
+	catalogapp "github.com/lathief/RiskForge/app/modules/catalog/application"
+	catalogdomain "github.com/lathief/RiskForge/app/modules/catalog/domain"
+	identitydomain "github.com/lathief/RiskForge/app/modules/identity/domain"
+	policyapp "github.com/lathief/RiskForge/app/modules/policy/application"
+	policydomain "github.com/lathief/RiskForge/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/platform/database"
 )
 
 // CatalogProducts answers product lookups through the catalog module's use case.

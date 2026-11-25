@@ -5,9 +5,9 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/responses"
-	"goravel/app/modules/policy/application"
-	"goravel/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/http/responses"
+	"github.com/lathief/RiskForge/app/modules/policy/application"
+	"github.com/lathief/RiskForge/app/modules/policy/domain"
 )
 
 // Policy diff and approval review (RF-021, SYSTEM_DESIGN.md 11.4).

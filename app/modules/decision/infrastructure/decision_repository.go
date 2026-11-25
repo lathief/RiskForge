@@ -4,22 +4,46 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
-	"goravel/app/modules/decision/application"
-	"goravel/app/platform/database"
+	"github.com/lathief/RiskForge/app/modules/decision/application"
+	"github.com/lathief/RiskForge/app/platform/database"
 )
 
 // DecisionRepository stores decisions in the decision schema (RF-015). Every statement goes
 // through database.Manager.Querier, so it joins the transaction the use case opened.
 type DecisionRepository struct {
 	db *database.Manager
+	// lockTimeout bounds the wait of a duplicate request for the transaction that holds its key.
+	lockTimeout time.Duration
+}
+
+// DefaultClaimLockTimeout is how long a duplicate request waits for the request that holds its
+// Idempotency-Key. It is below the 3 second request timeout, so the waiter answers 503 with a
+// retry hint instead of being cut off by the driver (RF-023, SEC-05).
+const DefaultClaimLockTimeout = 2 * time.Second
+
+// WithLockTimeout returns a repository that waits at most d for a key held by another
+// transaction. d below one millisecond is raised to one millisecond.
+func (r *DecisionRepository) WithLockTimeout(d time.Duration) *DecisionRepository {
+	if d < time.Millisecond {
+		d = time.Millisecond
+	}
+	return &DecisionRepository{db: r.db, lockTimeout: d}
 }
 
 var _ application.Repository = (*DecisionRepository)(nil)
 
 func NewDecisionRepository(db *database.Manager) *DecisionRepository {
-	return &DecisionRepository{db: db}
+	return &DecisionRepository{db: db, lockTimeout: DefaultClaimLockTimeout}
+}
+
+// isLockTimeout reports whether PostgreSQL cancelled a statement because lock_timeout passed
+// (SQLSTATE 55P03).
+func isLockTimeout(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "55P03") || strings.Contains(msg, "lock timeout")
 }
 
 type claimRow struct {
@@ -32,12 +56,20 @@ type claimRow struct {
 // is read; if it rolls back, this insert succeeds and the caller owns the key.
 func (r *DecisionRepository) Claim(ctx context.Context, clientID, key, requestHash string) (application.Claim, error) {
 	q := r.db.Querier(ctx)
+	// SET LOCAL lasts until the end of this transaction. The wait of a duplicate for the first
+	// request is a lock wait on its transaction, so lock_timeout bounds it.
+	if err := q.Statement(fmt.Sprintf("SET LOCAL lock_timeout = %d", r.lockTimeout.Milliseconds())); err != nil {
+		return application.Claim{}, err
+	}
 	var inserted []string
 	if err := q.Select(&inserted,
 		`INSERT INTO decision.requests (client_id, idempotency_key, request_hash)
 		 VALUES ($1::uuid, $2, $3)
 		 ON CONFLICT (client_id, idempotency_key) DO NOTHING
 		 RETURNING id::text`, clientID, key, requestHash); err != nil {
+		if isLockTimeout(err) {
+			return application.Claim{}, application.ErrBusy
+		}
 		return application.Claim{}, err
 	}
 	if len(inserted) == 1 {
@@ -110,6 +142,91 @@ func (r *DecisionRepository) FindByRequest(ctx context.Context, requestID string
 
 func (r *DecisionRepository) Get(ctx context.Context, id string) (application.StoredDecision, error) {
 	return r.one(ctx, ` WHERE r.id = $1::uuid`, id)
+}
+
+var _ application.HistoryReader = (*DecisionRepository)(nil)
+
+type summaryRow struct {
+	ID              string    `db:"id"`
+	CreatedAt       time.Time `db:"created_at"`
+	ApplicationID   string    `db:"application_id"`
+	ProductCode     string    `db:"product_code"`
+	PolicyVersionID string    `db:"policy_version_id"`
+	PolicyChecksum  string    `db:"policy_checksum"`
+	VersionNumber   int       `db:"version_number"`
+	Scope           string    `db:"scope"`
+	FinalDecision   string    `db:"final_decision"`
+	RiskGrade       *string   `db:"risk_grade"`
+	TotalScore      *string   `db:"total_score"`
+	ReasonCodes     string    `db:"reason_codes"`
+}
+
+const historyWhere = ` WHERE ($1::text IS NULL OR r.application_id = $1::text)
+	AND ($2::text IS NULL OR r.product_code = $2::text)
+	AND ($3::text IS NULL OR r.final_decision = $3::text)
+	AND ($4::uuid IS NULL OR r.policy_version_id = $4::uuid)
+	AND ($5::timestamptz IS NULL OR r.created_at >= $5::timestamptz)
+	AND ($6::timestamptz IS NULL OR r.created_at < $6::timestamptz)`
+
+func optionalText(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+func optionalTime(t *time.Time) any {
+	if t == nil {
+		return nil
+	}
+	return *t
+}
+
+// Search lists decisions, newest first, without reading the input snapshot, the outcome, or the
+// rule traces: the audit list needs the result and its policy version, not the applicant's data.
+func (r *DecisionRepository) Search(ctx context.Context, f application.HistoryFilter) ([]application.DecisionSummary, int64, error) {
+	args := []any{optionalText(f.ApplicationID), optionalText(f.ProductCode), optionalText(f.FinalDecision),
+		optionalText(f.PolicyVersionID), optionalTime(f.From), optionalTime(f.To)}
+	q := r.db.Querier(ctx)
+	var total []int64
+	if err := q.Select(&total, `SELECT COUNT(*) FROM decision.runs r`+historyWhere, args...); err != nil {
+		return nil, 0, err
+	}
+	var rows []summaryRow
+	if err := q.Select(&rows,
+		`SELECT r.id::text AS id, r.created_at, r.application_id, r.product_code,
+		        r.policy_version_id::text AS policy_version_id, r.policy_checksum, v.version_number, p.scope,
+		        r.final_decision, r.risk_grade, r.total_score::text AS total_score, r.reason_codes::text AS reason_codes
+		   FROM decision.runs r
+		   JOIN policy.policy_versions v ON v.id = r.policy_version_id
+		   JOIN policy.policy_packages p ON p.id = v.package_id`+historyWhere+
+			` ORDER BY r.created_at DESC, r.id LIMIT $7 OFFSET $8`,
+		append(args, f.PerPage, (f.Page-1)*f.PerPage)...); err != nil {
+		return nil, 0, err
+	}
+	out := make([]application.DecisionSummary, 0, len(rows))
+	for _, row := range rows {
+		reasons := []string{}
+		if err := json.Unmarshal([]byte(row.ReasonCodes), &reasons); err != nil {
+			return nil, 0, fmt.Errorf("stored decision %s has unreadable reason codes: %w", row.ID, err)
+		}
+		s := application.DecisionSummary{
+			ID: row.ID, CreatedAt: row.CreatedAt, ApplicationID: row.ApplicationID, ProductCode: row.ProductCode,
+			Policy: application.PolicyRef{
+				VersionID: row.PolicyVersionID, VersionNumber: row.VersionNumber, Checksum: row.PolicyChecksum,
+				ProductCode: row.ProductCode, Scope: row.Scope,
+			},
+			FinalDecision: row.FinalDecision, ReasonCodes: reasons,
+		}
+		if row.RiskGrade != nil {
+			s.RiskGrade = *row.RiskGrade
+		}
+		if row.TotalScore != nil {
+			s.TotalScore = *row.TotalScore
+		}
+		out = append(out, s)
+	}
+	return out, total[0], nil
 }
 
 type savedRow struct {

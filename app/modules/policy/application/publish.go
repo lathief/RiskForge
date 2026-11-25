@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"goravel/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/modules/policy/domain"
 )
 
 var (

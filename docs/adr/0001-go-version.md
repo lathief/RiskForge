@@ -1,6 +1,6 @@
 # ADR 0001: Versi Go 1.25 untuk baseline
 
-- Status: Accepted
+- Status: Superseded by [ADR 0029](0029-go-1-26-and-module-path.md) (25 November 2026, Go 1.26)
 - Tanggal: 2026-11-17
 
 ## Konteks

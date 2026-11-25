@@ -15,7 +15,12 @@ func TestBodiesOfTheDecisionRoutesAreWithheld(t *testing.T) {
 		"/api/v1/decisions/0b9c5a52-1111-4222-8333-444455556666": true,
 		"/api/v1/decisions":                                      true,
 		"/api/v1/decisionsX":                                     false,
-		"/api/v1/products":                                       false,
+		// The audit search of decisions lists the same results (RF-022); event search carries ids.
+		"/api/v1/audit/decisions":  true,
+		"/API/V1/Audit/Decisions/": true,
+		"/api/v1/audit/decisionsX": false,
+		"/api/v1/audit/events":     false,
+		"/api/v1/products":         false,
 		// The simulator takes applicant data too (RF-017), also on a path no route matches.
 		"/api/v1/policy-versions/9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d/simulate":  true,
 		"/api/v1/policy-versions/9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d/rac-rules": false,

@@ -11,9 +11,9 @@ import (
 	"github.com/goravel/framework/contracts/http"
 	contractstesting "github.com/goravel/framework/contracts/testing/http"
 
-	"goravel/app/facades"
-	policydomain "goravel/app/modules/policy/domain"
-	"goravel/database/seeders"
+	"github.com/lathief/RiskForge/app/facades"
+	policydomain "github.com/lathief/RiskForge/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/database/seeders"
 )
 
 const demoRulesBody = `{"rules":[

@@ -21,6 +21,7 @@ const (
 	PermDecisionEval    Permission = "decision:evaluate"
 	PermDecisionRead    Permission = "decision:read"
 	PermAuditRead       Permission = "audit:read"
+	PermMetricsRead     Permission = "metrics:read"
 )
 
 // AllPermissions lists every defined permission.
@@ -30,7 +31,7 @@ func AllPermissions() []Permission {
 		PermDictionaryRead, PermDictionaryWrite,
 		PermPolicyRead, PermPolicyWrite, PermPolicySimulate, PermPolicySubmit,
 		PermWorkflowManage, PermApprovalRead, PermApprovalAct,
-		PermDecisionEval, PermDecisionRead, PermAuditRead,
+		PermDecisionEval, PermDecisionRead, PermAuditRead, PermMetricsRead,
 	}
 }
 
@@ -40,12 +41,13 @@ func AllPermissions() []Permission {
 //   - ADMIN has no approval:act and no policy:write, so it cannot bypass approval.
 //   - RISK_ANALYST has no approval:act, so a maker cannot approve their own submission.
 //   - RISK_APPROVER has no policy:write, so it cannot edit a draft under review.
-//   - AUDITOR has only read permissions.
+//   - AUDITOR has only read permissions, and no metrics:read: metrics describe the process, not
+//     the business, so they belong to the operator (ADMIN).
 //   - API_CONSUMER can only evaluate and read decisions.
 var rolePermissions = map[Role][]Permission{
 	RoleAdmin: {
 		PermUserManage, PermProductRead, PermProductWrite,
-		PermDictionaryRead, PermDictionaryWrite, PermWorkflowManage,
+		PermDictionaryRead, PermDictionaryWrite, PermWorkflowManage, PermMetricsRead,
 	},
 	RoleRiskAnalyst: {
 		PermProductRead, PermDictionaryRead, PermDictionaryWrite,

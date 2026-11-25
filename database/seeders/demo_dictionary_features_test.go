@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"goravel/app/modules/dictionary/domain"
+	"github.com/lathief/RiskForge/app/modules/dictionary/domain"
 )
 
 // The demo dictionary must be computable by the feature builder: every derived variable has

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"goravel/app/modules/ruleengine"
+	"github.com/lathief/RiskForge/app/modules/ruleengine"
 )
 
 // RuleAction is what a failed RAC rule does (SYSTEM_DESIGN.md 10.2).

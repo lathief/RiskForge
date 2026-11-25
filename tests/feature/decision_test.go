@@ -11,11 +11,11 @@ import (
 	"github.com/goravel/framework/contracts/http"
 	contractstesting "github.com/goravel/framework/contracts/testing/http"
 
-	"goravel/app/facades"
-	decisionapp "goravel/app/modules/decision/application"
-	decisioninfra "goravel/app/modules/decision/infrastructure"
-	"goravel/app/platform/database"
-	"goravel/database/seeders"
+	"github.com/lathief/RiskForge/app/facades"
+	decisionapp "github.com/lathief/RiskForge/app/modules/decision/application"
+	decisioninfra "github.com/lathief/RiskForge/app/modules/decision/infrastructure"
+	"github.com/lathief/RiskForge/app/platform/database"
+	"github.com/lathief/RiskForge/database/seeders"
 )
 
 // The Decision API (RF-014, RF-015). The policy is the seeded demo policy, activated the way

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"goravel/app/modules/catalog/domain"
+	"github.com/lathief/RiskForge/app/modules/catalog/domain"
 )
 
 type fakeRepo struct {

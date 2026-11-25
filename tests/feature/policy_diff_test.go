@@ -3,7 +3,7 @@ package feature
 import (
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/database/seeders"
+	"github.com/lathief/RiskForge/database/seeders"
 )
 
 // Policy diff and approval review (RF-021, SYSTEM_DESIGN.md 11.4).

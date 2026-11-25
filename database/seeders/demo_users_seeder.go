@@ -5,9 +5,9 @@ import (
 	"context"
 	"fmt"
 
-	"goravel/app/facades"
-	"goravel/app/modules/identity/domain"
-	"goravel/app/platform/database"
+	"github.com/lathief/RiskForge/app/facades"
+	"github.com/lathief/RiskForge/app/modules/identity/domain"
+	"github.com/lathief/RiskForge/app/platform/database"
 )
 
 // MinDemoPasswordLength is the shortest password the seeder accepts.

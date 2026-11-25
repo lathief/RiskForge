@@ -3,9 +3,9 @@ package middleware
 import (
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/auth"
-	"goravel/app/http/responses"
-	"goravel/app/modules/identity/domain"
+	"github.com/lathief/RiskForge/app/http/auth"
+	"github.com/lathief/RiskForge/app/http/responses"
+	"github.com/lathief/RiskForge/app/modules/identity/domain"
 )
 
 // RequirePermission allows the request only if the caller holds the permission.

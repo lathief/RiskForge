@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 
-	catalogapp "goravel/app/modules/catalog/application"
-	catalogdomain "goravel/app/modules/catalog/domain"
-	dictionaryapp "goravel/app/modules/dictionary/application"
-	dictionarydomain "goravel/app/modules/dictionary/domain"
-	"goravel/app/modules/policy/application"
-	"goravel/app/modules/policy/domain"
-	"goravel/app/modules/ruleengine"
+	catalogapp "github.com/lathief/RiskForge/app/modules/catalog/application"
+	catalogdomain "github.com/lathief/RiskForge/app/modules/catalog/domain"
+	dictionaryapp "github.com/lathief/RiskForge/app/modules/dictionary/application"
+	dictionarydomain "github.com/lathief/RiskForge/app/modules/dictionary/domain"
+	"github.com/lathief/RiskForge/app/modules/policy/application"
+	"github.com/lathief/RiskForge/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/modules/ruleengine"
 )
 
 // CatalogProducts answers product lookups through the catalog module's use case, so the

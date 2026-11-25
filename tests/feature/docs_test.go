@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/suite"
 	"gopkg.in/yaml.v3"
 
-	"goravel/app/facades"
-	"goravel/tests"
+	"github.com/lathief/RiskForge/app/facades"
+	"github.com/lathief/RiskForge/tests"
 )
 
 // DocsTestSuite covers Swagger UI and /openapi.yaml (DX-001, SYSTEM_DESIGN.md 5.6.1).

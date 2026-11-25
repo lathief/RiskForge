@@ -9,17 +9,17 @@ import (
 	"github.com/goravel/framework/contracts/http"
 	contractstesting "github.com/goravel/framework/contracts/testing/http"
 
-	"goravel/app/facades"
-	approvalapp "goravel/app/modules/approval/application"
-	approvaldomain "goravel/app/modules/approval/domain"
-	approvalinfra "goravel/app/modules/approval/infrastructure"
-	auditapp "goravel/app/modules/audit/application"
-	auditinfra "goravel/app/modules/audit/infrastructure"
-	catalogapp "goravel/app/modules/catalog/application"
-	cataloginfra "goravel/app/modules/catalog/infrastructure"
-	policyapp "goravel/app/modules/policy/application"
-	"goravel/app/platform/database"
-	"goravel/database/seeders"
+	"github.com/lathief/RiskForge/app/facades"
+	approvalapp "github.com/lathief/RiskForge/app/modules/approval/application"
+	approvaldomain "github.com/lathief/RiskForge/app/modules/approval/domain"
+	approvalinfra "github.com/lathief/RiskForge/app/modules/approval/infrastructure"
+	auditapp "github.com/lathief/RiskForge/app/modules/audit/application"
+	auditinfra "github.com/lathief/RiskForge/app/modules/audit/infrastructure"
+	catalogapp "github.com/lathief/RiskForge/app/modules/catalog/application"
+	cataloginfra "github.com/lathief/RiskForge/app/modules/catalog/infrastructure"
+	policyapp "github.com/lathief/RiskForge/app/modules/policy/application"
+	"github.com/lathief/RiskForge/app/platform/database"
+	"github.com/lathief/RiskForge/database/seeders"
 )
 
 // The approval state machine (RF-019, SYSTEM_DESIGN.md 11.2, 11.3) on the seeded two-tier

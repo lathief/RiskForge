@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"goravel/app/modules/dictionary/domain"
-	policydomain "goravel/app/modules/policy/domain"
-	"goravel/app/modules/ruleengine"
+	"github.com/lathief/RiskForge/app/modules/dictionary/domain"
+	policydomain "github.com/lathief/RiskForge/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/modules/ruleengine"
 )
 
 // demoPolicy builds the content the demo policy seeder stores, validated exactly as the

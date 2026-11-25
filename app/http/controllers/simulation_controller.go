@@ -6,10 +6,10 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/responses"
-	decision "goravel/app/modules/decision/application"
-	"goravel/app/modules/simulation/application"
-	"goravel/app/platform/logging"
+	"github.com/lathief/RiskForge/app/http/responses"
+	decision "github.com/lathief/RiskForge/app/modules/decision/application"
+	"github.com/lathief/RiskForge/app/modules/simulation/application"
+	"github.com/lathief/RiskForge/app/platform/logging"
 )
 
 // SimulationController is the HTTP adapter of the policy simulator (RF-017).

@@ -1,5 +1,7 @@
 package domain
 
+import "time"
+
 // User is the stored identity. PasswordHash never leaves the identity module.
 type User struct {
 	ID           string
@@ -9,6 +11,9 @@ type User struct {
 	Roles        []Role
 	// ApprovalScopes narrow the approver role (SYSTEM_DESIGN.md 11.1, RF-019).
 	ApprovalScopes []ApprovalScope
+	// TokensValidAfter is the session cutoff (SEC-18): tokens issued strictly before
+	// it are rejected. The zero value means every token is accepted.
+	TokensValidAfter time.Time
 }
 
 // Principal is the authenticated caller attached to a request. It carries no credentials.

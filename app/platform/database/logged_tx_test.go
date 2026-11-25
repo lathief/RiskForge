@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"goravel/app/platform/logging"
+	"github.com/lathief/RiskForge/app/platform/logging"
 )
 
 // fakeTx records nothing; it returns canned results so logging can be checked in isolation.
