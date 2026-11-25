@@ -1,10 +1,12 @@
 # RiskForge
 
+Bahasa Indonesia: [README.id.md](README.id.md).
+
 **A credit decision platform backend in Go**: risk teams version, test, and approve credit policies (Risk Acceptance Criteria, scorecards, decision matrices), and a Loan Application system asks the API for an auditable `APPROVE` / `REFER` / `REJECT`.
 
 Built as a **modular monolith** on Goravel v1.18 with the official Fiber HTTP driver and PostgreSQL 18, developed ticket by ticket with tests, ADRs, and verification evidence for every change. All data is synthetic.
 
-> **Status:** Milestone 1 (foundation, identity and RBAC, product catalog) is complete and hardened through three review rounds ([verification log](docs/VERIFICATION.md)). Milestone 2 (policy configuration) is implemented: the data dictionary (RF-005), the policy package and version model (RF-006), RAC management (RF-007), scorecard management (RF-008), decision matrix management (RF-009), and full policy validation with golden test cases (RF-010). The known limits of M2 are listed in [M2_NOTES.md](docs/M2_NOTES.md). Milestone 3 (decision engine, RF-011 to RF-016) is merged to `main`. Milestone 4 (governance, RF-017 to RF-021: simulator, approval workflows, maker-checker approval, atomic publishing with audit events, policy diff and review) is complete on `feature/M4-governance` and waits for its merge; its limits are in [M4_NOTES.md](docs/M4_NOTES.md). See [Roadmap](#roadmap).
+> **Status:** Milestones 1 to 4 are merged to `main`: foundation, identity and RBAC, product catalog, policy configuration, the decision engine, and governance (simulator, multi-level approval, atomic publishing, policy diff and review). Milestone 5 (hardening) is merged to `main` (PR #10): audit search (RF-022), metrics, rate limits and security headers (RF-023), golden tests, an end-to-end script and a performance baseline (RF-024), a CI pipeline whose gates also run locally (RF-025), a demo and documentation pass (RF-026), and the milestone validation (review fixes, load shedding, stress and security tests). The known limits of each milestone are in [M2_NOTES.md](docs/M2_NOTES.md), [M3_NOTES.md](docs/M3_NOTES.md), [M4_NOTES.md](docs/M4_NOTES.md) and [M5_NOTES.md](docs/M5_NOTES.md); open findings are in [BACKLOG.md](docs/BACKLOG.md). See [Roadmap](#roadmap).
 
 ## What this project demonstrates
 
@@ -13,8 +15,9 @@ Built as a **modular monolith** on Goravel v1.18 with the official Fiber HTTP dr
 | **Architecture** | Modular monolith with enforced boundaries: `domain` and `application` packages import no framework code; one PostgreSQL schema per module; a single composition root. [ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | **Security** | JWT auth with roles and account status re-read on every request, so a role change or deactivation applies on the next call (issued tokens cannot be revoked yet); permission matrix with tested separation of duties (maker cannot approve, admin cannot approve); fail-closed middleware; bcrypt behind a semaphore (503, not lockup); startup refuses weak secrets; known credential fields and auth headers redacted from logs, and request/response bodies not logged in the release image (`LOG_HTTP_BODIES=false`; the code default is `true` for development with synthetic data). [ADR 0002](docs/adr/0002-authentication-and-rbac.md), [ADR 0003](docs/adr/0003-bounded-password-hashing.md) |
 | **Data integrity** | One transaction boundary per business operation, row locks for read-modify-write, database constraints that mirror domain rules, concurrency tests under `-race`. |
-| **Observability** | Structured JSON logs per type (`activity`, `error`, `lifetime`, `query`) and per module, correlated by `X-Request-ID`, with SQL timings and redaction. [ADR 0004](docs/adr/0004-structured-logging.md) |
+| **Observability** | Structured JSON logs per type (`activity`, `error`, `lifetime`, `query`) and per module, correlated by `X-Request-ID`, with SQL timings and redaction; Prometheus metrics at `/metrics` for the admin. [ADR 0004](docs/adr/0004-structured-logging.md), [ADR 0024](docs/adr/0024-observability-and-rate-limits.md) |
 | **API contract** | OpenAPI 3.1 as the single source; Swagger UI (local only); a Postman collection generated deterministically with a pinned, offline toolchain; tests prove routes, spec, and collection agree, and that the running code enforces the spec's auth and permissions. [ADR 0005](docs/adr/0005-swagger-ui-and-generated-postman.md) |
+| **Resilience** | Rate limits with `429`, load shedding with `503` beyond `HTTP_MAX_IN_FLIGHT`, a bounded wait for duplicate requests, and a stress test that pauses the database and checks that nothing is lost. [STRESS.md](docs/STRESS.md), [ADR 0028](docs/adr/0028-load-shedding-proxy-and-limiter-overflow.md) |
 | **Engineering process** | Disposable Docker Compose environments per test run (no Go or PostgreSQL on the host), architecture decision records, and a [verification log](docs/VERIFICATION.md) of what was run to accept each ticket. |
 
 ## Quick start
@@ -31,9 +34,16 @@ curl http://127.0.0.1:3000/health/ready                       # first start comp
 
 Then open <http://127.0.0.1:3000/swagger>, or follow [GETTING_STARTED.md](docs/GETTING_STARTED.md) for your first authenticated request.
 
+## See it work
+One command starts a fresh stack, runs a story with synthetic applicants, and removes the stack: decisions (approve, refer, reject, invalid input), an idempotent replay, a policy change that two approvers publish, the next decision under the new policy, the audit trail, and the metrics.
+```sh
+./scripts/demo.sh --project rf-live-demo
+```
+The real output, the applicants, and what to notice are in [DEMO.md](docs/DEMO.md).
+
 ## Tech stack
 
-Go 1.25 · Goravel v1.18 · Fiber v3 (via `goravel/fiber`) · PostgreSQL 18 · JWT (HS256) · bcrypt · OpenAPI 3.1 · Swagger UI 5 · Postman / Newman · Docker Compose · testify
+Go 1.26 · Goravel v1.18 · Fiber v3 (via `goravel/fiber`) · PostgreSQL 18 · JWT (HS256) · bcrypt · OpenAPI 3.1 · Swagger UI 5 · Postman / Newman · Docker Compose · testify
 
 ## API (implemented)
 
@@ -62,6 +72,9 @@ Go 1.25 · Goravel v1.18 · Fiber v3 (via `goravel/fiber`) · PostgreSQL 18 · J
 | `POST` | `/api/v1/approval-requests/{request_id}/actions` | `approval:act` (approver holding the scope of the active step; the last approval publishes the version atomically) |
 | `POST` | `/api/v1/decisions/evaluate` | `decision:evaluate` (API consumer; evaluates an application against the active policy and stores the decision once per `Idempotency-Key`) |
 | `GET` | `/api/v1/decisions/{decision_id}` | `decision:read` (a consumer reads its own decisions, an auditor reads all) |
+| `GET` | `/api/v1/audit/events` | `audit:read` (auditor; searches the audit log, which holds the approval and publication history) |
+| `GET` | `/metrics` | `metrics:read` (admin only; Prometheus text format; outside `/api/v1` like `/health/*`) |
+| `GET` | `/api/v1/audit/decisions` | `audit:read` (auditor; stored decisions by application, product, result, or policy version, without applicant input) |
 
 Contract: [api/openapi/openapi.yaml](api/openapi/openapi.yaml). Real requests and responses: [API_EXAMPLES.md](docs/API_EXAMPLES.md). Postman: [api/postman/](api/postman/).
 
@@ -73,9 +86,14 @@ Contract: [api/openapi/openapi.yaml](api/openapi/openapi.yaml). Real requests an
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Diagrams, module boundaries, request lifecycle, transactions. |
 | [DOMAIN_GUIDE.md](docs/DOMAIN_GUIDE.md) | Credit concepts: product, RAC, scorecard, decision matrix, policy, approval. |
 | [API_EXAMPLES.md](docs/API_EXAMPLES.md) | `curl` calls with captured responses and errors. |
-| [DECISION_ENGINE.md](docs/DECISION_ENGINE.md) | Planned engine behaviour: pipeline, precedence, edge cases. |
+| [DEMO.md](docs/DEMO.md) | One end-to-end story on a fresh stack with its real output, the synthetic people and applicants. |
+| [DECISION_ENGINE.md](docs/DECISION_ENGINE.md) | Engine behaviour: pipeline, precedence, edge cases. |
 | [TESTING.md](docs/TESTING.md) | How tests are organized and run, and what each suite proves. |
-| [coverage.md](docs/coverage.md) | Statement coverage per package for the unit tests, and for unit plus integration tests; how to re-measure. |
+| [CI.md](docs/CI.md) | The CI pipeline, the same gates on your machine, reading a failure, and the vulnerability baseline. |
+| [STRESS.md](docs/STRESS.md) | Overload, a paused database, recovery, soak, login storm, and the load shedding added because of them. |
+| [SECURITY_TESTING.md](docs/SECURITY_TESTING.md) | Where each security property is tested, the black-box probe, and the findings of the M5 validation. |
+| [BENCHMARK.md](docs/BENCHMARK.md) | Performance baseline: engine-only and end-to-end latency percentiles, throughput, resource use, and how to re-measure. |
+| [COVERAGE.md](docs/COVERAGE.md) | Statement coverage per package for the unit tests, and for unit plus integration tests; how to re-measure. |
 | [SCRIPTS.md](docs/SCRIPTS.md) | What every script in `scripts/` does and how to run it. |
 | [VERIFICATION.md](docs/VERIFICATION.md) | Evidence recorded for each accepted ticket and review round. |
 | [docs/README.md](docs/README.md) | Documentation index and what each folder contains. |
@@ -91,8 +109,8 @@ Contract: [api/openapi/openapi.yaml](api/openapi/openapi.yaml). Real requests an
 | Hardening, LOG-001, DX-001, DOC-001 | Three review rounds, structured logs, Swagger and Postman, guides | Done (merged to `main`) |
 | M2 Policy configuration | Data dictionary, versioned policy drafts, RAC, scorecard, matrix validation | Done (RF-005 to RF-010); golden tests are executed since RF-013 |
 | M3 Decision engine | Features, RAC, scorecard and matrix evaluation, idempotent decision API | Done (RF-011 to RF-016: feature builder, RAC evaluator, scorecard and matrix evaluator with golden tests, Decision API, durable decisions with idempotency, compiled policy cache; one branch per ticket, `feature/RF-011-feature-builder` to `feature/RF-016-policy-cache`, merged to `main` through `feature/M3-decision-engine`) |
-| M4 Governance | Simulator, multi-level approval, atomic publishing | Done (RF-017 to RF-021: policy simulator, approval workflow configuration, approval state machine, atomic publishing, policy diff and review; one branch per ticket, collected in `feature/M4-governance`, not merged to `main` yet) |
-| M5 Hardening | Audit search, metrics, CI/CD, benchmarks, demo | Planned |
+| M4 Governance | Simulator, multi-level approval, atomic publishing | Done (RF-017 to RF-021: policy simulator, approval workflow configuration, approval state machine, atomic publishing, policy diff and review; one branch per ticket, collected in `feature/M4-governance`, merged to `main`, PR #8 and #9) |
+| M5 Hardening | Audit search, metrics, CI/CD, benchmarks, demo | Done (RF-022 to RF-026 and the milestone validation; one branch per ticket, collected in `feature/M5-hardening`, merged to `main`, PR #10); limits and the milestone audit in [M5_NOTES.md](docs/M5_NOTES.md) |
 
 Ticket-level detail is in `SYSTEM_DESIGN.md` section 18.
 

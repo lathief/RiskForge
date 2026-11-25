@@ -3,7 +3,7 @@ package config
 import (
 	"github.com/goravel/framework/support/carbon"
 
-	"goravel/app/facades"
+	"github.com/lathief/RiskForge/app/facades"
 )
 
 // Boot Start all init methods of the current folder to bootstrap all config.

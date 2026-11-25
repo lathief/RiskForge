@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	dictionarydomain "goravel/app/modules/dictionary/domain"
-	"goravel/app/modules/policy/domain"
-	"goravel/app/modules/ruleengine"
+	dictionarydomain "github.com/lathief/RiskForge/app/modules/dictionary/domain"
+	"github.com/lathief/RiskForge/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/modules/ruleengine"
 )
 
 func (f *fakeRepo) ListTestCases(_ context.Context, versionID string) (domain.TestCases, error) {

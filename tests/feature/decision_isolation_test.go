@@ -3,7 +3,7 @@ package feature
 import (
 	"strings"
 
-	"goravel/app/facades"
+	"github.com/lathief/RiskForge/app/facades"
 )
 
 // otherConsumer creates a second API consumer (same password as the demo users) and returns

@@ -3,7 +3,7 @@ package middleware
 import (
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/ctxkeys"
+	"github.com/lathief/RiskForge/app/http/ctxkeys"
 )
 
 // Module labels the request with the module that owns the route. The label appears in

@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/suite"
 	"gopkg.in/yaml.v3"
 
-	"goravel/app/facades"
-	"goravel/app/modules/identity/domain"
-	"goravel/database/seeders"
-	"goravel/tests"
+	"github.com/lathief/RiskForge/app/facades"
+	"github.com/lathief/RiskForge/app/modules/identity/domain"
+	"github.com/lathief/RiskForge/database/seeders"
+	"github.com/lathief/RiskForge/tests"
 )
 
 // This file deepens the DX-001 gate beyond (METHOD, path):
@@ -251,6 +251,10 @@ func (s *ContractBehaviourTestSuite) call(op operationDetail, token string) stri
 	}
 	s.Require().NoError(err)
 
+	// An allowed call may answer with text (GET /metrics, Prometheus format); only errors are JSON.
+	if resp.IsSuccessful() && !strings.Contains(resp.Headers().Get("Content-Type"), "json") {
+		return ""
+	}
 	body, err := resp.Json()
 	s.Require().NoError(err, "%s returned a non-JSON body", op.key)
 	errBody, _ := body["error"].(map[string]any)
@@ -294,9 +298,14 @@ func (s *ContractBehaviourTestSuite) TestRequiredPermissionMatchesBehaviourForEv
 }
 
 // Every secured operation must declare the permission it needs, so the check above covers
-// the whole protected surface. /auth/me is the only exception: any authenticated caller.
+// the whole protected surface. /auth/me, /auth/logout and /auth/password are the only
+// exceptions: any authenticated caller, acting on their own session.
 func (s *ContractBehaviourTestSuite) TestSecuredOperationsDeclarePermission() {
-	exempt := map[string]bool{"GET /api/v1/auth/me": true}
+	exempt := map[string]bool{
+		"GET /api/v1/auth/me":        true,
+		"POST /api/v1/auth/logout":   true,
+		"POST /api/v1/auth/password": true,
+	}
 	for key, op := range loadOperationDetails(s.T()) {
 		if op.secured && !exempt[key] {
 			s.NotEmpty(op.permission, "%s is secured but has no x-required-permission", key)

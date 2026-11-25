@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"sort"
 
-	"goravel/app/modules/decision/application"
-	dictionarydomain "goravel/app/modules/dictionary/domain"
-	policyapp "goravel/app/modules/policy/application"
-	policydomain "goravel/app/modules/policy/domain"
-	"goravel/app/modules/ruleengine"
+	"github.com/lathief/RiskForge/app/modules/decision/application"
+	dictionarydomain "github.com/lathief/RiskForge/app/modules/dictionary/domain"
+	policyapp "github.com/lathief/RiskForge/app/modules/policy/application"
+	policydomain "github.com/lathief/RiskForge/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/modules/ruleengine"
 )
 
 // ActivePolicyService is the part of the policy use cases the resolver needs.

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"goravel/app/modules/ruleengine"
+	"github.com/lathief/RiskForge/app/modules/ruleengine"
 )
 
 // The decision evaluator of one policy version (SYSTEM_DESIGN.md 10.1 to 10.4, RF-013): the

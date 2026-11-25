@@ -8,9 +8,9 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	"goravel/app/facades"
-	"goravel/app/platform/database"
-	"goravel/tests"
+	"github.com/lathief/RiskForge/app/facades"
+	"github.com/lathief/RiskForge/app/platform/database"
+	"github.com/lathief/RiskForge/tests"
 )
 
 // probeRepo is a minimal repository adapter. It shows the required pattern: every query goes

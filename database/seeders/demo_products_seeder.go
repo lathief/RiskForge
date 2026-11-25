@@ -3,7 +3,7 @@ package seeders
 import (
 	"fmt"
 
-	"goravel/app/facades"
+	"github.com/lathief/RiskForge/app/facades"
 )
 
 // DemoProductCode is the single demonstration product from SYSTEM_DESIGN.md section 2.3.

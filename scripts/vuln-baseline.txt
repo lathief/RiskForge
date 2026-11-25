@@ -1,0 +1,19 @@
+# Known reachable vulnerabilities, accepted for now (BACKLOG SEC-15; history in SEC-08 and SEC-11).
+#
+# scripts/vuln-check.sh fails on any govulncheck finding that is NOT listed here, so a new advisory
+# or a new dependency is looked at before it is merged. A line here is a debt, not an approval: each
+# has a reason and the work that removes it. Format: ID | where | fixed in | title | reason.
+# Delete a line when the scan stops reporting it (the script says so).
+#
+# First scan (RF-025, 24 November 2026, Go 1.25.14): 26 findings; raising indirect dependencies
+# within their line removed 9. The M5 validation (25 November 2026) moved to Go 1.26 (ADR 0029),
+# which removed the 13 in the standard library and golang.org/x/net (x/net v0.63.0), and raised
+# OpenTelemetry to v1.46.0, which removed GO-2026-6505. The 3 below are all in the OpenTelemetry
+# log signal: their fixes need go.opentelemetry.io/otel/log v0.21 or later, whose API Goravel
+# v1.18.1 (the latest release, telemetry/instrumentation/log) does not compile with. Goravel's
+# development branch already uses otel 1.47, so a Goravel release after v1.18.1 removes them.
+# RiskForge does not enable the telemetry exporters (config/telemetry.go).
+#
+GO-2026-6508 | go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc | v0.21.0 | OpenTelemetry-Go: log gRPC exporter ignores env TLS certs, bypassing mTLS or pinning | Goravel release after v1.18.1; the log exporters are not enabled.
+GO-2026-6615 | go.opentelemetry.io/otel/sdk/log | v0.21.0 | OpenTelemetry-Go: BatchProcessor can busy-spin when export buffer is full | Goravel release after v1.18.1; no log exporter, so no export buffer fills.
+GO-2026-6974 | go.opentelemetry.io/otel/sdk, sdk/log, trace | v1.47.0 | OpenTelemetry-Go: AttributeValueLengthLimit bypass via U+FFFD runes | Goravel release after v1.18.1 (needs otel/log v1.47); no exporter is enabled, so no attribute leaves the process.

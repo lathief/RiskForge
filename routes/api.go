@@ -6,29 +6,31 @@ import (
 
 	"github.com/goravel/framework/contracts/route"
 
-	"goravel/app/facades"
-	"goravel/app/http/controllers"
-	"goravel/app/http/middleware"
-	approvalapp "goravel/app/modules/approval/application"
-	approvalinfra "goravel/app/modules/approval/infrastructure"
-	auditapp "goravel/app/modules/audit/application"
-	auditinfra "goravel/app/modules/audit/infrastructure"
-	catalogapp "goravel/app/modules/catalog/application"
-	cataloginfra "goravel/app/modules/catalog/infrastructure"
-	decisionapp "goravel/app/modules/decision/application"
-	decisioninfra "goravel/app/modules/decision/infrastructure"
-	dictionaryapp "goravel/app/modules/dictionary/application"
-	dictionaryinfra "goravel/app/modules/dictionary/infrastructure"
-	identityapp "goravel/app/modules/identity/application"
-	"goravel/app/modules/identity/domain"
-	identityinfra "goravel/app/modules/identity/infrastructure"
-	policyapp "goravel/app/modules/policy/application"
-	policyinfra "goravel/app/modules/policy/infrastructure"
-	simulationapp "goravel/app/modules/simulation/application"
-	simulationinfra "goravel/app/modules/simulation/infrastructure"
-	"goravel/app/platform/database"
-	"goravel/app/platform/logging"
-	"goravel/app/support"
+	"github.com/lathief/RiskForge/app/facades"
+	"github.com/lathief/RiskForge/app/http/controllers"
+	"github.com/lathief/RiskForge/app/http/middleware"
+	approvalapp "github.com/lathief/RiskForge/app/modules/approval/application"
+	approvalinfra "github.com/lathief/RiskForge/app/modules/approval/infrastructure"
+	auditapp "github.com/lathief/RiskForge/app/modules/audit/application"
+	auditinfra "github.com/lathief/RiskForge/app/modules/audit/infrastructure"
+	catalogapp "github.com/lathief/RiskForge/app/modules/catalog/application"
+	cataloginfra "github.com/lathief/RiskForge/app/modules/catalog/infrastructure"
+	decisionapp "github.com/lathief/RiskForge/app/modules/decision/application"
+	decisioninfra "github.com/lathief/RiskForge/app/modules/decision/infrastructure"
+	dictionaryapp "github.com/lathief/RiskForge/app/modules/dictionary/application"
+	dictionaryinfra "github.com/lathief/RiskForge/app/modules/dictionary/infrastructure"
+	identityapp "github.com/lathief/RiskForge/app/modules/identity/application"
+	"github.com/lathief/RiskForge/app/modules/identity/domain"
+	identityinfra "github.com/lathief/RiskForge/app/modules/identity/infrastructure"
+	policyapp "github.com/lathief/RiskForge/app/modules/policy/application"
+	policyinfra "github.com/lathief/RiskForge/app/modules/policy/infrastructure"
+	simulationapp "github.com/lathief/RiskForge/app/modules/simulation/application"
+	simulationinfra "github.com/lathief/RiskForge/app/modules/simulation/infrastructure"
+	"github.com/lathief/RiskForge/app/platform/database"
+	"github.com/lathief/RiskForge/app/platform/logging"
+	"github.com/lathief/RiskForge/app/platform/metrics"
+	"github.com/lathief/RiskForge/app/platform/ratelimit"
+	"github.com/lathief/RiskForge/app/support"
 )
 
 // Module labels used in every log type.
@@ -42,6 +44,7 @@ const (
 	moduleApproval   = "approval"
 	moduleAudit      = "audit"
 	moduleDocs       = "docs"
+	moduleMetrics    = "metrics"
 )
 
 func Api() {
@@ -56,6 +59,15 @@ func Api() {
 	facades.Route().Get("/health/live", health.Live)
 	facades.Route().Get("/health/ready", health.Ready)
 	facades.Route().Fallback(middleware.NotFound)
+
+	// Rate limits (RF-023, SEC-02, M4-SEC-04). The limiters are shared per process; each guards
+	// the routes named in config/ratelimit.go.
+	ratelimit.SetEnabled(facades.Config().GetBool("ratelimit.enabled", true))
+	Limiters.ConfigureFrom(facades.Config())
+	middleware.InFlight.SetLimit(facades.Config().GetInt("http.max_in_flight", middleware.DefaultMaxInFlight))
+	loginLimit := middleware.NewRateLimit(Limiters.Login, middleware.ByIP)
+	decisionLimit := middleware.NewRateLimit(Limiters.Decision, middleware.ByUser)
+	analysisLimit := middleware.NewRateLimit(Limiters.Analysis, middleware.ByUser)
 
 	// DX-001: Swagger UI and the raw contract, local/testing only (enforced at startup).
 	// These tooling routes are not part of the API contract and are excluded from the
@@ -81,6 +93,14 @@ func Api() {
 	authController := controllers.NewAuthController(authService)
 	authenticate := middleware.NewAuthenticate(authService)
 
+	// User administration (FEAT-01): the admin manages accounts, roles, and approval scopes;
+	// every change is audited through the audit module in the same transaction.
+	userDB := dbManager.WithModule(moduleIdentity)
+	userRepository := identityinfra.NewUserRepository(userDB)
+	userController := controllers.NewUserController(identityapp.NewUserService(
+		userRepository, userRepository, hasher,
+		userDB, identityinfra.NewAuditLog(auditapp.NewRecorder(auditinfra.NewEventRepository(dbManager.WithModule(moduleAudit))))))
+
 	catalogDB := dbManager.WithModule(moduleCatalog)
 	catalogService := catalogapp.NewProductService(cataloginfra.NewProductRepository(catalogDB), catalogDB)
 	productController := controllers.NewProductController(catalogService)
@@ -100,9 +120,17 @@ func Api() {
 	// Decision API (RF-014, RF-015): reads the active policy through the policy module and
 	// stores decisions in the decision schema, one transaction per request.
 	decisionDB := dbManager.WithModule(moduleDecision)
+	policyResolver := decisioninfra.NewPolicyResolver(policyService)
+	registerCacheMetrics(policyResolver)
 	decisionController := controllers.NewDecisionController(
-		decisionapp.NewEvaluationService(decisioninfra.NewPolicyResolver(policyService),
+		decisionapp.NewEvaluationService(policyResolver,
 			decisioninfra.NewDecisionRepository(decisionDB), decisionDB))
+	// Audit search (RF-022): the auditor reads the event log and the decision history. Both
+	// only read, so they share the audit module's database manager.
+	auditDB := dbManager.WithModule(moduleAudit)
+	auditController := controllers.NewAuditController(
+		auditapp.NewSearchService(auditinfra.NewEventSearch(auditDB)),
+		decisionapp.NewHistoryService(decisioninfra.NewDecisionRepository(auditDB)))
 	// Policy simulator (RF-017): evaluates any version with the evaluation core of the Decision
 	// API and writes nothing, so it needs no database manager of its own.
 	simulationController := controllers.NewSimulationController(
@@ -130,8 +158,11 @@ func Api() {
 	canReadPolicies := middleware.NewRequirePermission(domain.PermPolicyRead)
 	canWritePolicies := middleware.NewRequirePermission(domain.PermPolicyWrite)
 	canSubmitPolicies := middleware.NewRequirePermission(domain.PermPolicySubmit)
+	canReadAudit := middleware.NewRequirePermission(domain.PermAuditRead)
+	canReadMetrics := middleware.NewRequirePermission(domain.PermMetricsRead)
 	canReadProducts := middleware.NewRequirePermission(domain.PermProductRead)
 	canWriteProducts := middleware.NewRequirePermission(domain.PermProductWrite)
+	canManageUsers := middleware.NewRequirePermission(domain.PermUserManage)
 
 	identity := middleware.NewModule(moduleIdentity)
 	catalog := middleware.NewModule(moduleCatalog)
@@ -140,10 +171,24 @@ func Api() {
 	decision := middleware.NewModule(moduleDecision)
 	simulation := middleware.NewModule(moduleSimulation)
 	approval := middleware.NewModule(moduleApproval)
+	audit := middleware.NewModule(moduleAudit)
+
+	// Metrics (RF-023): the operator reads them, with a bearer token and metrics:read.
+	metricsController := controllers.NewMetricsController(metrics.Default)
+	facades.Route().Middleware(middleware.NewModule(moduleMetrics), authenticate, canReadMetrics).Get("/metrics", metricsController.Show)
 
 	facades.Route().Prefix("/api/v1").Group(func(router route.Router) {
-		router.Middleware(identity).Post("/auth/login", authController.Login)
+		router.Middleware(identity, loginLimit).Post("/auth/login", authController.Login)
 		router.Middleware(identity, authenticate).Get("/auth/me", authController.Me)
+		// Session lifecycle (SEC-18): both routes end issued tokens through the per-user
+		// cutoff; logout ends all sessions, password change also replaces the hash.
+		router.Middleware(identity, authenticate).Post("/auth/logout", authController.Logout)
+		router.Middleware(identity, authenticate).Post("/auth/password", authController.ChangePassword)
+
+		router.Middleware(identity, authenticate, canManageUsers).Get("/users", userController.Index)
+		router.Middleware(identity, authenticate, canManageUsers).Post("/users", userController.Store)
+		router.Middleware(identity, authenticate, canManageUsers).Get("/users/{user_id}", userController.Show)
+		router.Middleware(identity, authenticate, canManageUsers).Patch("/users/{user_id}", userController.Update)
 
 		router.Middleware(catalog, authenticate, canReadProducts).Get("/products", productController.Index)
 		router.Middleware(catalog, authenticate, canReadProducts).Get("/products/{code}", productController.Show)
@@ -169,10 +214,10 @@ func Api() {
 		router.Middleware(policy, authenticate, canWritePolicies).Delete("/policy-versions/{version_id}/decision-matrix", policyController.DeleteMatrix)
 		router.Middleware(policy, authenticate, canReadPolicies).Get("/policy-versions/{version_id}/test-cases", policyController.ShowTestCases)
 		router.Middleware(policy, authenticate, canWritePolicies).Put("/policy-versions/{version_id}/test-cases", policyController.ReplaceTestCases)
-		router.Middleware(policy, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/validate", policyController.ValidateVersion)
+		router.Middleware(policy, authenticate, analysisLimit, canSubmitPolicies).Post("/policy-versions/{version_id}/validate", policyController.ValidateVersion)
 		// Submit freezes the draft and opens its approval request in one transaction (RF-019).
 		router.Middleware(approval, authenticate, canSubmitPolicies).Post("/policy-versions/{version_id}/submit", requestController.Submit)
-		router.Middleware(simulation, authenticate, canSimulatePolicies).Post("/policy-versions/{version_id}/simulate", simulationController.Simulate)
+		router.Middleware(simulation, authenticate, analysisLimit, canSimulatePolicies).Post("/policy-versions/{version_id}/simulate", simulationController.Simulate)
 		router.Middleware(approval, authenticate, canReadWorkflows).Get("/approval-workflows", workflowController.Index)
 		router.Middleware(approval, authenticate, canManageWorkflows).Post("/approval-workflows", workflowController.Store)
 		router.Middleware(approval, authenticate, canReadWorkflows).Get("/approval-workflows/{workflow_id}", workflowController.Show)
@@ -181,9 +226,11 @@ func Api() {
 		router.Middleware(approval, authenticate, canReadApprovals).Get("/approval-requests", requestController.Index)
 		router.Middleware(approval, authenticate, canReadApprovals).Get("/approval-requests/{request_id}", requestController.Show)
 		router.Middleware(approval, authenticate, canActOnApprovals).Post("/approval-requests/{request_id}/actions", requestController.Act)
-		router.Middleware(approval, authenticate, canReadApprovals).Get("/approval-requests/{request_id}/review", requestController.Review)
-		router.Middleware(policy, authenticate, canReadPolicies).Get("/policy-versions/{version_id}/diff", policyController.Diff)
-		router.Middleware(decision, authenticate, canEvaluateDecisions).Post("/decisions/evaluate", decisionController.Evaluate)
+		router.Middleware(approval, authenticate, analysisLimit, canReadApprovals).Get("/approval-requests/{request_id}/review", requestController.Review)
+		router.Middleware(policy, authenticate, analysisLimit, canReadPolicies).Get("/policy-versions/{version_id}/diff", policyController.Diff)
+		router.Middleware(decision, authenticate, decisionLimit, canEvaluateDecisions).Post("/decisions/evaluate", decisionController.Evaluate)
 		router.Middleware(decision, authenticate, canReadDecisions).Get("/decisions/{decision_id}", decisionController.Show)
+		router.Middleware(audit, authenticate, canReadAudit).Get("/audit/events", auditController.Events)
+		router.Middleware(audit, authenticate, canReadAudit).Get("/audit/decisions", auditController.Decisions)
 	})
 }

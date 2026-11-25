@@ -7,7 +7,7 @@ From a fresh clone to an authenticated API call in about ten minutes. Everything
 | Tool | Version | Why |
 |---|---|---|
 | Git | any recent | Clone the repository. |
-| Docker Engine + Compose v2 | Compose v2 (`docker compose`) | Runs the Go toolchain (`golang:1.25`) and PostgreSQL 18. |
+| Docker Engine + Compose v2 | Compose v2 (`docker compose`) | Runs the Go toolchain (`golang:1.26`) and PostgreSQL 18. |
 | `curl` | any | The examples below. Postman or Swagger UI work too. |
 | Bash | Git Bash on Windows | Runs `scripts/*.sh`. |
 
@@ -43,14 +43,14 @@ docker compose -p rf-dev --env-file .env.agent exec -T api ./artisan migrate
 docker compose -p rf-dev --env-file .env.agent exec -T api ./artisan db:seed
 ```
 
-The seeders create synthetic demo users, the demo product `KTA_DEMO`, the eight-variable demo data dictionary, and a complete first draft of the KTA_DEMO policy (RAC rules, scorecard, decision matrix, and six golden test cases; it passes `POST /api/v1/policy-versions/{version_id}/validate` but is not submitted). They refuse to run unless `APP_ENV` is `local` or `testing`.
+The seeders create synthetic demo users, the demo product `KTA_DEMO`, the eight-variable demo data dictionary, and a complete first draft of the KTA_DEMO policy (RAC rules, scorecard, decision matrix, and six golden test cases). They also submit and activate that policy as version 1, so the decision API answers at once, and seed the two-tier approval workflow (`RISK_LEAD`, then `HEAD_OF_RISK`). They refuse to run unless `APP_ENV` is `local` or `testing`.
 
 | Username | Role | Can |
 |---|---|---|
-| `demo_admin` | `ADMIN` | Manage products and dictionary variables. |
+| `demo_admin` | `ADMIN` | Manage products and dictionary variables, configure approval workflows, and read `GET /metrics` (RF-023). |
 | `demo_analyst` | `RISK_ANALYST` | Read products, manage dictionary variables; owns policy drafts: opens, edits, clones, and submits them. |
 | `demo_approver_1`, `demo_approver_2` | `RISK_APPROVER` | Read products and the dictionary; approve or reject submitted policies (M4): `demo_approver_1` holds the `RISK_LEAD` scope (step 1), `demo_approver_2` the `HEAD_OF_RISK` scope (step 2). |
-| `demo_auditor` | `AUDITOR` | Read-only access. |
+| `demo_auditor` | `AUDITOR` | Read-only access, and the only role that searches the audit log and the decision history (`GET /audit/events`, `GET /audit/decisions`, RF-022). |
 | `demo_loan_application` | `API_CONSUMER` | The Loan Application client; calls the decision API (M3). |
 
 All demo users share the password stored as `DEMO_USER_PASSWORD` in `.env.agent`.
@@ -84,7 +84,7 @@ Tests run in a separate, disposable Compose project so they never touch `rf-dev`
 ```sh
 P=rf-test-local
 docker compose -p $P --env-file .env.agent up -d db
-docker compose -p $P --env-file .env.agent run --rm --no-deps -e HASH_BCRYPT_ROUNDS=4 api go test -race ./...
+docker compose -p $P --env-file .env.agent run --rm --no-deps -e HASH_BCRYPT_ROUNDS=4 api go test -race -timeout 25m ./...
 docker compose -p $P --env-file .env.agent down -v --remove-orphans
 ```
 

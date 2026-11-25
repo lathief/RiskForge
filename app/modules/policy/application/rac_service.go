@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"goravel/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/modules/policy/domain"
 )
 
 // InvalidPolicyError means a draft cannot be submitted because its content does not validate.

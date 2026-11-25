@@ -6,10 +6,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	"goravel/app/facades"
-	"goravel/app/platform/logging"
-	"goravel/app/support"
-	"goravel/bootstrap"
+	"github.com/lathief/RiskForge/app/facades"
+	"github.com/lathief/RiskForge/app/platform/logging"
+	// Imported for its init: it must refuse to start without APP_KEY before the framework
+	// builds its configuration and exits with status 0 (see the package comment).
+	_ "github.com/lathief/RiskForge/app/preflight"
+	"github.com/lathief/RiskForge/app/support"
+	"github.com/lathief/RiskForge/bootstrap"
 )
 
 func main() {

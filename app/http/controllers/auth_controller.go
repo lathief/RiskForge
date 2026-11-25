@@ -3,15 +3,16 @@ package controllers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/auth"
-	"goravel/app/http/responses"
-	"goravel/app/modules/identity/application"
-	"goravel/app/modules/identity/domain"
-	"goravel/app/platform/logging"
+	"github.com/lathief/RiskForge/app/http/auth"
+	"github.com/lathief/RiskForge/app/http/responses"
+	"github.com/lathief/RiskForge/app/modules/identity/application"
+	"github.com/lathief/RiskForge/app/modules/identity/domain"
+	"github.com/lathief/RiskForge/app/platform/logging"
 )
 
 const (
@@ -89,6 +90,74 @@ func (c *AuthController) Me(ctx http.Context) http.Response {
 		"roles":           roleCodes(principal.Roles),
 		"permissions":     permissionCodes(principal.Permissions()),
 		"approval_scopes": scopeCodes(principal.ApprovalScopes),
+	})
+}
+
+// Logout ends the caller's sessions (SEC-18): every token issued before now stops
+// resolving a principal. Idempotent by design; the response is the same either way.
+func (c *AuthController) Logout(ctx http.Context) http.Response {
+	principal, ok := auth.PrincipalFrom(ctx)
+	if !ok {
+		return responses.Unauthenticated(ctx)
+	}
+	if err := c.service.Logout(ctx.Context(), principal.UserID); err != nil {
+		logging.Default().Error(ctx.Context(), "logout failed", err)
+		return responses.Internal(ctx)
+	}
+	ctx.Response().Header("Cache-Control", "no-store")
+	return ctx.Response().Json(http.StatusOK, http.Json{
+		"message": "all sessions ended; issue a new token to continue",
+	})
+}
+
+type changePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+// ChangePassword replaces the caller's password and ends every existing session (SEC-18),
+// including the token used for this request: the caller must log in again.
+func (c *AuthController) ChangePassword(ctx http.Context) http.Response {
+	principal, ok := auth.PrincipalFrom(ctx)
+	if !ok {
+		return responses.Unauthenticated(ctx)
+	}
+	var req changePasswordRequest
+	if err := ctx.Request().Bind(&req); err != nil {
+		return responses.ValidationError(ctx, "request body must be valid JSON")
+	}
+	if req.CurrentPassword == "" || req.NewPassword == "" {
+		return responses.ValidationError(ctx, "current_password and new_password are required",
+			responses.Detail{Field: "current_password", Issue: "required"},
+			responses.Detail{Field: "new_password", Issue: "required"})
+	}
+	if len(req.NewPassword) > maxPasswordLength {
+		return responses.ValidationError(ctx, "validation failed",
+			responses.Detail{Field: "new_password", Issue: "too_long"})
+	}
+
+	err := c.service.ChangePassword(ctx.Context(), principal.UserID, req.CurrentPassword, req.NewPassword)
+	switch {
+	case errors.Is(err, application.ErrWrongPassword):
+		return responses.ValidationError(ctx, "current password is incorrect",
+			responses.Detail{Field: "current_password", Issue: "incorrect"})
+	case errors.Is(err, application.ErrInvalidUserInput):
+		return responses.ValidationError(ctx, fmt.Sprintf("new password must be %d-%d characters",
+			domain.MinPasswordLength, domain.MaxPasswordLength),
+			responses.Detail{Field: "new_password", Issue: "weak"})
+	case errors.Is(err, application.ErrBusy):
+		logging.Default().Warn(ctx.Context(), "password change rejected: hashing saturated", err)
+		return responses.ServiceBusy(ctx, "1")
+	case errors.Is(err, application.ErrUnauthenticated):
+		return responses.Unauthenticated(ctx)
+	case err != nil:
+		logging.Default().Error(ctx.Context(), "password change failed", err)
+		return responses.Internal(ctx)
+	}
+
+	ctx.Response().Header("Cache-Control", "no-store")
+	return ctx.Response().Json(http.StatusOK, http.Json{
+		"message": "password changed; all sessions ended, log in again",
 	})
 }
 

@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	"goravel/app/facades"
-	approvalapp "goravel/app/modules/approval/application"
-	approvaldomain "goravel/app/modules/approval/domain"
-	approvalinfra "goravel/app/modules/approval/infrastructure"
-	catalogapp "goravel/app/modules/catalog/application"
-	cataloginfra "goravel/app/modules/catalog/infrastructure"
-	"goravel/app/platform/database"
+	"github.com/lathief/RiskForge/app/facades"
+	approvalapp "github.com/lathief/RiskForge/app/modules/approval/application"
+	approvaldomain "github.com/lathief/RiskForge/app/modules/approval/domain"
+	approvalinfra "github.com/lathief/RiskForge/app/modules/approval/infrastructure"
+	catalogapp "github.com/lathief/RiskForge/app/modules/catalog/application"
+	cataloginfra "github.com/lathief/RiskForge/app/modules/catalog/infrastructure"
+	"github.com/lathief/RiskForge/app/platform/database"
 )
 
 // DemoWorkflowName is the name of the demo approval workflow of KTA_DEMO.

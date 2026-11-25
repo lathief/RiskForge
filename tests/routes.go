@@ -8,13 +8,13 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/facades"
-	"goravel/app/http/controllers"
-	"goravel/app/http/middleware"
-	identityapp "goravel/app/modules/identity/application"
-	"goravel/app/modules/identity/domain"
-	identityinfra "goravel/app/modules/identity/infrastructure"
-	"goravel/app/platform/database"
+	"github.com/lathief/RiskForge/app/facades"
+	"github.com/lathief/RiskForge/app/http/controllers"
+	"github.com/lathief/RiskForge/app/http/middleware"
+	identityapp "github.com/lathief/RiskForge/app/modules/identity/application"
+	"github.com/lathief/RiskForge/app/modules/identity/domain"
+	identityinfra "github.com/lathief/RiskForge/app/modules/identity/infrastructure"
+	"github.com/lathief/RiskForge/app/platform/database"
 )
 
 // Test-only routes are registered once, right after boot and before any request.
@@ -42,6 +42,8 @@ const (
 	LoginBusyPath = "/test/login-busy"
 	// SlowPath answers 200 only after the 3 s request timeout has passed.
 	SlowPath = "/test/slow"
+	// OkPath answers 200 at once.
+	OkPath = "/test/ok"
 	// SlowPanicPath panics after the request timeout has passed.
 	SlowPanicPath = "/test/slow-panic"
 	// SlowPanicMessage is the value SlowPanicPath panics with.
@@ -90,6 +92,7 @@ func registerTestRoutes() {
 	// Slow handlers behave like real ones: they stop when the request context ends and do
 	// not write a response afterwards (Fiber v3 writes 408 to the context at the deadline and
 	// abandons it; writing to it later is a data race inside the driver).
+	route.Get(OkPath, ok)
 	route.Get(SlowPath, func(ctx http.Context) http.Response {
 		waitPastDeadline(ctx)
 		return nil

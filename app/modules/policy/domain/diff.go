@@ -50,13 +50,13 @@ type Comparable struct {
 // what is stored. Derived formulas live in code (SYSTEM_DESIGN.md 8.2): a change to them is a
 // new evaluator, not part of a policy, so it is not a diff item.
 type Diff struct {
-	RACRules               []ItemChange
-	BaseScore              *FieldChange
-	Characteristics        []ItemChange
-	MatrixRows             []ItemChange
-	DictionarySchema       *FieldChange
-	DictionaryVariables    []ItemChange
-	TestCases              []ItemChange
+	RACRules            []ItemChange
+	BaseScore           *FieldChange
+	Characteristics     []ItemChange
+	MatrixRows          []ItemChange
+	DictionarySchema    *FieldChange
+	DictionaryVariables []ItemChange
+	TestCases           []ItemChange
 }
 
 // Changed reports whether anything differs.

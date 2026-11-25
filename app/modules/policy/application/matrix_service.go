@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"goravel/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/modules/policy/domain"
 )
 
 // MatrixView is a version's decision matrix together with the score range of its scorecard,

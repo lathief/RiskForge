@@ -5,11 +5,11 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/auth"
-	"goravel/app/http/ctxkeys"
-	"goravel/app/http/responses"
-	"goravel/app/modules/identity/application"
-	"goravel/app/platform/logging"
+	"github.com/lathief/RiskForge/app/http/auth"
+	"github.com/lathief/RiskForge/app/http/ctxkeys"
+	"github.com/lathief/RiskForge/app/http/responses"
+	"github.com/lathief/RiskForge/app/modules/identity/application"
+	"github.com/lathief/RiskForge/app/platform/logging"
 )
 
 // Authenticate requires a valid bearer token and attaches the caller to the request.
@@ -33,13 +33,13 @@ func (m *Authenticate) Handle(ctx http.Context) {
 		return
 	}
 
-	userID, err := auth.Verify(ctx, token)
+	userID, issuedAt, err := auth.Verify(ctx, token)
 	if err != nil {
 		_ = responses.Unauthenticated(ctx).Abort()
 		return
 	}
 
-	principal, err := m.service.PrincipalByID(ctx.Context(), userID)
+	principal, err := m.service.PrincipalByID(ctx.Context(), userID, issuedAt)
 	switch {
 	case errors.Is(err, application.ErrUnauthenticated):
 		_ = responses.Unauthenticated(ctx).Abort()

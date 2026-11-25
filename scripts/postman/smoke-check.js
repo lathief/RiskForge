@@ -5,6 +5,7 @@
 //   GET /api/v1/decisions/{id}      -> 404 (placeholder id; proves routing and authorization)
 //   GET /api/v1/approval-requests/{id} -> 404 (placeholder id, same reason)
 //   protected POST/PUT/PATCH/DELETE -> 403 (no write permission, so nothing is changed)
+//   GET /metrics                    -> 403 (metrics:read belongs to the admin, not the auditor)
 //   POST /api/v1/auth/login         -> 401 (the saved example uses a placeholder password)
 // Any other status, or a transport error, fails the run.
 "use strict";
@@ -38,6 +39,8 @@ for (const ex of executions) {
   // GET /approval-requests/{request_id} runs with a placeholder id too: seeding opens no
   // approval request, and the read-only auditor cannot submit one (RF-019).
   else if (!isWrite && path.startsWith("/api/v1/approval-requests/")) expected = 404;
+  // GET /metrics needs metrics:read, which only the admin holds; the read-only auditor of this run is refused.
+  else if (path === "/metrics") expected = 403;
   else if (isWrite) expected = 403;
   else expected = 200;
 

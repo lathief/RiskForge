@@ -30,6 +30,11 @@ var (
 	ErrIdempotencyConflict = errors.New("idempotency key reused with a different request")
 	// ErrDecisionNotFound: no such decision, or it belongs to another client (404).
 	ErrDecisionNotFound = errors.New("decision not found")
+
+	// ErrBusy: an earlier request with the same Idempotency-Key is still running and did not finish
+	// within the lock timeout, so this duplicate stopped waiting (503 SERVICE_BUSY, RF-023). The
+	// client retries with the same key and gets the stored decision once the first one commits.
+	ErrBusy = errors.New("an identical request is still being processed")
 )
 
 // Issue is one problem with the request, with a stable code. Field is a request path such as

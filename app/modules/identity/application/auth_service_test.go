@@ -5,11 +5,12 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"goravel/app/modules/identity/domain"
+	"github.com/lathief/RiskForge/app/modules/identity/domain"
 )
 
 type fakeRepo struct {
@@ -28,6 +29,27 @@ func (f *fakeRepo) FindByUsername(_ context.Context, username string) (domain.Us
 		return domain.User{}, ErrUserNotFound
 	}
 	return u, nil
+}
+
+func (f *fakeRepo) SetTokensValidAfter(_ context.Context, userID string, cutoff time.Time) error {
+	for k, u := range f.users {
+		if u.ID == userID {
+			u.TokensValidAfter = cutoff
+			f.users[k] = u
+		}
+	}
+	return nil
+}
+
+func (f *fakeRepo) UpdatePasswordAndCutoff(_ context.Context, userID, passwordHash string, cutoff time.Time) error {
+	for k, u := range f.users {
+		if u.ID == userID {
+			u.PasswordHash = passwordHash
+			u.TokensValidAfter = cutoff
+			f.users[k] = u
+		}
+	}
+	return nil
 }
 
 func (f *fakeRepo) FindByID(_ context.Context, id string) (domain.User, error) {
@@ -142,18 +164,18 @@ func TestPrincipalByID(t *testing.T) {
 	disabled.ID, disabled.Username, disabled.Active = "u-2", "disabled", false
 	svc, repo, _ := newService(analyst, disabled)
 
-	p, err := svc.PrincipalByID(context.Background(), "u-1")
+	p, err := svc.PrincipalByID(context.Background(), "u-1", time.Time{})
 	require.NoError(t, err)
 	assert.Equal(t, "Analyst", p.Username)
 
-	_, err = svc.PrincipalByID(context.Background(), "missing")
+	_, err = svc.PrincipalByID(context.Background(), "missing", time.Time{})
 	assert.ErrorIs(t, err, ErrUnauthenticated)
 
-	_, err = svc.PrincipalByID(context.Background(), "u-2")
+	_, err = svc.PrincipalByID(context.Background(), "u-2", time.Time{})
 	assert.ErrorIs(t, err, ErrUnauthenticated, "disabled user must lose access immediately")
 
 	repo.err = errors.New("db down")
-	_, err = svc.PrincipalByID(context.Background(), "u-1")
+	_, err = svc.PrincipalByID(context.Background(), "u-1", time.Time{})
 	assert.NotErrorIs(t, err, ErrUnauthenticated)
 	assert.Error(t, err)
 }

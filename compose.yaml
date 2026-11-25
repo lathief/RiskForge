@@ -3,12 +3,15 @@
 # Keep the original Goravel scaffold and app entrypoint; do not create a second Fiber server.
 services:
   api:
-    image: ${GO_IMAGE:-golang:1.25-bookworm}
+    image: ${GO_IMAGE:-golang:1.26-bookworm}
     working_dir: /workspace
     init: true
     # Build, then exec the binary so it is PID 1's direct child and receives SIGTERM on
     # `docker compose stop` (`go run` does not forward it). lifetime.log depends on this.
-    command: ["sh", "-c", "go build -o /tmp/riskforge . && exec /tmp/riskforge"]
+    # -buildvcs=false: `go build` stamps VCS data by running git, and git refuses a .git that
+    # belongs to another user (the runner user on a GitHub runner), so the build failed there and
+    # the stack never became ready (the e2e job of the first CI runs). Nothing reads the stamp.
+    command: ["sh", "-c", "go build -buildvcs=false -o /tmp/riskforge . && exec /tmp/riskforge"]
     stop_grace_period: 15s
     environment:
       APP_NAME: RiskForge
@@ -19,6 +22,18 @@ services:
       APP_KEY: ${APP_KEY:?Run ./scripts/init-agent-env.sh first}
       JWT_SECRET: ${JWT_SECRET:?Run ./scripts/init-agent-env.sh first}
       DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-}
+      # bcrypt cost passthrough; the agent/test env sets a low cost because -race makes
+      # hashing ~10x slower and would blow the 3s request timeout on logins.
+      HASH_BCRYPT_ROUNDS: ${HASH_BCRYPT_ROUNDS:-12}
+      # Passed through so scripts/benchmark.sh and scripts/stress.sh can set them, and so an operator
+      # can set the proxy and load-shedding values; the defaults are the application defaults, so a
+      # normal `up` is unchanged.
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      LOG_FILES: ${LOG_FILES:-true}
+      LOG_HTTP_BODIES: ${LOG_HTTP_BODIES:-true}
+      HTTP_MAX_IN_FLIGHT: ${HTTP_MAX_IN_FLIGHT:-64}
+      HTTP_PROXY_HEADER: ${HTTP_PROXY_HEADER:-}
+      HTTP_TRUSTED_PROXIES: ${HTTP_TRUSTED_PROXIES:-}
       # Swagger UI at /swagger and the contract at /openapi.yaml (dev/agent only).
       DOCS_ENABLED: ${DOCS_ENABLED:-true}
       DB_CONNECTION: postgres
@@ -42,6 +57,13 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    # The only capability given back. On a Linux host the bind-mounted checkout belongs to the host
+    # user (uid 1001 on a GitHub runner), and root without DAC_OVERRIDE cannot create
+    # storage/logs in it: the structured logger then falls back to stdout and the log tests fail
+    # (the first CI run). Docker Desktop does not enforce these permissions, which is why the
+    # local runs passed. Files written there are owned by root on a Linux host.
+    cap_add:
+      - DAC_OVERRIDE
 
   db:
     image: ${POSTGRES_IMAGE:-postgres:18}

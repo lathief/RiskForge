@@ -4,15 +4,16 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/goravel/framework/contracts/http"
 	contractstesting "github.com/goravel/framework/contracts/testing/http"
 	"github.com/stretchr/testify/suite"
 
-	"goravel/app/facades"
-	"goravel/app/modules/identity/domain"
-	"goravel/database/seeders"
-	"goravel/tests"
+	"github.com/lathief/RiskForge/app/facades"
+	"github.com/lathief/RiskForge/app/modules/identity/domain"
+	"github.com/lathief/RiskForge/database/seeders"
+	"github.com/lathief/RiskForge/tests"
 )
 
 const demoPassword = "demo-password-123"
@@ -80,6 +81,61 @@ func (s *IdentityTestSuite) get(path, token string) contractstesting.Response {
 func (s *IdentityTestSuite) setActive(username string, active bool) {
 	s.Require().NoError(facades.DB().Statement(
 		"UPDATE identity.users SET active = $1 WHERE username = $2", active, username))
+}
+
+func (s *IdentityTestSuite) post(path, token, body string) contractstesting.Response {
+	req := s.request()
+	if token != "" {
+		req = req.WithToken(token)
+	}
+	resp, err := req.Post(path, strings.NewReader(body))
+	s.Require().NoError(err)
+	return resp
+}
+
+// TestSessionLifecycle covers SEC-18: logout and own-password change must end already
+// issued tokens through the session cutoff, and the token issued after must work again.
+func (s *IdentityTestSuite) TestSessionLifecycle() {
+	path := "/api/v1/auth/logout"
+	s.post(path, "", "").AssertUnauthorized()
+
+	// A fresh token works, then logout ends it: /auth/me turns 401 and a replay too.
+	token := s.login("demo_analyst", demoPassword)
+	s.get("/api/v1/auth/me", token).AssertOk()
+	s.post(path, token, "").AssertOk()
+	s.get("/api/v1/auth/me", token).AssertUnauthorized()
+
+	// Logging in again issues a token after the cutoff, which resolves again. The JWT iat
+	// claim has one-second resolution, so the new login must happen in a later second to
+	// be distinguishable from the cutoff.
+	time.Sleep(1100 * time.Millisecond)
+	fresh := s.login("demo_analyst", demoPassword)
+	s.get("/api/v1/auth/me", fresh).AssertOk()
+
+	// Own-password change: wrong current password is 422, weak new password is 422.
+	s.post("/api/v1/auth/password", fresh,
+		`{"current_password":"wrong","new_password":"`+demoPassword+`-new"}`).AssertStatus(http.StatusUnprocessableEntity)
+	s.post("/api/v1/auth/password", fresh,
+		`{"current_password":"`+demoPassword+`","new_password":"short"}`).AssertStatus(http.StatusUnprocessableEntity)
+
+	// A correct change ends the session that issued it...
+	s.post("/api/v1/auth/password", fresh,
+		`{"current_password":"`+demoPassword+`","new_password":"`+demoPassword+`-2"}`).AssertOk()
+	s.get("/api/v1/auth/me", fresh).AssertUnauthorized()
+
+	// ...and the new password is the one that works now, the old one no longer. Sleep past
+	// the one-second iat resolution so the next login lands in a later second.
+	time.Sleep(1100 * time.Millisecond)
+	s.postLogin("demo_analyst", demoPassword).AssertStatus(http.StatusUnauthorized)
+	rotated := s.login("demo_analyst", demoPassword+"-2")
+	s.get("/api/v1/auth/me", rotated).AssertOk()
+
+	// Restore the seeded password for the other tests in this suite.
+	setPassword := `UPDATE identity.users SET password_hash = $2, tokens_valid_after = 'epoch' WHERE username = $1`
+	hash, err := facades.Hash().Make(demoPassword)
+	s.Require().NoError(err)
+	s.Require().NoError(facades.DB().Statement(setPassword, "demo_analyst", hash))
+	s.login("demo_analyst", demoPassword)
 }
 
 // --- schema and seed data ---------------------------------------------------------------
@@ -323,4 +379,96 @@ func (s *IdentityTestSuite) TestSeparationOfDutiesOverHTTP() {
 	// API consumers cannot touch governance endpoints.
 	s.get(rbacPath(domain.PermPolicyRead), s.tokens["demo_loan_application"]).AssertForbidden()
 	s.get(rbacPath(domain.PermDecisionEval), s.tokens["demo_loan_application"]).AssertOk()
+}
+
+// --- user administration over HTTP (FEAT-01) ---------------------------------------------
+
+func (s *IdentityTestSuite) sendUser(method, path, token, body string) contractstesting.Response {
+	req := s.request().WithToken(token)
+	var (
+		resp contractstesting.Response
+		err  error
+	)
+	switch method {
+	case "POST":
+		resp, err = req.Post(path, strings.NewReader(body))
+	case "PATCH":
+		resp, err = req.Patch(path, strings.NewReader(body))
+	default:
+		resp, err = req.Get(path)
+	}
+	s.Require().NoError(err)
+	return resp
+}
+
+func (s *IdentityTestSuite) userIDOf(username string) string {
+	var id string
+	s.Require().NoError(facades.DB().Select(&id,
+		"SELECT id::text FROM identity.users WHERE username = $1", username))
+	return id
+}
+
+func (s *IdentityTestSuite) TestUserAdminLifecycle() {
+	admin := s.tokens["demo_admin"]
+
+	// Listing is admin-only.
+	s.sendUser("GET", "/api/v1/users", admin, "").AssertOk()
+	s.sendUser("GET", "/api/v1/users", s.tokens["demo_analyst"], "").AssertForbidden()
+	s.sendUser("GET", "/api/v1/users", "", "").AssertUnauthorized()
+
+	// Create: happy path...
+	created := s.sendUser("POST", "/api/v1/users", admin,
+		`{"username":"new_analyst_1","password":"`+demoPassword+`","roles":["RISK_ANALYST"]}`)
+	created.AssertCreated()
+	body, err := created.Json()
+	s.Require().NoError(err)
+	newID, _ := body["id"].(string)
+	s.NotEmpty(newID)
+	s.Equal(true, body["active"])
+	roles, _ := body["roles"].([]any)
+	s.Equal([]any{"RISK_ANALYST"}, roles)
+
+	// ...then duplicate username, unknown role, a scope on a non-approver, and a short password.
+	s.sendUser("POST", "/api/v1/users", admin,
+		`{"username":"new_analyst_1","password":"`+demoPassword+`","roles":["RISK_ANALYST"]}`).AssertStatus(http.StatusConflict)
+	s.sendUser("POST", "/api/v1/users", admin,
+		`{"username":"new_analyst_2","password":"`+demoPassword+`","roles":["NO_SUCH_ROLE"]}`).AssertStatus(http.StatusUnprocessableEntity)
+	s.sendUser("POST", "/api/v1/users", admin,
+		`{"username":"new_analyst_3","password":"`+demoPassword+`","roles":["RISK_ANALYST"],"approval_scopes":["RISK_LEAD"]}`).AssertStatus(http.StatusUnprocessableEntity)
+	s.sendUser("POST", "/api/v1/users", admin,
+		`{"username":"new_analyst_4","password":"short","roles":["RISK_ANALYST"]}`).AssertStatus(http.StatusUnprocessableEntity)
+
+	// Show by id; an unknown id is 404, not an error leak.
+	s.sendUser("GET", "/api/v1/users/"+newID, admin, "").AssertOk()
+	s.sendUser("GET", "/api/v1/users/00000000-0000-0000-0000-000000000000", admin, "").AssertNotFound()
+
+	// Update: deactivate, then re-activate, in audited transactions.
+	patched := s.sendUser("PATCH", "/api/v1/users/"+newID, admin, `{"active":false}`)
+	patched.AssertOk()
+	body, err = patched.Json()
+	s.Require().NoError(err)
+	s.Equal(false, body["active"])
+	s.sendUser("PATCH", "/api/v1/users/"+newID, admin, `{"active":true}`).AssertOk()
+
+	// The last active admin can neither be deactivated nor demoted.
+	adminID := s.userIDOf("demo_admin")
+	s.sendUser("PATCH", "/api/v1/users/"+adminID, admin, `{"active":false}`).AssertStatus(http.StatusConflict)
+	s.sendUser("PATCH", "/api/v1/users/"+adminID, admin, `{"roles":["RISK_ANALYST"]}`).AssertStatus(http.StatusConflict)
+
+	// An approver can carry an approval scope; reassigning it is audited.
+	s.sendUser("PATCH", "/api/v1/users/"+newID, admin,
+		`{"roles":["RISK_APPROVER"],"approval_scopes":["RISK_LEAD"]}`).AssertOk()
+
+	// The audit log holds the user events, with no password material.
+	var actions []string
+	s.Require().NoError(facades.DB().Select(&actions,
+		"SELECT action FROM audit.events WHERE aggregate_type = 'USER' AND aggregate_id = $1 ORDER BY action", newID))
+	s.Contains(actions, "USER_CREATED")
+	s.Contains(actions, "USER_UPDATED")
+	var payloads []string
+	s.Require().NoError(facades.DB().Select(&payloads,
+		"SELECT data::text FROM audit.events WHERE aggregate_type = 'USER' AND aggregate_id = $1", newID))
+	for _, p := range payloads {
+		s.NotContains(p, demoPassword)
+	}
 }

@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"goravel/app/modules/approval/application"
-	"goravel/app/modules/approval/domain"
-	"goravel/app/platform/database"
+	"github.com/lathief/RiskForge/app/modules/approval/application"
+	"github.com/lathief/RiskForge/app/modules/approval/domain"
+	"github.com/lathief/RiskForge/app/platform/database"
 )
 
 const requestColumns = `r.id::text AS id, r.policy_version_id::text AS policy_version_id, r.policy_version_number,
