@@ -70,6 +70,19 @@ func TestEventsRefuseInvalidFiltersAndListEveryProblem(t *testing.T) {
 	assert.Equal(t, EventFilter{}, r.got, "an invalid search never reaches the database")
 }
 
+func TestAnAggregateIDWithControlCharactersOrInvalidUTF8IsRefused(t *testing.T) {
+	for _, id := range []string{"A\x00B", "\xff\xfe", "line\nbreak", "tab\there"} {
+		r := &fakeReader{}
+		_, err := NewSearchService(r).Events(context.Background(), EventFilter{AggregateID: id})
+		var invalid *FilterError
+		require.True(t, errors.As(err, &invalid), "%q", id)
+		assert.Equal(t, []Issue{{Field: "aggregate_id", Issue: "invalid_format"}}, invalid.Issues, "%q", id)
+		assert.Equal(t, EventFilter{}, r.got, "%q never reaches the database", id)
+	}
+	_, err := NewSearchService(&fakeReader{}).Events(context.Background(), EventFilter{AggregateID: "KTA_DEMO:DEFAULT \u00e9"})
+	assert.NoError(t, err, "printable text, including non-ASCII letters, is accepted")
+}
+
 func TestAnEmptyRangeIsRefused(t *testing.T) {
 	at := time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC)
 	_, err := NewSearchService(&fakeReader{}).Events(context.Background(), EventFilter{From: &at, To: &at})

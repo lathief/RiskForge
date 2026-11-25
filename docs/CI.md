@@ -53,7 +53,7 @@ Before a pull request: `./scripts/ci.sh --quick` and paste its summary into the 
 
 The first `govulncheck` scan of this repository (RF-025) found 26 reachable vulnerabilities. Raising indirect dependencies within their release line (pgx, x/text, x/net, x/crypto, grpc, brotli, compress) removed 9. The other 17 are in `scripts/vuln-baseline.txt`, each with its reason:
 
-- 11 are in the Go standard library (and `x/net`, which needs Go 1.26 too). The fixes exist only in Go 1.26.x; the Go 1.25 line, which `go.mod`, the `Dockerfile`, and `compose.yaml` use (ADR 0001), has none.
+- 13 are in the Go standard library, 5 of them also in `x/net`, which needs Go 1.26 too. The fixes exist only in Go 1.26.x; the Go 1.25 line, which `go.mod`, the `Dockerfile`, and `compose.yaml` use (ADR 0001), has none.
 - 4 are in OpenTelemetry. The fixed versions change a log API that Goravel v1.18.1 uses, so the framework no longer compiles with them (tried, in `docs/BACKLOG.md` SEC-11). The telemetry exporters are not enabled.
 
 The pipeline blocks new findings and keeps these visible. Removing them is a decision (move to Go 1.26 and upgrade Goravel), not a CI task: BACKLOG SEC-11. Dependabot opens the pull requests (`.github/dependabot.yml`) and each goes through this pipeline.

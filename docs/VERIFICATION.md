@@ -1,6 +1,6 @@
 # Verification log
 
-What was actually run to accept each ticket, and the observed result. Every run used a disposable Compose project (`rf-test-*`, deleted afterwards) with a real PostgreSQL 18, and `go test -race`. This log records evidence; it is not a substitute for CI, which arrives with RF-025.
+What was actually run to accept each ticket, and the observed result. Every run used a disposable Compose project (`rf-test-*`, deleted afterwards) with a real PostgreSQL 18, and `go test -race`. This log records evidence; it is not a substitute for CI (`.github/workflows/ci.yml`, [CI.md](CI.md)). One exception is recorded where it happened: part of the M5 validation ran on the host while Docker had lost its volumes and the network was down; every gate was then run again in Compose.
 
 ## RF-001 Bootstrap (Goravel + Fiber + Compose)
 
@@ -354,10 +354,32 @@ Run on branch `feature/RF-026-developer-experience-demo` (on top of `feature/RF-
 - **`./scripts/docs-check.sh`:** ok (49 Markdown files), including `docs/DEMO.md` and the new row in `docs/SCRIPTS.md`.
 - **`./scripts/test.sh rf-test-rf026 --repeat 1`: ALL STEPS PASSED.** gofmt and `go vet` clean, `-race` on everything: 872 passed, 0 failed, 0 skipped, 25 packages ok (871 before, plus the fixture test); the concurrency tests passed once more with `-race`. `e2e.sh` and `coverage.sh` were not rerun: this ticket changes no code under `app/` and no API, so the 130 checks and the coverage figures (57.2% unit, 90.0% with integration) of RF-025 still describe the code.
 - Not covered: the new Mermaid diagram was not rendered (the `mermaid-cli` image could not be pulled); `docs/DEMO.md` is not compared to the script output by a tool; the demo is not a CI gate.
+## M5 milestone validation (`feature/M5-hardening`)
+Run on 24 and 25 November 2026. The first two items ran in Compose; everything after them ran on the host, because Docker lost all its volumes and most images during the second stress run and the network was down (the cause was outside the scripts: the only `down -v` they ran were on `rf-test-stress` and `rf-test-stress2`). Host: Go 1.25.0 on Windows with the local module cache (`GOPROXY=off`), PostgreSQL 18 in a container on 127.0.0.1:55432, the API built with `go build` and started with `APP_ENV=local`, bcrypt cost 12 for the API and 4 for the tests.
+- **Before any change, `./scripts/test.sh rf-test-m5val --repeat 2`: ALL STEPS PASSED** (872 tests, `-race`, concurrency tests twice).
+- **First `./scripts/stress.sh` (Compose): every check passed, and it found the overload cliff**: from 128 workers all requests were `408`; nothing lost (817 stored, 773 seen), nothing duplicated, one decision for one key, recovery after a 4 s database pause without `500`, memory +2 MiB over a 60 s soak, login storm 2227 of 2239 refused with `429`, fairness kept. Details in [STRESS.md](STRESS.md).
+- **Semantic and security review** of `main..RF-026`: 2 Medium and 12 Low findings, no High; fixes and open items in [M5_NOTES.md](M5_NOTES.md).
+- **After the fixes, `go vet ./...`: clean. `go test -race -count=1 -timeout 28m ./...`: 880 passed, 0 failed, 0 skipped** (872 before, plus the in-flight gate, client address, and proxy check tests). After the `aggregate_id` fix two more full runs each had two or three `408` failures in different tests (`TestSubmitRacingWithAMatrixReplace...`, `TestAuthorization`, `TestSnapshotDoesNotChangeWhenTheDictionaryDoes`); each passed alone (the first five times in a row). The cause was REL-07: `storage/logs` had grown to 872 MB during the validation, and the synchronous appends to those files pushed single requests past 3 s under `-race`. With the files moved to `storage/logs-archive-20261125/` (git-ignored, nothing deleted) **the final full run: 881 passed, 0 failed, 0 skipped.**
+- **`API=http://127.0.0.1:3999 ./scripts/e2e.sh --no-smoke`: 130 checks passed** (M1 to M5). The Postman smoke was skipped: its tools could not be installed offline.
+- **`./scripts/demo.sh` on a fresh database: exit 0**, the twelve steps as in [DEMO.md](DEMO.md).
+- **Stress phases with load shedding (host)**: ramp 16 to 512 workers without `408` or `500`, p99 of the accepted requests under 1.5 s, the rest `503`; one key stored once; recovery after a 4 s pause; 60 s soak, 13,577 decisions, +2.5 MB; login storm 13,662 of 13,674 refused; fairness kept. Not comparable in absolute numbers with the Compose run.
+- **`./scripts/security-check.sh` (host API): 124 passed, 0 failed.** The first run found the `aggregate_id` `500` (fixed and re-run). `TRACE` checked with `curl`: `404`.
+- **Contract tests** (`TestContractParityTestSuite`, `TestDocsTestSuite`) pass on OpenAPI 0.20.3.
+- **Coverage (host)**: unit 57.7%, unit plus integration 90.1% ([COVERAGE.md](COVERAGE.md)).
+- **Documentation audit**: about 60 statements that disagreed with the code were corrected; `node scripts/check-docs.js` passes (see the last line).
+- **Final run in Compose, after the network came back** (the module volumes of the projects were filled from the host module cache, because the container got `connection refused` from `proxy.golang.org`):
+  - `./scripts/generate-postman.sh`: 46 requests, then `--check`: up to date (the collection changed for 0.20.3).
+  - `./scripts/ci.sh --only docs,contract`: **PASS** (docs 18 s, contract 548 s: Redocly lint, byte parity, contract tests).
+  - `./scripts/ci.sh --only migrations,image`: **PASS** (374 s, 494 s).
+  - `./scripts/ci.sh --only vuln`: **PASS**, 17 reachable findings, all in the baseline, no new one. The first two attempts failed before scanning because `go install` of the scanner could not reach the proxy; `vuln-check.sh` now reuses the cached scanner when it is the pinned version.
+  - `./scripts/test.sh rf-test-m5final --repeat 1`: **ALL STEPS PASSED**, 881 passed, 0 failed, 0 skipped, 25 packages.
+  - `./scripts/e2e.sh --project rf-live-m5e2e`: **130 checks passed, Postman smoke 46/46.** Two earlier attempts failed at the first check with `000`, because the shell had `MSYS_NO_PATHCONV=1` exported and Git Bash's curl could not write to the `/tmp` path; not a defect of the API or the script.
+  - `./scripts/stress.sh`: **ALL STRESS CHECKS PASSED** (numbers in [STRESS.md](STRESS.md)).
+  - `./scripts/security-check.sh --project rf-live-m5sec`: **124 passed, 0 failed.**
+  - `./scripts/demo.sh --project rf-live-demo`: exit 0.
+- Not run: `benchmark.sh` (the baseline phase of `stress.sh` measured the evaluate route on the same stack), the workflow on GitHub, Trivy.
 ## Not verified yet
 
 | Item | Why | Planned in |
 |---|---|---|
-| Dependency vulnerability scan (`govulncheck`) | `vuln.go.dev` is unreachable from the development machine. | RF-025 (CI) |
-| Automated CI on every pull request | Not built yet. | RF-025 |
-| Load and latency baseline | Correctness first; no benchmark claims without measurements. | RF-024 |
+| The workflow on GitHub; the Trivy image scan | Written and checked with actionlint, never run on GitHub; the Trivy database could not be downloaded (TST-08). | The first pull request |

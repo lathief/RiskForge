@@ -629,7 +629,7 @@
               "_postman_previewlanguage": "json"
             },
             {
-              "name": "The caller used up the rate limit of this route (token bucket per user, or per client\naddress for login). Retry after the number of seconds in `Retry-After`. The limits are\nset in `config/ratelimit.go` (`RATE_LIMIT_*`).",
+              "name": "The caller used up the rate limit of this route (token bucket per user, or per client\naddress for login; an IPv6 address counts as its /64 prefix). Retry after the number of\nseconds in `Retry-After`. The limits are set in `config/ratelimit.go` (`RATE_LIMIT_*`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -758,7 +758,7 @@
               "_postman_previewlanguage": "json"
             },
             {
-              "name": "Password hashing capacity is saturated. Retry after the given number of seconds.",
+              "name": "The process is saturated: the password hashing capacity (login), or the limit of requests\nin flight (`HTTP_MAX_IN_FLIGHT`, any route except `/health/*`). Retry after the given\nnumber of seconds.",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -9633,7 +9633,7 @@
               "_postman_previewlanguage": "text"
             },
             {
-              "name": "`POLICY_VERSION_FROZEN`: the version is not a DRAFT (also a second or concurrent submit).\n`APPROVAL_WORKFLOW_NOT_CONFIGURED`: the product and policy scope have no approval workflow.",
+              "name": "`POLICY_VERSION_FROZEN`: the version is not a DRAFT (also a second or concurrent submit).\n`APPROVAL_WORKFLOW_NOT_CONFIGURED`: the product and policy scope have no approval workflow.\n`APPROVAL_STATE_CONFLICT`: an approval request already exists for the version although it is a DRAFT\n(the database refused the second request); logged as an integrity alert, nothing was recorded.",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -16154,7 +16154,7 @@
               "_postman_previewlanguage": "text"
             },
             {
-              "name": "The caller used up the rate limit of this route (token bucket per user, or per client\naddress for login). Retry after the number of seconds in `Retry-After`. The limits are\nset in `config/ratelimit.go` (`RATE_LIMIT_*`).",
+              "name": "The caller used up the rate limit of this route (token bucket per user, or per client\naddress for login; an IPv6 address counts as its /64 prefix). Retry after the number of\nseconds in `Retry-After`. The limits are set in `config/ratelimit.go` (`RATE_LIMIT_*`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -16820,7 +16820,7 @@
               "_postman_previewlanguage": "json"
             },
             {
-              "name": "The caller used up the rate limit of this route (token bucket per user, or per client\naddress for login). Retry after the number of seconds in `Retry-After`. The limits are\nset in `config/ratelimit.go` (`RATE_LIMIT_*`).",
+              "name": "The caller used up the rate limit of this route (token bucket per user, or per client\naddress for login; an IPv6 address counts as its /64 prefix). Retry after the number of\nseconds in `Retry-After`. The limits are set in `config/ratelimit.go` (`RATE_LIMIT_*`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -17666,7 +17666,7 @@
               "_postman_previewlanguage": "json"
             },
             {
-              "name": "The caller used up the rate limit of this route (token bucket per user, or per client\naddress for login). Retry after the number of seconds in `Retry-After`. The limits are\nset in `config/ratelimit.go` (`RATE_LIMIT_*`).",
+              "name": "The caller used up the rate limit of this route (token bucket per user, or per client\naddress for login; an IPv6 address counts as its /64 prefix). Retry after the number of\nseconds in `Retry-After`. The limits are set in `config/ratelimit.go` (`RATE_LIMIT_*`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -17825,6 +17825,92 @@
                 }
               ],
               "body": "{\n  \"error\": {\n    \"code\": \"EVALUATION_ERROR\",\n    \"message\": \"the application could not be evaluated; no decision was made\"\n  },\n  \"request_id\": \"0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "name": "Another request with the same `Idempotency-Key` is still being processed and did not\nfinish within the lock timeout (2 seconds). Nothing was evaluated or stored by this call.\nRetry with the same key and the same body: once the first request has committed, the\nretry returns its stored decision with `Idempotent-Replayed: true`.",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "api",
+                    "v1",
+                    "decisions",
+                    "evaluate"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": [],
+                  "raw": "{{baseUrl}}/api/v1/decisions/evaluate"
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": {
+                      "content": "(Required) A key the caller makes unique per application request, 1 to 128 letters, digits, dot,\nunderscore, colon, or hyphen, starting with a letter or digit. Reuse it only to\nretry the same request.\n",
+                      "type": "text/plain"
+                    },
+                    "key": "Idempotency-Key",
+                    "value": "loan-application-demo-001-v1"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "description": {
+                      "content": "Added as a part of security scheme: bearer",
+                      "type": "text/plain"
+                    },
+                    "key": "Authorization",
+                    "value": "Bearer <token>"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"application_id\": \"LOAN-APP-DEMO-0001\",\n  \"product_code\": \"KTA_DEMO\",\n  \"applicant\": {\n    \"age_years\": 29,\n    \"monthly_income\": \"12000000.00\",\n    \"existing_installment\": \"2500000.00\",\n    \"employment_tenure_months\": 36,\n    \"slik_max_kol\": 1,\n    \"is_blacklisted\": false\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Service Unavailable",
+              "code": 503,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "X-Request-ID",
+                  "value": ""
+                },
+                {
+                  "disabled": true,
+                  "description": {
+                    "content": "",
+                    "type": "text/plain"
+                  },
+                  "key": "Retry-After",
+                  "value": "1"
+                }
+              ],
+              "body": "{\n  \"error\": {\n    \"code\": \"SERVICE_BUSY\",\n    \"message\": \"the service is busy, retry shortly\"\n  },\n  \"request_id\": \"6f5e4d3c2b1a0f9e8d7c6b5a49382716\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -18271,81 +18357,6 @@
                 }
               ],
               "body": "{\n  \"error\": {\n    \"code\": \"INTERNAL_ERROR\",\n    \"message\": \"an unexpected error occurred\"\n  },\n  \"request_id\": \"5e4d3c2b1a0f9e8d7c6b5a493827160f\"\n}",
-              "cookie": [],
-              "_postman_previewlanguage": "json"
-            },
-            {
-              "name": "Another request with the same `Idempotency-Key` is still being processed and did not\nfinish within the lock timeout (2 seconds). Nothing was evaluated or stored by this call.\nRetry with the same key and the same body: once the first request has committed, the\nretry returns its stored decision with `Idempotent-Replayed: true`.",
-              "originalRequest": {
-                "url": {
-                  "path": [
-                    "api",
-                    "v1",
-                    "decisions",
-                    ":decision_id"
-                  ],
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "query": [],
-                  "variable": [
-                    {
-                      "disabled": false,
-                      "description": {
-                        "content": "(Required) ",
-                        "type": "text/plain"
-                      },
-                      "type": "any",
-                      "value": "{{decisionId}}",
-                      "key": "decision_id"
-                    }
-                  ],
-                  "raw": "{{baseUrl}}/api/v1/decisions/:decision_id"
-                },
-                "header": [
-                  {
-                    "key": "Accept",
-                    "value": "application/json"
-                  },
-                  {
-                    "description": {
-                      "content": "Added as a part of security scheme: bearer",
-                      "type": "text/plain"
-                    },
-                    "key": "Authorization",
-                    "value": "Bearer <token>"
-                  }
-                ],
-                "method": "GET",
-                "body": {}
-              },
-              "status": "Service Unavailable",
-              "code": 503,
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                },
-                {
-                  "disabled": true,
-                  "description": {
-                    "content": "",
-                    "type": "text/plain"
-                  },
-                  "key": "X-Request-ID",
-                  "value": ""
-                },
-                {
-                  "disabled": true,
-                  "description": {
-                    "content": "",
-                    "type": "text/plain"
-                  },
-                  "key": "Retry-After",
-                  "value": "1"
-                }
-              ],
-              "body": "{\n  \"error\": {\n    \"code\": \"SERVICE_BUSY\",\n    \"message\": \"the service is busy, retry shortly\"\n  },\n  \"request_id\": \"6f5e4d3c2b1a0f9e8d7c6b5a49382716\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -18971,7 +18982,7 @@
               "_postman_previewlanguage": "json"
             },
             {
-              "name": "The caller used up the rate limit of this route (token bucket per user, or per client\naddress for login). Retry after the number of seconds in `Retry-After`. The limits are\nset in `config/ratelimit.go` (`RATE_LIMIT_*`).",
+              "name": "The caller used up the rate limit of this route (token bucket per user, or per client\naddress for login; an IPv6 address counts as its /64 prefix). Retry after the number of\nseconds in `Retry-After`. The limits are set in `config/ratelimit.go` (`RATE_LIMIT_*`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -24195,7 +24206,7 @@
               "_postman_previewlanguage": "text"
             },
             {
-              "name": "The caller used up the rate limit of this route (token bucket per user, or per client\naddress for login). Retry after the number of seconds in `Retry-After`. The limits are\nset in `config/ratelimit.go` (`RATE_LIMIT_*`).",
+              "name": "The caller used up the rate limit of this route (token bucket per user, or per client\naddress for login; an IPv6 address counts as its /64 prefix). Retry after the number of\nseconds in `Retry-After`. The limits are set in `config/ratelimit.go` (`RATE_LIMIT_*`).",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -24691,7 +24702,7 @@
                 {
                   "disabled": true,
                   "description": {
-                    "content": "Only events about the entity with this id.",
+                    "content": "Only events about the entity with this id. Printable text only; a control character (such as NUL) or invalid UTF-8 is `invalid_format`.",
                     "type": "text/plain"
                   },
                   "key": "aggregate_id",
@@ -24709,7 +24720,7 @@
                 {
                   "disabled": true,
                   "description": {
-                    "content": "Only events at or after this time.",
+                    "content": "Only events at or after this time. RFC 3339; URL-encode a `+` offset as `%2B` (`2026-11-21T08:00:00%2B07:00`), because an unencoded `+` reads as a space and answers 422.",
                     "type": "text/plain"
                   },
                   "key": "from",
@@ -24718,7 +24729,7 @@
                 {
                   "disabled": true,
                   "description": {
-                    "content": "Only events before this time. Must be after `from`.",
+                    "content": "Only events before this time. Must be after `from`. RFC 3339; URL-encode a `+` offset as `%2B`.",
                     "type": "text/plain"
                   },
                   "key": "to",
@@ -24810,7 +24821,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only events about the entity with this id.",
+                        "content": "Only events about the entity with this id. Printable text only; a control character (such as NUL) or invalid UTF-8 is `invalid_format`.",
                         "type": "text/plain"
                       },
                       "key": "aggregate_id",
@@ -24828,7 +24839,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only events at or after this time.",
+                        "content": "Only events at or after this time. RFC 3339; URL-encode a `+` offset as `%2B` (`2026-11-21T08:00:00%2B07:00`), because an unencoded `+` reads as a space and answers 422.",
                         "type": "text/plain"
                       },
                       "key": "from",
@@ -24837,7 +24848,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only events before this time. Must be after `from`.",
+                        "content": "Only events before this time. Must be after `from`. RFC 3339; URL-encode a `+` offset as `%2B`.",
                         "type": "text/plain"
                       },
                       "key": "to",
@@ -24947,7 +24958,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only events about the entity with this id.",
+                        "content": "Only events about the entity with this id. Printable text only; a control character (such as NUL) or invalid UTF-8 is `invalid_format`.",
                         "type": "text/plain"
                       },
                       "key": "aggregate_id",
@@ -24965,7 +24976,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only events at or after this time.",
+                        "content": "Only events at or after this time. RFC 3339; URL-encode a `+` offset as `%2B` (`2026-11-21T08:00:00%2B07:00`), because an unencoded `+` reads as a space and answers 422.",
                         "type": "text/plain"
                       },
                       "key": "from",
@@ -24974,7 +24985,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only events before this time. Must be after `from`.",
+                        "content": "Only events before this time. Must be after `from`. RFC 3339; URL-encode a `+` offset as `%2B`.",
                         "type": "text/plain"
                       },
                       "key": "to",
@@ -25084,7 +25095,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only events about the entity with this id.",
+                        "content": "Only events about the entity with this id. Printable text only; a control character (such as NUL) or invalid UTF-8 is `invalid_format`.",
                         "type": "text/plain"
                       },
                       "key": "aggregate_id",
@@ -25102,7 +25113,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only events at or after this time.",
+                        "content": "Only events at or after this time. RFC 3339; URL-encode a `+` offset as `%2B` (`2026-11-21T08:00:00%2B07:00`), because an unencoded `+` reads as a space and answers 422.",
                         "type": "text/plain"
                       },
                       "key": "from",
@@ -25111,7 +25122,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only events before this time. Must be after `from`.",
+                        "content": "Only events before this time. Must be after `from`. RFC 3339; URL-encode a `+` offset as `%2B`.",
                         "type": "text/plain"
                       },
                       "key": "to",
@@ -25221,7 +25232,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only events about the entity with this id.",
+                        "content": "Only events about the entity with this id. Printable text only; a control character (such as NUL) or invalid UTF-8 is `invalid_format`.",
                         "type": "text/plain"
                       },
                       "key": "aggregate_id",
@@ -25239,7 +25250,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only events at or after this time.",
+                        "content": "Only events at or after this time. RFC 3339; URL-encode a `+` offset as `%2B` (`2026-11-21T08:00:00%2B07:00`), because an unencoded `+` reads as a space and answers 422.",
                         "type": "text/plain"
                       },
                       "key": "from",
@@ -25248,7 +25259,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only events before this time. Must be after `from`.",
+                        "content": "Only events before this time. Must be after `from`. RFC 3339; URL-encode a `+` offset as `%2B`.",
                         "type": "text/plain"
                       },
                       "key": "to",
@@ -25349,7 +25360,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only events about the entity with this id.",
+                        "content": "Only events about the entity with this id. Printable text only; a control character (such as NUL) or invalid UTF-8 is `invalid_format`.",
                         "type": "text/plain"
                       },
                       "key": "aggregate_id",
@@ -25367,7 +25378,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only events at or after this time.",
+                        "content": "Only events at or after this time. RFC 3339; URL-encode a `+` offset as `%2B` (`2026-11-21T08:00:00%2B07:00`), because an unencoded `+` reads as a space and answers 422.",
                         "type": "text/plain"
                       },
                       "key": "from",
@@ -25376,7 +25387,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only events before this time. Must be after `from`.",
+                        "content": "Only events before this time. Must be after `from`. RFC 3339; URL-encode a `+` offset as `%2B`.",
                         "type": "text/plain"
                       },
                       "key": "to",
@@ -25486,7 +25497,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only events about the entity with this id.",
+                        "content": "Only events about the entity with this id. Printable text only; a control character (such as NUL) or invalid UTF-8 is `invalid_format`.",
                         "type": "text/plain"
                       },
                       "key": "aggregate_id",
@@ -25504,7 +25515,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only events at or after this time.",
+                        "content": "Only events at or after this time. RFC 3339; URL-encode a `+` offset as `%2B` (`2026-11-21T08:00:00%2B07:00`), because an unencoded `+` reads as a space and answers 422.",
                         "type": "text/plain"
                       },
                       "key": "from",
@@ -25513,7 +25524,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only events before this time. Must be after `from`.",
+                        "content": "Only events before this time. Must be after `from`. RFC 3339; URL-encode a `+` offset as `%2B`.",
                         "type": "text/plain"
                       },
                       "key": "to",
@@ -25652,7 +25663,7 @@
                 {
                   "disabled": true,
                   "description": {
-                    "content": "Only decisions at or after this time.",
+                    "content": "Only decisions at or after this time. RFC 3339; URL-encode a `+` offset as `%2B`.",
                     "type": "text/plain"
                   },
                   "key": "from",
@@ -25661,7 +25672,7 @@
                 {
                   "disabled": true,
                   "description": {
-                    "content": "Only decisions before this time. Must be after `from`.",
+                    "content": "Only decisions before this time. Must be after `from`. RFC 3339; URL-encode a `+` offset as `%2B`.",
                     "type": "text/plain"
                   },
                   "key": "to",
@@ -25762,7 +25773,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only decisions at or after this time.",
+                        "content": "Only decisions at or after this time. RFC 3339; URL-encode a `+` offset as `%2B`.",
                         "type": "text/plain"
                       },
                       "key": "from",
@@ -25771,7 +25782,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only decisions before this time. Must be after `from`.",
+                        "content": "Only decisions before this time. Must be after `from`. RFC 3339; URL-encode a `+` offset as `%2B`.",
                         "type": "text/plain"
                       },
                       "key": "to",
@@ -25890,7 +25901,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only decisions at or after this time.",
+                        "content": "Only decisions at or after this time. RFC 3339; URL-encode a `+` offset as `%2B`.",
                         "type": "text/plain"
                       },
                       "key": "from",
@@ -25899,7 +25910,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only decisions before this time. Must be after `from`.",
+                        "content": "Only decisions before this time. Must be after `from`. RFC 3339; URL-encode a `+` offset as `%2B`.",
                         "type": "text/plain"
                       },
                       "key": "to",
@@ -26018,7 +26029,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only decisions at or after this time.",
+                        "content": "Only decisions at or after this time. RFC 3339; URL-encode a `+` offset as `%2B`.",
                         "type": "text/plain"
                       },
                       "key": "from",
@@ -26027,7 +26038,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only decisions before this time. Must be after `from`.",
+                        "content": "Only decisions before this time. Must be after `from`. RFC 3339; URL-encode a `+` offset as `%2B`.",
                         "type": "text/plain"
                       },
                       "key": "to",
@@ -26146,7 +26157,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only decisions at or after this time.",
+                        "content": "Only decisions at or after this time. RFC 3339; URL-encode a `+` offset as `%2B`.",
                         "type": "text/plain"
                       },
                       "key": "from",
@@ -26155,7 +26166,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only decisions before this time. Must be after `from`.",
+                        "content": "Only decisions before this time. Must be after `from`. RFC 3339; URL-encode a `+` offset as `%2B`.",
                         "type": "text/plain"
                       },
                       "key": "to",
@@ -26265,7 +26276,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only decisions at or after this time.",
+                        "content": "Only decisions at or after this time. RFC 3339; URL-encode a `+` offset as `%2B`.",
                         "type": "text/plain"
                       },
                       "key": "from",
@@ -26274,7 +26285,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only decisions before this time. Must be after `from`.",
+                        "content": "Only decisions before this time. Must be after `from`. RFC 3339; URL-encode a `+` offset as `%2B`.",
                         "type": "text/plain"
                       },
                       "key": "to",
@@ -26393,7 +26404,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only decisions at or after this time.",
+                        "content": "Only decisions at or after this time. RFC 3339; URL-encode a `+` offset as `%2B`.",
                         "type": "text/plain"
                       },
                       "key": "from",
@@ -26402,7 +26413,7 @@
                     {
                       "disabled": true,
                       "description": {
-                        "content": "Only decisions before this time. Must be after `from`.",
+                        "content": "Only decisions before this time. Must be after `from`. RFC 3339; URL-encode a `+` offset as `%2B`.",
                         "type": "text/plain"
                       },
                       "key": "to",
@@ -26499,7 +26510,7 @@
     "name": "RiskForge API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": {
-      "content": "Contract for the endpoints implemented so far (RF-001 to RF-023, plus M1 hardening).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; when `x-alternative-permissions` is also present, holding\n  any one of those permissions grants access too. The role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Rate limits (RF-023): login per client address, `POST /decisions/evaluate` per caller, and\n  `simulate`, `validate`, `diff`, and `review` per caller. A refused request is `429 RATE_LIMITED`\n  with `Retry-After`. Reads and the other writes have no limit besides the 3 second timeout.\n- Every answer produced by the application carries `Cache-Control: no-store`,\n  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and a\n  `Content-Security-Policy` that allows nothing. `408` and `413` come from the driver and do not.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
+      "content": "Contract for the endpoints implemented so far (RF-001 to RF-026, plus M1 hardening and the M5 validation).\n\n- All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.\n- Authorization is permission-based. Each operation lists the required permission\n  in `x-required-permission`; when `x-alternative-permissions` is also present, holding\n  any one of those permissions grants access too. The role-to-permission matrix lives in\n  `app/modules/identity/domain/permission.go`.\n- Every response produced by the application carries an `X-Request-ID` header, and JSON\n  error bodies repeat it as `request_id`. `408` and `413` are written by the HTTP driver\n  and may not carry it.\n- Semantic validation errors use HTTP 422 consistently.\n- Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.\n- Rate limits (RF-023): login per client address, `POST /decisions/evaluate` per caller, and\n  `simulate`, `validate`, `diff`, and `review` per caller. A refused request is `429 RATE_LIMITED`\n  with `Retry-After`; an IPv6 client address counts as its /64 prefix. Reads and the other writes\n  have no rate limit.\n- Load shedding (M5 validation): every route except `/health/*` answers `503 SERVICE_BUSY` with\n  `Retry-After: 1` when the process already handles `HTTP_MAX_IN_FLIGHT` requests (default 64;\n  0 switches the limit off). Retry after the given time.\n- Every answer produced by the application carries `Cache-Control: no-store`,\n  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and a\n  `Content-Security-Policy` that allows nothing. `408` and `413` come from the driver and do not.\n- Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,\n  `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.\n  They never affect authorization; `X-Request-User` is informational only.\n- `408 Request Timeout` and `413 Payload Too Large` are written by the HTTP driver, so\n  their body is plain text, not the JSON error envelope. A 408 means the client stopped\n  waiting; the handler may still finish server-side, but its database work uses the\n  request deadline and is cancelled.\n  Unmatched routes (any method) return a JSON `404 ROUTE_NOT_FOUND`.\n",
       "type": "text/plain"
     },
     "_postman_id": "4b6e2f0a-9c3d-4e51-8a7b-1f2e3d4c5b6a"

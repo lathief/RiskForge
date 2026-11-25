@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.20.2
+  version: 0.20.3
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
-    Contract for the endpoints implemented so far (RF-001 to RF-023, plus M1 hardening).
+    Contract for the endpoints implemented so far (RF-001 to RF-026, plus M1 hardening and the M5 validation).
 
     - All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.
     - Authorization is permission-based. Each operation lists the required permission
@@ -18,7 +18,11 @@ info:
     - Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.
     - Rate limits (RF-023): login per client address, `POST /decisions/evaluate` per caller, and
       `simulate`, `validate`, `diff`, and `review` per caller. A refused request is `429 RATE_LIMITED`
-      with `Retry-After`. Reads and the other writes have no limit besides the 3 second timeout.
+      with `Retry-After`; an IPv6 client address counts as its /64 prefix. Reads and the other writes
+      have no rate limit.
+    - Load shedding (M5 validation): every route except `/health/*` answers `503 SERVICE_BUSY` with
+      `Retry-After: 1` when the process already handles `HTTP_MAX_IN_FLIGHT` requests (default 64;
+      0 switches the limit off). Retry after the given time.
     - Every answer produced by the application carries `Cache-Control: no-store`,
       `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and a
       `Content-Security-Policy` that allows nothing. `408` and `413` come from the driver and do not.
@@ -2028,6 +2032,7 @@ paths:
               example:
                 error: { code: EVALUATION_ERROR, message: "the application could not be evaluated; no decision was made" }
                 request_id: 0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a
+        "503": { $ref: "#/components/responses/DuplicateInFlight" }
   /api/v1/decisions/{decision_id}:
     parameters:
       - name: decision_id
@@ -2068,7 +2073,6 @@ paths:
                 request_id: 2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e
         "408": { $ref: "#/components/responses/RequestTimeout" }
         "500": { $ref: "#/components/responses/InternalError" }
-        "503": { $ref: "#/components/responses/DuplicateInFlight" }
   /api/v1/audit/events:
     get:
       tags: [Audit]
@@ -2106,7 +2110,7 @@ paths:
           schema: { type: string, pattern: "^[A-Z][A-Z0-9_]{2,63}$", example: APPROVAL_REQUEST }
         - name: aggregate_id
           in: query
-          description: Only events about the entity with this id.
+          description: Only events about the entity with this id. Printable text only; a control character (such as NUL) or invalid UTF-8 is `invalid_format`.
           schema: { type: string, maxLength: 64, example: 4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a }
         - name: actor_id
           in: query
@@ -4354,7 +4358,10 @@ components:
             error: { code: INTERNAL_ERROR, message: an unexpected error occurred }
             request_id: 5e4d3c2b1a0f9e8d7c6b5a493827160f
     ServiceBusy:
-      description: Password hashing capacity is saturated. Retry after the given number of seconds.
+      description: |
+        The process is saturated: the password hashing capacity (login), or the limit of requests
+        in flight (`HTTP_MAX_IN_FLIGHT`, any route except `/health/*`). Retry after the given
+        number of seconds.
       headers:
         X-Request-ID: { $ref: "#/components/headers/XRequestID" }
         Retry-After:
@@ -4369,8 +4376,8 @@ components:
     RateLimited:
       description: |
         The caller used up the rate limit of this route (token bucket per user, or per client
-        address for login). Retry after the number of seconds in `Retry-After`. The limits are
-        set in `config/ratelimit.go` (`RATE_LIMIT_*`).
+        address for login; an IPv6 address counts as its /64 prefix). Retry after the number of
+        seconds in `Retry-After`. The limits are set in `config/ratelimit.go` (`RATE_LIMIT_*`).
       headers:
         X-Request-ID: { $ref: "#/components/headers/XRequestID" }
         Retry-After:

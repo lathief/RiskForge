@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"regexp"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"goravel/app/platform/logging"
 )
@@ -25,6 +27,19 @@ const (
 )
 
 var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// printable is true for valid UTF-8 without control characters.
+func printable(s string) bool {
+	if !utf8.ValidString(s) {
+		return false
+	}
+	for _, r := range s {
+		if unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
+}
 
 // Issue is one problem with a search parameter.
 type Issue struct {
@@ -100,6 +115,9 @@ func (f EventFilter) Validate() error {
 	}
 	if len(f.AggregateID) > MaxAggregateIDLength {
 		add("aggregate_id", "too_long")
+	} else if !printable(f.AggregateID) {
+		// PostgreSQL refuses a NUL byte or invalid UTF-8 in a text parameter, which was a 500.
+		add("aggregate_id", "invalid_format")
 	}
 	if f.ActorID != "" && !uuidPattern.MatchString(f.ActorID) {
 		add("actor_id", "invalid_format")

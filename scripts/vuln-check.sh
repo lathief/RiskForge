@@ -43,7 +43,9 @@ echo "== govulncheck $GOVULNCHECK_VERSION on the Go code =="
 # tree; the GOPATH volume caches modules and the tool between runs.
 docker volume create riskforge-govuln >/dev/null
 if ! docker run --rm -v "${root}:/src:ro" -v riskforge-govuln:/go "$GO_IMAGE" sh -euc "
-    go install golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION} >/dev/null 2>&1
+    # Install the pinned scanner only when the cached binary is another version (one network call less).
+    go version -m /go/bin/govulncheck 2>/dev/null | grep -q \"mod.golang.org/x/vuln.${GOVULNCHECK_VERSION}\" ||
+      go install golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION} >/dev/null 2>&1
     rm -rf /tmp/w && mkdir /tmp/w && cd /src && tar cf - --exclude=./.git --exclude=./storage --exclude=./api/postman . | (cd /tmp/w && tar xf -)
     cd /tmp/w && go version && /go/bin/govulncheck ./... || test \$? -eq 3
   " >"$TMP/scan.txt" 2>&1; then

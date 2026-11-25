@@ -9,9 +9,10 @@
 # RF-025 removed 9 by raising indirect dependencies within their line (go.mod: pgx 5.9.2, x/text
 # 0.41.0, x/net 0.58.0, x/crypto 0.55.0, grpc 1.83.2, brotli 1.2.7, compress 1.20.2); the build, vet,
 # and the whole test suite pass with them. The 17 below cannot be removed without a decision:
-#   A. standard library (11): the fixes exist only in Go 1.26.x, and the Go 1.25 line has none
+#   A. standard library only (8): the fixes exist only in Go 1.26.x, and the Go 1.25 line has none
 #      (ADR 0001 pins Go 1.25). Needs: move go.mod, the Dockerfile, and compose to Go 1.26 (ADR).
-#   B. golang.org/x/net (6603, 6610, 6611, 6612, 6617): fixed in v0.60.0, which requires Go 1.26.
+#   B. golang.org/x/net and the standard library (5: 6603, 6610, 6611, 6612, 6617): fixed in x/net
+#      v0.60.0 and Go 1.26.x, both of which require Go 1.26.
 #   C. OpenTelemetry (6505, 6508, 6615, 6974): fixed in otel 1.45 to 1.47 and log 0.21, but the
 #      log API changed and Goravel v1.18.1 (telemetry package) no longer compiles with it. Needs a
 #      Goravel upgrade. RiskForge does not enable the telemetry exporters (config/telemetry.go).

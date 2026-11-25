@@ -1,10 +1,12 @@
 # RiskForge
 
+Bahasa Indonesia: [README.id.md](README.id.md).
+
 **A credit decision platform backend in Go**: risk teams version, test, and approve credit policies (Risk Acceptance Criteria, scorecards, decision matrices), and a Loan Application system asks the API for an auditable `APPROVE` / `REFER` / `REJECT`.
 
 Built as a **modular monolith** on Goravel v1.18 with the official Fiber HTTP driver and PostgreSQL 18, developed ticket by ticket with tests, ADRs, and verification evidence for every change. All data is synthetic.
 
-> **Status:** Milestones 1 to 4 are merged to `main`: foundation, identity and RBAC, product catalog, policy configuration, the decision engine, and governance (simulator, multi-level approval, atomic publishing, policy diff and review). Milestone 5 (hardening) is implemented on stacked ticket branches that are not merged yet: audit search (RF-022), metrics, rate limits and security headers (RF-023), golden tests, an end-to-end script and a performance baseline (RF-024), a CI pipeline whose gates also run locally (RF-025), and this demo and documentation pass (RF-026). The known limits of each milestone are in [M2_NOTES.md](docs/M2_NOTES.md), [M3_NOTES.md](docs/M3_NOTES.md), [M4_NOTES.md](docs/M4_NOTES.md) and [M5_NOTES.md](docs/M5_NOTES.md); open findings are in [BACKLOG.md](docs/BACKLOG.md). See [Roadmap](#roadmap).
+> **Status:** Milestones 1 to 4 are merged to `main`: foundation, identity and RBAC, product catalog, policy configuration, the decision engine, and governance (simulator, multi-level approval, atomic publishing, policy diff and review). Milestone 5 (hardening) is implemented and collected on `feature/M5-hardening`, not merged yet: audit search (RF-022), metrics, rate limits and security headers (RF-023), golden tests, an end-to-end script and a performance baseline (RF-024), a CI pipeline whose gates also run locally (RF-025), a demo and documentation pass (RF-026), and the milestone validation (review fixes, load shedding, stress and security tests). The known limits of each milestone are in [M2_NOTES.md](docs/M2_NOTES.md), [M3_NOTES.md](docs/M3_NOTES.md), [M4_NOTES.md](docs/M4_NOTES.md) and [M5_NOTES.md](docs/M5_NOTES.md); open findings are in [BACKLOG.md](docs/BACKLOG.md). See [Roadmap](#roadmap).
 
 ## What this project demonstrates
 
@@ -13,8 +15,9 @@ Built as a **modular monolith** on Goravel v1.18 with the official Fiber HTTP dr
 | **Architecture** | Modular monolith with enforced boundaries: `domain` and `application` packages import no framework code; one PostgreSQL schema per module; a single composition root. [ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | **Security** | JWT auth with roles and account status re-read on every request, so a role change or deactivation applies on the next call (issued tokens cannot be revoked yet); permission matrix with tested separation of duties (maker cannot approve, admin cannot approve); fail-closed middleware; bcrypt behind a semaphore (503, not lockup); startup refuses weak secrets; known credential fields and auth headers redacted from logs, and request/response bodies not logged in the release image (`LOG_HTTP_BODIES=false`; the code default is `true` for development with synthetic data). [ADR 0002](docs/adr/0002-authentication-and-rbac.md), [ADR 0003](docs/adr/0003-bounded-password-hashing.md) |
 | **Data integrity** | One transaction boundary per business operation, row locks for read-modify-write, database constraints that mirror domain rules, concurrency tests under `-race`. |
-| **Observability** | Structured JSON logs per type (`activity`, `error`, `lifetime`, `query`) and per module, correlated by `X-Request-ID`, with SQL timings and redaction. [ADR 0004](docs/adr/0004-structured-logging.md) |
+| **Observability** | Structured JSON logs per type (`activity`, `error`, `lifetime`, `query`) and per module, correlated by `X-Request-ID`, with SQL timings and redaction; Prometheus metrics at `/metrics` for the admin. [ADR 0004](docs/adr/0004-structured-logging.md), [ADR 0024](docs/adr/0024-observability-and-rate-limits.md) |
 | **API contract** | OpenAPI 3.1 as the single source; Swagger UI (local only); a Postman collection generated deterministically with a pinned, offline toolchain; tests prove routes, spec, and collection agree, and that the running code enforces the spec's auth and permissions. [ADR 0005](docs/adr/0005-swagger-ui-and-generated-postman.md) |
+| **Resilience** | Rate limits with `429`, load shedding with `503` beyond `HTTP_MAX_IN_FLIGHT`, a bounded wait for duplicate requests, and a stress test that pauses the database and checks that nothing is lost. [STRESS.md](docs/STRESS.md), [ADR 0028](docs/adr/0028-load-shedding-proxy-and-limiter-overflow.md) |
 | **Engineering process** | Disposable Docker Compose environments per test run (no Go or PostgreSQL on the host), architecture decision records, and a [verification log](docs/VERIFICATION.md) of what was run to accept each ticket. |
 
 ## Quick start
@@ -87,6 +90,8 @@ Contract: [api/openapi/openapi.yaml](api/openapi/openapi.yaml). Real requests an
 | [DECISION_ENGINE.md](docs/DECISION_ENGINE.md) | Engine behaviour: pipeline, precedence, edge cases. |
 | [TESTING.md](docs/TESTING.md) | How tests are organized and run, and what each suite proves. |
 | [CI.md](docs/CI.md) | The CI pipeline, the same gates on your machine, reading a failure, and the vulnerability baseline. |
+| [STRESS.md](docs/STRESS.md) | Overload, a paused database, recovery, soak, login storm, and the load shedding added because of them. |
+| [SECURITY_TESTING.md](docs/SECURITY_TESTING.md) | Where each security property is tested, the black-box probe, and the findings of the M5 validation. |
 | [BENCHMARK.md](docs/BENCHMARK.md) | Performance baseline: engine-only and end-to-end latency percentiles, throughput, resource use, and how to re-measure. |
 | [COVERAGE.md](docs/COVERAGE.md) | Statement coverage per package for the unit tests, and for unit plus integration tests; how to re-measure. |
 | [SCRIPTS.md](docs/SCRIPTS.md) | What every script in `scripts/` does and how to run it. |
@@ -105,7 +110,7 @@ Contract: [api/openapi/openapi.yaml](api/openapi/openapi.yaml). Real requests an
 | M2 Policy configuration | Data dictionary, versioned policy drafts, RAC, scorecard, matrix validation | Done (RF-005 to RF-010); golden tests are executed since RF-013 |
 | M3 Decision engine | Features, RAC, scorecard and matrix evaluation, idempotent decision API | Done (RF-011 to RF-016: feature builder, RAC evaluator, scorecard and matrix evaluator with golden tests, Decision API, durable decisions with idempotency, compiled policy cache; one branch per ticket, `feature/RF-011-feature-builder` to `feature/RF-016-policy-cache`, merged to `main` through `feature/M3-decision-engine`) |
 | M4 Governance | Simulator, multi-level approval, atomic publishing | Done (RF-017 to RF-021: policy simulator, approval workflow configuration, approval state machine, atomic publishing, policy diff and review; one branch per ticket, collected in `feature/M4-governance`, merged to `main`, PR #8 and #9) |
-| M5 Hardening | Audit search, metrics, CI/CD, benchmarks, demo | Done on stacked branches, not merged (RF-022 `feature/RF-022-audit-endpoints`, RF-023 `feature/RF-023-observability-security`, RF-024 `feature/RF-024-tests-benchmark`, RF-025 `feature/RF-025-ci-cd-local-run`, RF-026 `feature/RF-026-developer-experience-demo`); limits in [M5_NOTES.md](docs/M5_NOTES.md) |
+| M5 Hardening | Audit search, metrics, CI/CD, benchmarks, demo | Implemented on `feature/M5-hardening` (tickets RF-022 `feature/RF-022-audit-endpoints` to RF-026 `feature/RF-026-developer-experience-demo`, plus the milestone validation), not merged; limits and the milestone audit in [M5_NOTES.md](docs/M5_NOTES.md) |
 
 Ticket-level detail is in `SYSTEM_DESIGN.md` section 18.
 

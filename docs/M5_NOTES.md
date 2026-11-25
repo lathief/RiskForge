@@ -1,6 +1,6 @@
 # Milestone 5 notes (portfolio hardening)
 
-Status: M5 is implemented on stacked ticket branches, none merged. RF-022 is on `feature/RF-022-audit-endpoints`, RF-023 on `feature/RF-023-observability-security`, RF-024 on `feature/RF-024-tests-benchmark`, RF-025 on `feature/RF-025-ci-cd-local-run`, and RF-026 on `feature/RF-026-developer-experience-demo`, each on top of the one before. The milestone validation (`SYSTEM_DESIGN.md` 19.4) is the next step.
+Status: M5 is implemented and collected on `feature/M5-hardening`, not merged yet. The tickets were built on stacked branches, each on top of the one before: RF-022 `feature/RF-022-audit-endpoints`, RF-023 `feature/RF-023-observability-security`, RF-024 `feature/RF-024-tests-benchmark`, RF-025 `feature/RF-025-ci-cd-local-run`, RF-026 `feature/RF-026-developer-experience-demo`. The milestone validation (`SYSTEM_DESIGN.md` 17.5 and 19.4) is the last section of this file.
 
 Limits, deviations from `SYSTEM_DESIGN.md`, and open decisions of milestone 5, one section per ticket.
 
@@ -57,8 +57,8 @@ Branch `feature/RF-023-observability-security`, on top of RF-022. ADR `docs/adr/
 Known limits:
 
 - Metrics and limits are per process. With several instances each has its own counters and its own budget (effective limit is the budget times the number of instances). Prometheus sums the counters.
-- Behind a reverse proxy the login limiter counts the proxy's address unless the proxy is trusted by the HTTP driver (SEC-10, to be decided at deployment).
-- When 100,000 clients are tracked and all are active, a new client is let through untracked and `riskforge_rate_limiter_table_full_total` counts it.
+- Behind a reverse proxy set `HTTP_PROXY_HEADER` and `HTTP_TRUSTED_PROXIES` (since the M5 validation). The header is believed only when the TCP peer is one of the trusted proxies, and startup refuses a header without trusted proxies. Without them the login limiter counts the TCP peer, which is the proxy. An IPv6 client counts as its /64 prefix.
+- When 100,000 clients are tracked and all are active, every new client is counted against one bucket shared by all of them (since the M5 validation; at RF-023 it was let through untracked): a flood of new addresses is throttled together, real new clients are slowed but not locked out, and `riskforge_rate_limiter_table_full_total` counts these requests.
 - The limits are starting values without a baseline. RF-024 measures and may change them.
 - `riskforge_decision_duration_seconds` measures the use case. The end-to-end time is `riskforge_http_request_duration_seconds{module="decision"}`.
 - The test suites run with limiting off (`tests/test_case.go`); only the tests of RF-023 switch it on, and they restore the configuration (TST-06).
@@ -77,7 +77,7 @@ Branch `feature/RF-024-tests-benchmark`, on top of RF-023. ADR `docs/adr/0025-te
 | End-to-end benchmark | Done | `scripts/benchmark.sh` and `scripts/bench/load.js`: six routes at 1, 8, and 32 workers, p50/p95/p99, throughput, errors, and the peak CPU and memory of the containers. |
 | Documented baseline | Done | `docs/BENCHMARK.md`: environment, dataset, method, two runs (release-like and dev logging), how to read them, and what they do not say. |
 | Disposable projects | Done | Every script uses `rf-test-*` or `rf-live-*` projects and `down -v` on that project only; `benchmark.sh` and `test.sh` accept only `rf-test-*`. |
-| Compose pass-through | Done | `RATE_LIMIT_ENABLED`, `LOG_FILES`, and `LOG_HTTP_BODIES`, with the application defaults. |
+| Compose pass-through | Done | `RATE_LIMIT_ENABLED`, `LOG_FILES`, and `LOG_HTTP_BODIES`, with the application defaults (the M5 validation added `HTTP_MAX_IN_FLIGHT`, `HTTP_PROXY_HEADER`, and `HTTP_TRUSTED_PROXIES`). |
 | Formatting fix | Done | `test.sh` found `app/modules/policy/domain/diff.go` (RF-021) not gofmt clean; fixed (whitespace only). |
 | CI | Not built | RF-025 calls these scripts. |
 | Performance gate or SLO | Not built | One machine and one run per configuration are not a basis. |
@@ -134,3 +134,60 @@ Known limits:
 - A second run of `demo.sh` against the same stack does not start from the same state, because the first run published the stricter policy. Use `--project` for a repeatable demo.
 - The script reads JSON with `grep` and `sed` (no `jq`), like `e2e.sh` (TST-07), so a renamed field makes a step print less, and only the checks (`expect`) fail the run.
 - The run takes about 4 minutes, most of it the first start of the stack (compilation).
+
+## Milestone validation and review
+
+Branch `feature/M5-hardening` (from RF-026), 24 and 25 November 2026. Design: `SYSTEM_DESIGN.md` 17.5 and 19.4. ADR `docs/adr/0028-load-shedding-proxy-and-limiter-overflow.md`. Evidence: `docs/VERIFICATION.md`. Guides: `docs/STRESS.md`, `docs/SECURITY_TESTING.md`.
+
+**How it ran.** The whole suite passed in Compose before any change (`test.sh --repeat 2`, 872 tests). During the second stress run Docker lost all its volumes and most images and the network went down, so the Compose `api` service could not be built again. From then on the validation ran on the host: Go 1.25.0 on Windows (`go build`, `go vet`, `go test -race` with the module cache of the machine, `GOPROXY=off`) against a PostgreSQL 18 container on 127.0.0.1, and the API built and started on the host for `e2e.sh`, `demo.sh`, the stress phases, and the security probe. When the network came back, every gate was run again in Compose on the final code (25 November 2026): `docs`, `contract` (with the regenerated Postman collection), `migrations`, `image`, `vuln`, `test.sh` (881 tests), `e2e.sh` with the Postman smoke, `stress.sh`, `security-check.sh`, and `demo.sh`. The container could not reach `proxy.golang.org` for some downloads (connection refused) while the host could, so the module volumes of those projects were filled from the module cache of the host (`GOPROXY=file://...`, checked against `go.sum`).
+
+### Review findings (semantic and security review of `main..RF-026`)
+
+| Id | Severity | Finding | Result |
+|---|---|---|---|
+| F-01 | Medium | No way to configure a trusted proxy; behind a proxy every client shares one login budget, and a header taken on trust is client controlled. | Fixed: `HTTP_PROXY_HEADER`, `HTTP_TRUSTED_PROXIES`, startup check (ADR 0028). BACKLOG SEC-10 partly done. |
+| F-02 | Medium | The limiter let new keys through untracked when its table was full; one IPv6 network can fill it. | Fixed: shared bucket, IPv6 per /64 (ADR 0028). |
+| F-03 | Low | `riskforge_rate_limiter_table_full_total` over-counted under concurrency. | Fixed: `Limiter.Take` reports the untracked key. |
+| F-04 | Low | `408` is counted under `module="none"`. | Open: REL-09. |
+| F-05 | Low | Login is limited per address only. | Open: SEC-12. |
+| F-06 | Low | The 2 s `lock_timeout` leaves little room in the 3 s budget. | Confirmed by the stress test (98 of 100 duplicates got `408` before load shedding); load shedding removes the queue in front of it. Open: REL-10. |
+| F-07 | Low | Submit can answer `APPROVAL_STATE_CONFLICT`, undocumented. | Fixed in OpenAPI. |
+| F-08, F-09 | Low | The audit sort has no index; offset paging drifts on a growing log. | Open: REL-11. |
+| F-10 | Low | An unencoded `+` in `from`/`to` reads as a space (422). | Fixed in OpenAPI (encode as `%2B`). |
+| F-11 | Low | `GET /audit/decisions` runs through the audit database manager and joins `policy.*`. | Open: ARC-07. |
+| F-12 | Low | CI checkout kept the job token. | Fixed: `persist-credentials: false`. |
+| F-13 | Low | Action SHAs not verified offline. | Open: part of TST-08. |
+| F-14 | Low | The metrics scraper needs an ADMIN login. | Open: SEC-13. |
+
+### Found by testing
+
+| Finding | Found by | Result |
+|---|---|---|
+| Every request times out from 128 concurrent clients (unbounded queue). | `stress.sh` | Fixed: load shedding, `HTTP_MAX_IN_FLIGHT` (ADR 0028, `docs/STRESS.md`). |
+| A NUL byte or invalid UTF-8 in `aggregate_id` answered `500`. | `security-check.sh` | Fixed: `invalid_format`. |
+| `evaluateDecision` did not document its `503`; `getDecision` documented one it never returns. | documentation audit | Fixed in OpenAPI. |
+| Invalid UTF-8 in a JSON body is stored as U+FFFD. | `security-check.sh` | Open: SEC-14. |
+| About 60 statements in the guides, ADRs, runbook, and design disagreed with the code (stale status lines, counts, the limiter text, the vulnerability split, the seeded policy, role permissions, the 503 causes). | documentation audit | Fixed in this branch. |
+
+### Milestone audit (`SYSTEM_DESIGN.md` 19.4)
+
+| Gate or checklist item | Status | Evidence |
+|---|---|---|
+| M5 gate: complete E2E demo reproducible from a new Compose project and a fresh database | COMPLETE | `demo.sh --project rf-live-demo` passed on a new Compose project with the final code, as at RF-026; `e2e.sh --project` 130/130 and the Postman smoke 46/46 on another new project. |
+| M5 gate: docs and collection drift fail in CI | PARTIAL | `contract-check.sh` (Redocly lint, regeneration with byte comparison, contract tests) and `docs-check.sh` pass on the final code, and the collection was regenerated for 0.20.3. The workflow itself has never run on GitHub (TST-08). |
+| RF-022 audit endpoints | COMPLETE | Feature tests, e2e M5 section, security probe (access control, injection, data exposure). |
+| RF-023 observability and security | COMPLETE | Tests, e2e, stress (login storm, fairness), probe; three review fixes. |
+| RF-024 tests and benchmark | COMPLETE | 881 tests with `-race` in Compose, e2e 130 checks, golden cases; `benchmark.sh` not re-run (the stress baseline phase measured the same route). |
+| RF-025 CI/CD and local run | PARTIAL | Every gate passes locally on the final code; never run on GitHub; Trivy never ran (TST-08). |
+| RF-026 developer experience and demo | COMPLETE | `demo.sh`, fixtures with their test, `README.md` and `README.id.md`, diagrams. |
+| `go test`, DB integration, E2E, race tests | COMPLETE | Compose: `test.sh` 881 passed, 0 failed, 0 skipped, concurrency tests repeated; e2e 130/130; host: the same 881 with `-race`; e2e 130/130. |
+| Migrations | COMPLETE | `migration-check.sh`: 18 migrations up, down one by one, up again, same schema. |
+| OpenAPI, Swagger UI, Postman | COMPLETE | OpenAPI 0.20.3 lint clean, collection regenerated and byte-stable (`--check`), contract and docs tests pass, Newman smoke 46/46. |
+| No personal data, keys, or credentials in the repository | COMPLETE | Synthetic fixtures only; `.env*` git-ignored; the probe confirms no secret in errors, logs read through the API, or metrics. |
+
+### Before merging `feature/M5-hardening`
+
+The blockers of the first validation pass are closed: the collection is regenerated and every gate passes in Compose. What is left is a decision and a first run elsewhere, not a defect:
+
+1. Decide SEC-11 (Go 1.26 and the Goravel upgrade) or keep the 17 findings in the baseline explicitly.
+2. Run the workflow once on GitHub and make `CI passed` the required check (TST-08).

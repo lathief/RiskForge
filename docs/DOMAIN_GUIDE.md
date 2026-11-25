@@ -98,8 +98,8 @@ Rejecting an applicant because a database timed out would turn an outage into a 
 
 | Role | Today | When policies exist |
 |---|---|---|
-| `ADMIN` | Creates and updates products; defines and versions dictionary variables; configures approval workflows (RF-018: versioned tiers with role, scope, and quorum). Cannot read policies. | Manages users and approval workflow configuration. Cannot approve policies or edit them. |
+| `ADMIN` | Creates and updates products; defines and versions dictionary variables; configures approval workflows (RF-018: versioned tiers with role, scope, and quorum); reads `GET /metrics` (RF-023, `metrics:read`). Cannot read policies. | Manages users and approval workflow configuration. Cannot approve policies or edit them. |
 | `RISK_ANALYST` | Reads products; defines and versions dictionary variables; opens, edits, clones, validates, simulates (RF-017), and submits policy drafts, with their RAC rules, scorecard, decision matrix, and test cases. | Creates, edits, simulates, and submits drafts. Cannot approve. |
 | `RISK_APPROVER` | Reads products, the dictionary, and the approval workflows (RF-018); approves or rejects the active tier of an approval request when they hold its scope (`RISK_LEAD`, `HEAD_OF_RISK`), never their own submission (RF-019). | Reviews diffs and approves or rejects. Cannot edit drafts. |
-| `AUDITOR` | Reads products, the dictionary, and the approval workflows (RF-018). | Reads decision traces and histories. Read-only everywhere. |
-| `API_CONSUMER` (the Loan Application) | No product or dictionary access. | Calls the decision API and reads its own decisions. |
+| `AUDITOR` | Reads products, the dictionary, policies and their versions, the approval workflows and requests, every stored decision with its trace, and the audit log and decision history (`GET /audit/events`, `GET /audit/decisions`, RF-022). Cannot read `GET /metrics`. | Reads decision traces and histories. Read-only everywhere. |
+| `API_CONSUMER` (the Loan Application) | Evaluates applications (`POST /decisions/evaluate`) and reads its own decisions. No product or dictionary access. | Calls the decision API and reads its own decisions. |

@@ -36,7 +36,8 @@ LOANAPP=$(token demo_loan_application)
 | 404 | `PRODUCT_NOT_FOUND`, `VARIABLE_NOT_FOUND`, `POLICY_NOT_FOUND`, `POLICY_VERSION_NOT_FOUND`, `APPROVAL_WORKFLOW_NOT_FOUND`, `APPROVAL_WORKFLOW_VERSION_NOT_FOUND`, `APPROVAL_REQUEST_NOT_FOUND`, `ROUTE_NOT_FOUND` | Unknown product code / dictionary variable / policy / policy version / approval workflow / workflow version / approval request / route. |
 | 409 | `PRODUCT_CODE_CONFLICT`, `VARIABLE_CODE_CONFLICT`, `POLICY_CONFLICT`, `POLICY_VERSION_FROZEN`, `APPROVAL_WORKFLOW_CONFLICT`, `APPROVAL_WORKFLOW_NOT_CONFIGURED`, `APPROVAL_REQUEST_CLOSED`, `APPROVAL_STEP_NOT_ACTIVE`, `APPROVAL_ALREADY_GIVEN`, `POLICY_VERSION_SUPERSEDED`, `POLICY_NOT_PUBLISHABLE` | Product, variable, policy, or approval workflow already exists / an edit or submit of a version that is no longer a draft / a submit without an approval workflow / an action on a closed request, a step that is not active, or a second action of one approver. |
 | 422 | `INPUT_VALIDATION_ERROR`, `POLICY_VALIDATION_FAILED`, `POLICY_NOT_EVALUABLE` | Invalid JSON, field, query parameter, or a field that cannot be set / a draft that is incomplete or whose content (RAC expressions, scorecard, decision matrix, test cases) does not validate at submit / a version the simulator cannot evaluate yet (RF-017). |
-| 503 | `SERVICE_BUSY` | Login capacity saturated; honour `Retry-After`. |
+| 429 | `RATE_LIMITED` | A rate limit was used up (login per address, evaluate per caller, simulate, validate, diff, and review per caller); wait `Retry-After` seconds. |
+| 503 | `SERVICE_BUSY` | Login hashing capacity saturated, a duplicate `Idempotency-Key` that waited more than 2 seconds, or the process already handles `HTTP_MAX_IN_FLIGHT` requests (any route except `/health/*`); honour `Retry-After`. |
 | 500 | `INTERNAL_ERROR` | Unexpected failure; the cause is only in `error.log`. |
 
 ## Health

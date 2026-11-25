@@ -84,6 +84,7 @@ sequenceDiagram
     participant RID as RequestID
     participant DRV as Fiber driver globals
     participant ACT as ActivityLog
+    participant GATE as InFlightLimit
     participant MOD as Module catalog
     participant AUTHN as Authenticate
     participant PERM as RequirePermission product read
@@ -95,7 +96,8 @@ sequenceDiagram
     C->>RID: GET /api/v1/products
     RID->>DRV: accept or generate X-Request-ID
     DRV->>ACT: 3 s timeout, CORS
-    ACT->>MOD: capture request (redacted)
+    ACT->>GATE: capture request (redacted)
+    GATE->>MOD: place taken (HTTP_MAX_IN_FLIGHT)
     MOD->>AUTHN: label module = catalog
     AUTHN->>DB: load user + roles (identity schema)
     AUTHN->>PERM: principal attached
@@ -119,6 +121,8 @@ Failures short-circuit with the standard error envelope and the same `request_id
 | Unknown route (any method) | `404 ROUTE_NOT_FOUND` from the fallback handler. |
 | Panic | `500 INTERNAL_ERROR`; `middleware.Recover` writes the stack trace to `error.log` without headers or body. |
 | Login while bcrypt slots are full | `503 SERVICE_BUSY` with `Retry-After` (ADR 0003). |
+| More than `HTTP_MAX_IN_FLIGHT` requests in flight (default 64) | `503 SERVICE_BUSY` with `Retry-After: 1` from `InFlightLimit`, at once, logged and counted in `riskforge_requests_shed_total`; `/health/*` is never refused (ADR 0028). |
+| A rate limit used up (login, evaluate, analysis routes) | `429 RATE_LIMITED` with `Retry-After` from `RateLimit` (ADR 0024). |
 | Body over 64 KiB / request over 3 s | `413` / `408` plain text from the Fiber driver. |
 
 ## Transactions and concurrency

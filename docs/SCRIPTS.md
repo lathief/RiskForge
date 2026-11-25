@@ -12,6 +12,8 @@ Every script lives in `scripts/` and runs its tools inside throwaway Docker cont
 | [`demo.sh`](#demosh) | Narrated walkthrough with synthetic applicants, from a decision to a published policy change and the audit trail. | Only to build the stack | The stack's data |
 | [`test.sh`](#testsh) | gofmt, vet, every test with `-race`, and the concurrency tests repeated, in a disposable project. | Only to download modules | `storage/test/` |
 | [`benchmark.sh`](#benchmarksh) | Engine-only and end-to-end performance baseline in a disposable project. | Only to build the stack | `storage/benchmark/` |
+| [`stress.sh`](#stresssh) | Overload, a paused database, recovery, soak, a login storm, and fairness, in a disposable project. | Only to build the stack | `storage/stress/` |
+| [`security-check.sh`](#security-checksh) | Black-box security checks of a running API: tokens, access control, hostile input, headers, data exposure, guessing. | Only to build the stack or pull Node | Nothing |
 | [`ci.sh`](#cish) | Every gate of the CI pipeline on your machine, with the same scripts. | Yes (some gates) | `storage/ci/` |
 | [`docs-check.sh`](#docs-checksh) | Links, repository paths, and the lists of scripts and guides in the Markdown files. | Only to pull Node | Nothing |
 | [`contract-check.sh`](#contract-checksh) | OpenAPI lint, Postman byte parity, and the contract tests. | Only to build | Nothing |
@@ -161,11 +163,27 @@ The whole automated run in one disposable project: `gofmt` (with the CRLF of a W
 ## benchmark.sh
 ```sh
 ./scripts/benchmark.sh                          # project rf-test-bench, 8 s per row, 1, 8, and 32 workers
-./scripts/benchmark.sh --duration 20 --concurrency 1,4,16,64
+./scripts/benchmark.sh --duration 20 --concurrency 1,4,16,32
+./scripts/benchmark.sh --project rf-test-x --keep   # another project (must start with rf-test-); leave it running
 ./scripts/benchmark.sh --dev-logging            # keep the dev log files and bodies on
 ./scripts/benchmark.sh --self-test              # check the statistics code only
 ```
 The performance baseline of `docs/BENCHMARK.md`. It starts a disposable project with the rate limits off and, unless `--dev-logging` is given, the log files and bodies off like the release image, then measures separately: the engine alone (Go benchmarks: policy evaluation, idempotency hash, metrics, limiter) and the end-to-end routes (`scripts/bench/load.js` in a Node container on the project network: health, `auth/me`, evaluate with a new and a replayed key, read a decision, simulate), with p50, p95, p99, requests per second, errors, and the peak CPU and memory of the `api` and `db` containers. It prints the result and writes it to `storage/benchmark/<timestamp>.md`. The load generator shares the machine with the stack, so compare runs on one machine, and read the environment lines in the output. It exits `3` if any request failed.
+
+## stress.sh
+```sh
+./scripts/stress.sh                              # project rf-test-stress on 127.0.0.1:3400 (STRESS_PORT)
+./scripts/stress.sh --soak 120 --levels 16,64,256 --seconds 15
+./scripts/stress.sh --project rf-test-x --keep
+```
+The stress test of [STRESS.md](STRESS.md). It starts a disposable project like the release image (no log files, no bodies), runs eight phases from `scripts/bench/stress.js` in a Node container (baseline, ramp, one key under concurrency, PostgreSQL paused for 4 seconds, recovery, soak, and, with the rate limits switched on, a login storm and a fairness check), checks the database after each load phase, and prints `PASS` or `FAIL` per criterion. It exits 1 when one fails. `--levels` sets the ramp, `--seconds` the length of each ramp step, `--soak` the soak length (0 skips it). The project name must start with `rf-test-`; it is removed with `down -v` unless `--keep` is given. The report also goes to `storage/stress/<timestamp>.md` (git-ignored). Each phase can be run alone against any API: `API_URL=http://127.0.0.1:3000 DEMO_PASSWORD=... node scripts/bench/stress.js ramp` (Node 22 or newer).
+
+## security-check.sh
+```sh
+./scripts/security-check.sh --project rf-live-sec      # fresh disposable stack on 127.0.0.1:3500 (SEC_PORT)
+API=http://127.0.0.1:3000 ./scripts/security-check.sh  # a stack you started
+```
+Runs the black-box checks of `scripts/security/probe.js` against a running, seeded API and exits 1 when one fails; the checks are listed in [SECURITY_TESTING.md](SECURITY_TESTING.md). It changes no data but spends the login budget of your address for about a minute. It reads `DEMO_USER_PASSWORD` and `JWT_SECRET` from `.env.agent` (to forge well-signed tokens that must still be refused) and never prints them. It uses the host's Node when it is version 22 or newer, otherwise a pinned Node container that reaches the API through `host.docker.internal`. With `--project` the stack is created, migrated, seeded, and removed like `e2e.sh`; the name must start with `rf-test-` or `rf-live-`.
 
 ## ci.sh
 ```sh
@@ -211,7 +229,7 @@ Builds the `Dockerfile` and checks, with a disposable PostgreSQL on a private ne
 ./scripts/vuln-check.sh --image            # and Trivy on the OS packages of the release image
 ./scripts/vuln-check.sh --update-baseline  # list the IDs of this scan in the baseline file
 ```
-Runs `govulncheck` (pinned `GOVULNCHECK_VERSION`) and compares the reachable findings with `scripts/vuln-baseline.txt`. A finding that is not in the baseline fails the run (exit 1), so a new advisory or dependency is looked at before it is merged; a baseline line that is no longer found is reported so it can be deleted. A baseline line is a debt with a reason, not an approval. The first scan at RF-025 found 26 vulnerabilities; the dependency bumps of that ticket removed 9, and the 17 left need Go 1.26 or a Goravel upgrade (BACKLOG SEC-11). `--image` also runs Trivy (pinned `TRIVY_IMAGE`) on a tar file of the image, so no Docker socket is mounted. Exit code 2 means the scan could not run (no network). It needs access to `vuln.go.dev`, the module proxy, and for `--image` the Trivy database.
+Runs `govulncheck` (pinned `GOVULNCHECK_VERSION`) and compares the reachable findings with `scripts/vuln-baseline.txt`. A finding that is not in the baseline fails the run (exit 1), so a new advisory or dependency is looked at before it is merged; a baseline line that is no longer found is reported so it can be deleted. A baseline line is a debt with a reason, not an approval. The first scan at RF-025 found 26 vulnerabilities; the dependency bumps of that ticket removed 9, and the 17 left need Go 1.26 or a Goravel upgrade (BACKLOG SEC-11). `--image` also runs Trivy (pinned `TRIVY_IMAGE`) on a tar file of the image, so no Docker socket is mounted. Exit code 2 means the scan could not run (no network). It needs access to `vuln.go.dev`, the module proxy, and for `--image` the Trivy database. The scanner is installed into the `riskforge-govuln` volume once and reused while it is the pinned version, so a later run needs the network only for the vulnerability database and new modules.
 
 ## coverage.sh
 ```sh
