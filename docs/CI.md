@@ -19,10 +19,10 @@ Every gate that needs a database makes its own Compose project with a new Postgr
 | `e2e` | `./scripts/e2e.sh --project rf-live-ci-<run>` | Any of the 130 end-to-end checks on a new stack (M1 to M5), or the Postman collection run against it | 6 min |
 | `image` | `./scripts/image-check.sh` | The release image does not build, contains a `.env`, the contract, or Swagger UI, runs as root, starts with the docs enabled in production or without its key, cannot migrate, is not ready, serves `/swagger`, lacks the security headers, writes log files, or does not stop cleanly | 6 min |
 | `vulnerabilities` | `./scripts/vuln-check.sh` | A reachable vulnerability that is not in `scripts/vuln-baseline.txt` | 4 min |
-| `vulnerabilities-image` | `./scripts/vuln-check.sh --image` | Trivy finds a fixed HIGH or CRITICAL OS package vulnerability in the release image. **Reports only** (`continue-on-error`) until it has passed once in CI; see below | 6 min |
+| `vulnerabilities-image` | `./scripts/vuln-check.sh --image` | Trivy finds a fixed HIGH or CRITICAL OS package vulnerability in the release image, or cannot run. Blocking since it passed on GitHub (PR #10); it was `continue-on-error` before | 6 min |
 | `ci` | (a status job) | Any of the required jobs above did not succeed | seconds |
 
-The jobs run in parallel. Make the status `CI passed` the required check of the protected branch: it is the one name that stays the same when a job is added, and it does not wait for `vulnerabilities-image`.
+The jobs run in parallel. Make the status `CI passed` the required check of the protected branch: it is the one name that stays the same when a job is added, and it waits for every job, `vulnerabilities-image` included. On GitHub: Settings, Branches (or Rules), a rule for `main` that requires a pull request and the status check `CI passed`.
 
 ## Run it on your machine
 
@@ -60,8 +60,8 @@ The pipeline blocks new findings and keeps these visible. Removing them is a dec
 
 ## Known limits
 
-- **Trivy was not run when it was written.** The environment that built this pipeline could not download its database (`mirror.gcr.io`). The step is therefore non-blocking (`vulnerabilities-image`). When it has passed once in CI, delete `continue-on-error` and add the job to `needs` of `ci`.
-- **The workflow itself has not run on GitHub.** Its syntax and the shell in it are checked by actionlint; every job runs a script that was run here. The first run on GitHub may show a difference of environment (a runner without the same Docker defaults, file ownership of bind mounts on Linux, the time of a cold start).
+- **Trivy depends on its database download** (`mirror.gcr.io`). The machine that built this pipeline could not reach it, so the job was non-blocking until it passed on GitHub in PR #10; it is now blocking and part of `CI passed`. If the mirror is down, the job fails with exit code 2 (could not run), not 10 (findings).
+- **The first runs on GitHub (PR #10) found two differences of environment** that local runs on Docker Desktop cannot show, because Docker Desktop presents the checkout as owned by root: root without capabilities could not create `storage/logs` in the checkout of the runner user (`cap_add: DAC_OVERRIDE` in `compose.yaml`), and `go build` could not stamp VCS data from a `.git` owned by another user (`-buildvcs=false`). Run 45596210311 passed every job.
 - **No cache.** Each job downloads the Go modules into a new volume, as the fresh project requires. That costs a few minutes per job and keeps every run independent.
 - **Docker Hub rate limits** apply to the base images (`golang`, `postgres`, `node`, `redocly/cli`, `rhysd/actionlint`). A fork with no registry login may be limited.
 - **No release job.** Nothing publishes the image: a registry, its credentials, and a tagging policy are not decided (ADR 0026). `image-check.sh` is what proves the image is releasable.

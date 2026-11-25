@@ -127,10 +127,6 @@ jobs:
     name: Known vulnerabilities (release image)
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # The Trivy step was not run when it was written (the environment could not reach its
-    # database), so it reports without blocking until it has passed once in CI. Remove this line
-    # then (docs/CI.md).
-    continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -142,7 +138,7 @@ jobs:
   ci:
     name: CI passed
     if: always()
-    needs: [docs, contract, migrations, tests, e2e, image, vulnerabilities]
+    needs: [docs, contract, migrations, tests, e2e, image, vulnerabilities, vulnerabilities-image]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

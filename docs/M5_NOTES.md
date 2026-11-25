@@ -105,7 +105,7 @@ Branch `feature/RF-025-ci-cd-local-run`, on top of RF-024. ADR `docs/adr/0026-ci
 | Compose agent run and runbook | Done | `scripts/ci.sh` and the runbook section; `compose.yaml` unchanged. |
 | E2E and smoke in CI | Done | The `e2e` job (130 checks and the Postman collection, M4-TOOL-01). |
 | Dependency vulnerability scan | Done, with a baseline | `scripts/vuln-check.sh`: 26 findings at the first scan, 9 fixed by dependency bumps, 17 in `scripts/vuln-baseline.txt` with reasons; new findings fail the pipeline. SEC-11 (High) tracks the Go 1.26 and Goravel decision. |
-| Image scan (Trivy) | Written, not run | Its database could not be downloaded here; the job reports without blocking (TST-08). |
+| Image scan (Trivy) | Done | Its database could not be downloaded here; it passed on GitHub in PR #10 and is blocking since the M5 validation. |
 | Documentation check | Done | `scripts/docs-check.sh`: links, anchors, repository paths in code spans, and the lists of scripts and guides. It found no stale link at the start; it did find that five new scripts were not described, which is the point. |
 | Format | Done | `.gitattributes` LF rules (TST-02). |
 | Dependabot, PR template | Done | `.github/dependabot.yml`, `.github/pull_request_template.md` (the Definition of Done of 16.2). |
@@ -174,11 +174,11 @@ Branch `feature/M5-hardening` (from RF-026), 24 and 25 November 2026. Design: `S
 | Gate or checklist item | Status | Evidence |
 |---|---|---|
 | M5 gate: complete E2E demo reproducible from a new Compose project and a fresh database | COMPLETE | `demo.sh --project rf-live-demo` passed on a new Compose project with the final code, as at RF-026; `e2e.sh --project` 130/130 and the Postman smoke 46/46 on another new project. |
-| M5 gate: docs and collection drift fail in CI | PARTIAL | `contract-check.sh` (Redocly lint, regeneration with byte comparison, contract tests) and `docs-check.sh` pass on the final code, and the collection was regenerated for 0.20.3. The workflow itself has never run on GitHub (TST-08). |
+| M5 gate: docs and collection drift fail in CI | COMPLETE | `contract-check.sh` (Redocly lint, regeneration with byte comparison, contract tests) and `docs-check.sh` pass locally and on GitHub (run 45596210311). |
 | RF-022 audit endpoints | COMPLETE | Feature tests, e2e M5 section, security probe (access control, injection, data exposure). |
 | RF-023 observability and security | COMPLETE | Tests, e2e, stress (login storm, fairness), probe; three review fixes. |
 | RF-024 tests and benchmark | COMPLETE | 881 tests with `-race` in Compose, e2e 130 checks, golden cases; `benchmark.sh` not re-run (the stress baseline phase measured the same route). |
-| RF-025 CI/CD and local run | PARTIAL | Every gate passes locally on the final code; never run on GitHub; Trivy never ran (TST-08). |
+| RF-025 CI/CD and local run | COMPLETE | Every gate passes locally and on GitHub (run 45596210311), Trivy included; two runner-only defects were found and fixed on the way. |
 | RF-026 developer experience and demo | COMPLETE | `demo.sh`, fixtures with their test, `README.md` and `README.id.md`, diagrams. |
 | `go test`, DB integration, E2E, race tests | COMPLETE | Compose: `test.sh` 881 passed, 0 failed, 0 skipped, concurrency tests repeated; e2e 130/130; host: the same 881 with `-race`; e2e 130/130. |
 | Migrations | COMPLETE | `migration-check.sh`: 18 migrations up, down one by one, up again, same schema. |
@@ -190,4 +190,4 @@ Branch `feature/M5-hardening` (from RF-026), 24 and 25 November 2026. Design: `S
 The blockers of the first validation pass are closed: the collection is regenerated and every gate passes in Compose. What is left is a decision and a first run elsewhere, not a defect:
 
 1. Decide SEC-11 (Go 1.26 and the Goravel upgrade) or keep the 17 findings in the baseline explicitly.
-2. The workflow ran on GitHub for the first time (PR #10): `docs`, `contract`, `migrations`, `image`, `vulnerabilities`, and Trivy passed. `tests` failed because the `api` container could not create `storage/logs` in a checkout owned by the runner user; fixed with `cap_add: DAC_OVERRIDE`, confirmed by the third run (881 passed). `e2e` failed because `go build` in the `api` container could not stamp VCS data from a `.git` owned by the runner user, so the stack never became ready; fixed with `-buildvcs=false` (to be confirmed by the next run). When both pass, make `CI passed` the required check (TST-08).
+2. The workflow ran on GitHub for the first time (PR #10): `docs`, `contract`, `migrations`, `image`, `vulnerabilities`, and Trivy passed. `tests` failed because the `api` container could not create `storage/logs` in a checkout owned by the runner user; fixed with `cap_add: DAC_OVERRIDE`, confirmed by the third run (881 passed). `e2e` failed because `go build` in the `api` container could not stamp VCS data from a `.git` owned by the runner user, so the stack never became ready; fixed with `-buildvcs=false`. **Run 45596210311 (`736f83d`) passed every job, `CI passed` included (5 min 54 s).** The Trivy job is now blocking and part of `CI passed`; making `CI passed` the required check of `main` is a repository setting (`docs/CI.md`). When both pass, make `CI passed` the required check (TST-08).
