@@ -8,7 +8,10 @@ services:
     init: true
     # Build, then exec the binary so it is PID 1's direct child and receives SIGTERM on
     # `docker compose stop` (`go run` does not forward it). lifetime.log depends on this.
-    command: ["sh", "-c", "go build -o /tmp/riskforge . && exec /tmp/riskforge"]
+    # -buildvcs=false: `go build` stamps VCS data by running git, and git refuses a .git that
+    # belongs to another user (the runner user on a GitHub runner), so the build failed there and
+    # the stack never became ready (the e2e job of the first CI runs). Nothing reads the stamp.
+    command: ["sh", "-c", "go build -buildvcs=false -o /tmp/riskforge . && exec /tmp/riskforge"]
     stop_grace_period: 15s
     environment:
       APP_NAME: RiskForge
