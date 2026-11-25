@@ -8,7 +8,7 @@ RUN go mod download
 COPY . .
 RUN go build -trimpath -ldflags "-s -w" -o main .
 
-FROM alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f
+FROM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
 RUN addgroup -S app && adduser -S -G app app
 WORKDIR /www
 COPY --from=builder /build/main /www/
