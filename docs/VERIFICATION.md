@@ -379,6 +379,11 @@ Run on 24 and 25 November 2026. The first two items ran in Compose; everything a
   - `./scripts/demo.sh --project rf-live-demo`: exit 0.
 - Not run: `benchmark.sh` (the baseline phase of `stress.sh` measured the evaluate route on the same stack), the workflow on GitHub, Trivy.
 - **Documentation of `scripts/` (follow-up):** `check-docs.js` checked only the `.sh` files at the top of `scripts/`, so `scripts/postman/smoke-check.js` was not described anywhere in `docs/SCRIPTS.md`. The checker now requires every file of `scripts/`, also in subfolders (a data folder may be named once); on the old text it reported exactly that file, and after the description was added `docs-check.sh` and its self-test (four new cases) pass, 54 Markdown files.
+## M5: first run of the workflow on GitHub (PR #10)
+Runs 45583106195 (`b4799d8`, cancelled by the next push) and 45584302316 (`fe0d049`) of `.github/workflows/ci.yml` on `ubuntu-latest`, 25 November 2026.
+- **Passed on GitHub:** `docs`, `contract`, `migrations`, `image`, `vulnerabilities`, and **`vulnerabilities-image` (Trivy), its first successful run anywhere**.
+- **`tests` failed:** 869 passed, 12 failed (9 tests of `TestLoggingTestSuite`, 1 of `TestHardeningTestSuite`, and the two suites), read from the `test-output` artifact. The log says `mkdir /workspace/storage/logs: permission denied; falling back to stdout only`. The checkout belongs to the runner user (uid 1001) and the `api` container runs as root with `cap_drop: ALL`, so it cannot create `storage/logs`; Docker Desktop does not enforce these permissions, so every local run passed. Reproduced locally with a Linux volume owned by uid 1001 and a root container without capabilities: the same error and the same failures. With `cap_add: DAC_OVERRIDE` on the `api` service, `TestLoggingTestSuite` and `TestHardeningTestSuite` pass with `-race` under the same conditions. **Fixed in `compose.yaml`; not yet confirmed by a new GitHub run.**
+- **`e2e` failed (cause not known yet):** its log was not available here. `e2e.sh --no-smoke` against an API started under the runner conditions passed all 130 checks, so it is not the same permission problem; the Postman smoke run and runner-specific timing are not excluded. Open in TST-08.
 ## Not verified yet
 
 | Item | Why | Planned in |

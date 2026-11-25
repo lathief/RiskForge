@@ -190,4 +190,4 @@ Branch `feature/M5-hardening` (from RF-026), 24 and 25 November 2026. Design: `S
 The blockers of the first validation pass are closed: the collection is regenerated and every gate passes in Compose. What is left is a decision and a first run elsewhere, not a defect:
 
 1. Decide SEC-11 (Go 1.26 and the Goravel upgrade) or keep the 17 findings in the baseline explicitly.
-2. Run the workflow once on GitHub and make `CI passed` the required check (TST-08).
+2. The workflow ran on GitHub for the first time (PR #10): `docs`, `contract`, `migrations`, `image`, `vulnerabilities`, and Trivy passed. `tests` failed because the `api` container could not create `storage/logs` in a checkout owned by the runner user; fixed with `cap_add: DAC_OVERRIDE` (to be confirmed by the next run). `e2e` failed for a reason not known yet (its log is needed). When both pass, make `CI passed` the required check (TST-08).

@@ -51,6 +51,13 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    # The only capability given back. On a Linux host the bind-mounted checkout belongs to the host
+    # user (uid 1001 on a GitHub runner), and root without DAC_OVERRIDE cannot create
+    # storage/logs in it: the structured logger then falls back to stdout and the log tests fail
+    # (the first CI run). Docker Desktop does not enforce these permissions, which is why the
+    # local runs passed. Files written there are owned by root on a Linux host.
+    cap_add:
+      - DAC_OVERRIDE
 
   db:
     image: ${POSTGRES_IMAGE:-postgres:18}
