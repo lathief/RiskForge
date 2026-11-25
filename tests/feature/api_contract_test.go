@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/suite"
 	"gopkg.in/yaml.v3"
 
-	"goravel/app/facades"
-	"goravel/tests"
+	"github.com/lathief/RiskForge/app/facades"
+	"github.com/lathief/RiskForge/tests"
 )
 
 // ContractParityTestSuite is the DX-001 verification gate (SYSTEM_DESIGN.md 5.6.2): the
@@ -34,8 +34,8 @@ var toolingRoutes = map[string]bool{
 	"GET /openapi.yaml":          true,
 }
 
-// expectedOperationCount is the current total: 2 health, 2 auth, 4 products, 4 dictionary (RF-005), 7 policy (RF-006), 2 RAC (RF-007), 3 scorecard (RF-008), 3 decision matrix (RF-009), 2 test cases + 1 validate (RF-010), 1 evaluate decision (RF-014), 1 get decision (RF-015), 1 simulate (RF-017), 5 approval workflow (RF-018), 3 approval request (RF-019), 1 review + 1 diff (RF-021).
-const expectedOperationCount = 43
+// expectedOperationCount is the current total: 2 health, 2 auth, 4 products, 4 dictionary (RF-005), 7 policy (RF-006), 2 RAC (RF-007), 3 scorecard (RF-008), 3 decision matrix (RF-009), 2 test cases + 1 validate (RF-010), 1 evaluate decision (RF-014), 1 get decision (RF-015), 1 simulate (RF-017), 5 approval workflow (RF-018), 3 approval request (RF-019), 1 review + 1 diff (RF-021), 1 audit event search + 1 audit decision search (RF-022), 1 metrics (RF-023).
+const expectedOperationCount = 46
 
 type specOperation struct {
 	OperationID string                 `yaml:"operationId"`

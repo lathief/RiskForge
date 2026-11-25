@@ -3,7 +3,7 @@ package config
 import (
 	"github.com/goravel/framework/support/path"
 
-	"goravel/app/facades"
+	"github.com/lathief/RiskForge/app/facades"
 )
 
 func init() {

@@ -3,7 +3,7 @@ package config
 import (
 	"github.com/goravel/framework/contracts/ai"
 	openaifacades "github.com/goravel/openai/facades"
-	"goravel/app/facades"
+	"github.com/lathief/RiskForge/app/facades"
 )
 
 func init() {

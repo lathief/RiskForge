@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	"goravel/app/facades"
-	dictionaryapp "goravel/app/modules/dictionary/application"
-	"goravel/app/modules/dictionary/domain"
-	dictionaryinfra "goravel/app/modules/dictionary/infrastructure"
-	"goravel/app/platform/database"
+	"github.com/lathief/RiskForge/app/facades"
+	dictionaryapp "github.com/lathief/RiskForge/app/modules/dictionary/application"
+	"github.com/lathief/RiskForge/app/modules/dictionary/domain"
+	dictionaryinfra "github.com/lathief/RiskForge/app/modules/dictionary/infrastructure"
+	"github.com/lathief/RiskForge/app/platform/database"
 )
 
 func ptr[T any](v T) *T { return &v }

@@ -12,13 +12,13 @@ import (
 	contractstesting "github.com/goravel/framework/contracts/testing/http"
 	"github.com/stretchr/testify/suite"
 
-	"goravel/app/facades"
-	catalogapp "goravel/app/modules/catalog/application"
-	catalogdomain "goravel/app/modules/catalog/domain"
-	cataloginfra "goravel/app/modules/catalog/infrastructure"
-	"goravel/app/platform/database"
-	"goravel/database/seeders"
-	"goravel/tests"
+	"github.com/lathief/RiskForge/app/facades"
+	catalogapp "github.com/lathief/RiskForge/app/modules/catalog/application"
+	catalogdomain "github.com/lathief/RiskForge/app/modules/catalog/domain"
+	cataloginfra "github.com/lathief/RiskForge/app/modules/catalog/infrastructure"
+	"github.com/lathief/RiskForge/app/platform/database"
+	"github.com/lathief/RiskForge/database/seeders"
+	"github.com/lathief/RiskForge/tests"
 )
 
 type ProductTestSuite struct {

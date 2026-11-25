@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: RiskForge API
-  version: 0.18.0
+  version: 0.20.3
   summary: Credit decision policy platform (synthetic demo data only).
   description: |
-    Contract for the endpoints implemented so far (RF-001 to RF-021, plus M1 hardening).
+    Contract for the endpoints implemented so far (RF-001 to RF-026, plus M1 hardening and the M5 validation).
 
     - All `/api/v1` endpoints except login require `Authorization: Bearer <token>`.
     - Authorization is permission-based. Each operation lists the required permission
@@ -16,6 +16,16 @@ info:
       and may not carry it.
     - Semantic validation errors use HTTP 422 consistently.
     - Request bodies are limited to 64 KiB. Requests are limited to 3 seconds.
+    - Rate limits (RF-023): login per client address, `POST /decisions/evaluate` per caller, and
+      `simulate`, `validate`, `diff`, and `review` per caller. A refused request is `429 RATE_LIMITED`
+      with `Retry-After`; an IPv6 client address counts as its /64 prefix. Reads and the other writes
+      have no rate limit.
+    - Load shedding (M5 validation): every route except `/health/*` answers `503 SERVICE_BUSY` with
+      `Retry-After: 1` when the process already handles `HTTP_MAX_IN_FLIGHT` requests (default 64;
+      0 switches the limit off). Retry after the given time.
+    - Every answer produced by the application carries `Cache-Control: no-store`,
+      `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, and a
+      `Content-Security-Policy` that allows nothing. `408` and `413` come from the driver and do not.
     - Optional gateway headers `X-App`, `X-Path-Gateway`, `X-Request-From`, `X-Request-User`,
       `X-Device-ID`, and `X-Request-Tags` are recorded in the server's activity log for tracing.
       They never affect authorization; `X-Request-User` is informational only.
@@ -50,6 +60,10 @@ tags:
     description: Policy simulator. Evaluates a draft or any version and stores nothing (RF-017).
   - name: Approval
     description: Approval workflow configuration, versioned tiers with role, scope, and quorum (RF-018), and approval requests with the approval state machine (RF-019).
+  - name: Metrics
+    description: Operator metrics of the process in the Prometheus text format (RF-023).
+  - name: Audit
+    description: Auditor searches of the append-only audit event log, which holds the approval history, and of the stored decisions (RF-022).
 
 paths:
   /health/live:
@@ -94,6 +108,50 @@ paths:
               schema: { $ref: "#/components/schemas/HealthStatus" }
               example: { status: unavailable }
 
+  /metrics:
+    get:
+      tags: [Metrics]
+      summary: Metrics of the process in the Prometheus text format
+      description: |
+        Counters, gauges, and histograms of this process (RF-023, SYSTEM_DESIGN.md 15.3), in the
+        Prometheus text exposition format 0.0.4. The values are per process and restart at zero
+        when it restarts. They hold counts and timings only, never an identifier, a user name, or
+        applicant data. Only the operator (`metrics:read`, the admin role) may read them, with a
+        bearer token; configure the scraper with that token.
+
+        - `riskforge_http_requests_total{module,code}` and `riskforge_http_request_duration_seconds{module}`:
+          every request, including 401, 403, 404, 408, 422, 429, and 500.
+        - `riskforge_decision_requests_total{outcome}` and `riskforge_decision_duration_seconds{outcome}`:
+          `APPROVE`, `REFER`, `REJECT`, `replayed`, and one value per failure (`input_error`,
+          `product_not_found`, `policy_not_active`, `idempotency_conflict`, `busy`, `policy_error`,
+          `evaluation_error`, `error`). A failure is never counted as `REJECT`.
+        - `riskforge_approval_actions_total{action}` and `riskforge_policy_publish_total`.
+        - `riskforge_policy_cache_{hits,misses,loads,waits}_total` and `riskforge_policy_cache_entries`.
+        - `riskforge_rate_limited_total{limiter}` and `riskforge_rate_limiter_table_full_total{limiter}`.
+        - `riskforge_uptime_seconds`, `riskforge_go_goroutines`, `riskforge_go_heap_alloc_bytes`.
+      operationId: getMetrics
+      x-required-permission: metrics:read
+      responses:
+        "200":
+          description: The metrics as text.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            text/plain:
+              schema: { type: string }
+              example: |
+                # HELP riskforge_decision_requests_total Decision evaluate calls by outcome.
+                # TYPE riskforge_decision_requests_total counter
+                riskforge_decision_requests_total{outcome="APPROVE"} 12
+                riskforge_decision_requests_total{outcome="REJECT"} 3
+                riskforge_decision_requests_total{outcome="replayed"} 1
+                # HELP riskforge_policy_cache_entries Compiled policies held in memory.
+                # TYPE riskforge_policy_cache_entries gauge
+                riskforge_policy_cache_entries 1
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
   /api/v1/auth/login:
     post:
       tags: [Auth]
@@ -133,6 +191,7 @@ paths:
                 error: { code: INVALID_CREDENTIALS, message: username or password is incorrect }
                 request_id: b9873824497dd1335aa351f4fd5338d0
         "408": { $ref: "#/components/responses/RequestTimeout" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         "413": { $ref: "#/components/responses/PayloadTooLarge" }
         "422": { $ref: "#/components/responses/ValidationError" }
         "500": { $ref: "#/components/responses/InternalError" }
@@ -143,7 +202,7 @@ paths:
       tags: [Auth]
       summary: Current caller with effective roles and permissions
       description: Roles are read from the database on every request, so changes apply immediately.
-      operationId: me
+      operationId: getCurrentUser
       responses:
         "200":
           description: The authenticated caller.
@@ -707,6 +766,8 @@ paths:
           description: |
             `POLICY_VERSION_FROZEN`: the version is not a DRAFT (also a second or concurrent submit).
             `APPROVAL_WORKFLOW_NOT_CONFIGURED`: the product and policy scope have no approval workflow.
+            `APPROVAL_STATE_CONFLICT`: an approval request already exists for the version although it is a DRAFT
+            (the database refused the second request); logged as an integrity alert, nothing was recorded.
           headers:
             X-Request-ID: { $ref: "#/components/headers/XRequestID" }
           content:
@@ -1202,6 +1263,7 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
         "408": { $ref: "#/components/responses/RequestTimeout" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         "500": { $ref: "#/components/responses/InternalError" }
   /api/v1/policy-versions/{version_id}/simulate:
     parameters:
@@ -1270,6 +1332,7 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
         "408": { $ref: "#/components/responses/RequestTimeout" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         "413": { $ref: "#/components/responses/PayloadTooLarge" }
         "422":
           description: |
@@ -1355,8 +1418,9 @@ paths:
 
         Only `workflow:manage` (the admin) may configure workflows. Configuration is
         append-only: a workflow, a version, and its steps are never edited or deleted (database
-        triggers refuse it). Audit events arrive with RF-022; until then `created_by` records
-        who made each version.
+        triggers refuse it). Each change is also an audit event (`APPROVAL_WORKFLOW_CREATED`,
+        `APPROVAL_WORKFLOW_VERSION_CREATED`), searchable with `GET /audit/events` (RF-022);
+        `created_by` also records who made each version.
       operationId: createApprovalWorkflow
       x-required-permission: workflow:manage
       requestBody:
@@ -1623,8 +1687,9 @@ paths:
         In one transaction: the action is stored, the request closes `APPROVED`, the version
         (only if it still has the submitted checksum and its snapshot compiles) becomes
         `APPROVED` and then `ACTIVE`, the previously active version of the policy becomes
-        `ARCHIVED`, the active binding moves to the new version, and an audit event
-        `POLICY_VERSION_PUBLISHED` is written. All of it commits or none of it does. The next
+        `ARCHIVED`, the active binding moves to the new version, and the audit events of the
+        approval are written (`APPROVAL_ACTION_RECORDED`, `POLICY_VERSION_PUBLISHED`,
+        `APPROVAL_REQUEST_CLOSED`; see `GET /audit/events`). All of it commits or none of it does. The next
         `POST /decisions/evaluate` uses the new version; decisions already stored keep theirs.
         Publishes of one policy are serialized by a lock, so the policy never has two active
         versions. If the version cannot be published, nothing of the action is kept and the
@@ -1677,7 +1742,9 @@ paths:
           description: |
             `APPROVAL_REQUEST_CLOSED`, `APPROVAL_STEP_NOT_ACTIVE`, or `APPROVAL_ALREADY_GIVEN`; for
             the final approval also `POLICY_VERSION_SUPERSEDED` or `POLICY_NOT_PUBLISHABLE`, in
-            which case nothing was recorded or published.
+            which case nothing was recorded or published. `APPROVAL_STATE_CONFLICT` means the state
+            of the request or of the version drifted from what the database triggers allow; it is
+            logged as an integrity alert and the action was not recorded.
           headers:
             X-Request-ID: { $ref: "#/components/headers/XRequestID" }
           content:
@@ -1752,6 +1819,7 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/ApprovalRequestNotFound" }
         "408": { $ref: "#/components/responses/RequestTimeout" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         "500": { $ref: "#/components/responses/InternalError" }
   /api/v1/policy-versions/{version_id}/diff:
     parameters:
@@ -1789,6 +1857,7 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/PolicyVersionNotFound" }
         "408": { $ref: "#/components/responses/RequestTimeout" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         "422":
           description: "`base_version_id` is not a version of the same policy (`not_in_policy`)."
           headers:
@@ -1916,6 +1985,7 @@ paths:
                 error: { code: PRODUCT_NOT_FOUND, message: product not found }
                 request_id: 7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d
         "408": { $ref: "#/components/responses/RequestTimeout" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         "409":
           description: |
             `POLICY_NOT_ACTIVE`: the product is retired or has no active policy version.
@@ -1962,6 +2032,7 @@ paths:
               example:
                 error: { code: EVALUATION_ERROR, message: "the application could not be evaluated; no decision was made" }
                 request_id: 0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a
+        "503": { $ref: "#/components/responses/DuplicateInFlight" }
   /api/v1/decisions/{decision_id}:
     parameters:
       - name: decision_id
@@ -2001,6 +2072,136 @@ paths:
                 error: { code: DECISION_NOT_FOUND, message: decision not found }
                 request_id: 2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e
         "408": { $ref: "#/components/responses/RequestTimeout" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/audit/events:
+    get:
+      tags: [Audit]
+      summary: Search the audit event log
+      description: |
+        The append-only log of domain events (RF-020, RF-022): who did what to which entity and
+        when, with identifiers, codes, and checksums only, never applicant data and never the
+        free-text comment of an approver. Newest first by default; `order=asc` lists the
+        oldest first, which is the order to read a history in. Events of one transaction keep
+        the order in which they were written.
+
+        **Approval history of a request:** `aggregate_type=APPROVAL_REQUEST&aggregate_id=<request id>&order=asc`
+        returns `APPROVAL_REQUEST_OPENED`, one `APPROVAL_ACTION_RECORDED` per approval or
+        rejection (with the step, the action, and the request status after it), and
+        `APPROVAL_REQUEST_CLOSED`. **Publication history of a version:**
+        `aggregate_type=POLICY_VERSION&aggregate_id=<version id>` returns
+        `POLICY_VERSION_PUBLISHED`. Workflow configuration is `APPROVAL_WORKFLOW_CREATED` and
+        `APPROVAL_WORKFLOW_VERSION_CREATED`.
+
+        `data` is redacted again when it is read: a value stored under a key such as `password`
+        or `api_key` is returned as `[REDACTED]`. The search does not write events.
+
+        `from` is inclusive and `to` is exclusive, both RFC 3339. Only an auditor
+        (`audit:read`) may search.
+      operationId: searchAuditEvents
+      x-required-permission: audit:read
+      parameters:
+        - name: action
+          in: query
+          description: Only events with this action.
+          schema: { type: string, pattern: "^[A-Z][A-Z0-9_]{2,63}$", example: APPROVAL_ACTION_RECORDED }
+        - name: aggregate_type
+          in: query
+          description: Only events about this kind of entity.
+          schema: { type: string, pattern: "^[A-Z][A-Z0-9_]{2,63}$", example: APPROVAL_REQUEST }
+        - name: aggregate_id
+          in: query
+          description: Only events about the entity with this id. Printable text only; a control character (such as NUL) or invalid UTF-8 is `invalid_format`.
+          schema: { type: string, maxLength: 64, example: 4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a }
+        - name: actor_id
+          in: query
+          description: Only events caused by this user.
+          schema: { type: string, format: uuid, example: 7c6b5a4d-3e2f-4b1a-8d9c-0e1f2a3b4c5d }
+        - name: from
+          in: query
+          description: Only events at or after this time. RFC 3339; URL-encode a `+` offset as `%2B` (`2026-11-21T08:00:00%2B07:00`), because an unencoded `+` reads as a space and answers 422.
+          schema: { type: string, format: date-time, example: "2026-11-21T00:00:00Z" }
+        - name: to
+          in: query
+          description: Only events before this time. Must be after `from`. RFC 3339; URL-encode a `+` offset as `%2B`.
+          schema: { type: string, format: date-time, example: "2026-11-22T00:00:00Z" }
+        - name: order
+          in: query
+          schema: { type: string, enum: [asc, desc], default: desc, example: asc }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 10000, default: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: One page of events.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuditEventList" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/audit/decisions:
+    get:
+      tags: [Audit]
+      summary: Search the stored decisions
+      description: |
+        The result history of the Decision API (RF-015), newest first: for each decision the
+        application, the product, the policy version and checksum it was made with, the final
+        decision, the risk grade and score, and the reason codes. The list never contains the
+        applicant's input or the rule trace; read one decision with its full trace through
+        `GET /decisions/{decision_id}`, which an auditor may do for every decision.
+
+        `from` is inclusive and `to` is exclusive, both RFC 3339. Only an auditor
+        (`audit:read`) may search. The search does not write events.
+      operationId: searchAuditDecisions
+      x-required-permission: audit:read
+      parameters:
+        - name: application_id
+          in: query
+          description: Only decisions of this application.
+          schema: { type: string, maxLength: 64, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$", example: LOAN-APP-DEMO-0001 }
+        - name: product_code
+          in: query
+          schema: { type: string, maxLength: 32, example: KTA_DEMO }
+        - name: final_decision
+          in: query
+          schema: { type: string, enum: [APPROVE, REFER, REJECT], example: APPROVE }
+        - name: policy_version_id
+          in: query
+          description: Only decisions made with this policy version.
+          schema: { $ref: "#/components/schemas/PolicyVersionId" }
+        - name: from
+          in: query
+          description: Only decisions at or after this time. RFC 3339; URL-encode a `+` offset as `%2B`.
+          schema: { type: string, format: date-time, example: "2026-11-21T00:00:00Z" }
+        - name: to
+          in: query
+          description: Only decisions before this time. Must be after `from`. RFC 3339; URL-encode a `+` offset as `%2B`.
+          schema: { type: string, format: date-time, example: "2026-11-22T00:00:00Z" }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 10000, default: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: One page of decision summaries.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuditDecisionList" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "408": { $ref: "#/components/responses/RequestTimeout" }
+        "422": { $ref: "#/components/responses/ValidationError" }
         "500": { $ref: "#/components/responses/InternalError" }
 security:
   - bearerAuth: []
@@ -3902,6 +4103,8 @@ components:
                 - IDEMPOTENCY_CONFLICT
                 - DECISION_NOT_FOUND
                 - SERVICE_BUSY
+                - RATE_LIMITED
+                - APPROVAL_STATE_CONFLICT
                 - INTERNAL_ERROR
             message: { type: string }
             details:
@@ -3913,12 +4116,114 @@ components:
                   field: { type: string }
                   issue:
                     type: string
-                    description: Stable issue code, e.g. required, too_long, invalid_format, invalid_value, invalid_characters, must_be_string, must_be_boolean, must_be_integer, not_allowed, no_changes, exceeds_scale, less_than_min_value, not_allowed_for_type, not_allowed_when_required, must_be_false_for_derived, exceeds_current_version, unknown_product, product_inactive, not_in_policy, must_be_a_non_negative_integer, must_be_array, must_be_object, too_many, duplicate, syntax_error, unsupported_syntax, unknown_variable, type_error, no_characteristics, no_bins, gap, overlap, min_not_less_than_max, does_not_cover_lower_bound, does_not_cover_upper_bound, must_be_integer, out_of_range, variable_not_numeric, variable_always_present, no_rows, does_not_cover_score_range, missing_section, no_required_test_cases, derived_not_allowed, unknown_grade, unknown_reason_code, validation_error_not_raised, not_allowed_for_outcome, invalid_json, too_large.
+                    description: Stable issue code, e.g. required, too_long, invalid_format, invalid_value, invalid_characters, must_be_string, must_be_boolean, must_be_integer, not_allowed, no_changes, exceeds_scale, less_than_min_value, not_allowed_for_type, not_allowed_when_required, must_be_false_for_derived, exceeds_current_version, unknown_product, product_inactive, not_in_policy, must_be_a_non_negative_integer, must_be_array, must_be_object, too_many, duplicate, syntax_error, unsupported_syntax, unknown_variable, type_error, no_characteristics, no_bins, gap, overlap, min_not_less_than_max, does_not_cover_lower_bound, does_not_cover_upper_bound, must_be_integer, out_of_range, variable_not_numeric, variable_always_present, no_rows, does_not_cover_score_range, missing_section, no_required_test_cases, derived_not_allowed, unknown_grade, unknown_reason_code, validation_error_not_raised, not_allowed_for_outcome, invalid_json, too_large, must_be_after_from.
                   message:
                     type: string
                     description: Explanation in words for issues that need one, for example the position of a syntax error. Absent for most details.
         request_id: { type: string }
 
+    AuditEvent:
+      type: object
+      required: [id, occurred_at, action, aggregate_type, aggregate_id, actor, data]
+      description: One entry of the append-only audit log. `data` holds identifiers, codes, and checksums only.
+      example:
+        id: 1f2e3d4c-5b6a-4978-8a9b-0c1d2e3f4a5b
+        occurred_at: "2026-11-21T09:00:00Z"
+        action: APPROVAL_ACTION_RECORDED
+        aggregate_type: APPROVAL_REQUEST
+        aggregate_id: 4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a
+        actor: { id: 7c6b5a4d-3e2f-4b1a-8d9c-0e1f2a3b4c5d, username: demo_approver_1 }
+        data: { policy_version_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d, step: 1, action: APPROVE, request_status: PENDING }
+      properties:
+        id: { type: string, format: uuid }
+        occurred_at: { type: string, format: date-time, description: The start time of the transaction that wrote the event. }
+        action:
+          type: string
+          pattern: "^[A-Z][A-Z0-9_]{2,63}$"
+          description: What happened, for example `POLICY_VERSION_PUBLISHED`, `APPROVAL_REQUEST_OPENED`, `APPROVAL_ACTION_RECORDED`, `APPROVAL_REQUEST_CLOSED`, `APPROVAL_WORKFLOW_CREATED`, `APPROVAL_WORKFLOW_VERSION_CREATED`.
+        aggregate_type: { type: string, pattern: "^[A-Z][A-Z0-9_]{2,63}$", description: "The kind of entity: `APPROVAL_REQUEST`, `POLICY_VERSION`, or a workflow type." }
+        aggregate_id: { type: string, description: The id of the entity. }
+        actor:
+          type: [object, "null"]
+          description: The user who caused the event. Null for an event written without a user, such as a development seeder.
+          required: [id, username]
+          properties:
+            id: { type: string, format: uuid }
+            username: { type: string }
+        data:
+          type: object
+          additionalProperties: true
+          description: Identifiers and codes about the event. Values under sensitive keys are returned as `[REDACTED]`.
+    AuditEventList:
+      type: object
+      required: [data, meta]
+      example:
+        data:
+          - id: 1f2e3d4c-5b6a-4978-8a9b-0c1d2e3f4a5b
+            occurred_at: "2026-11-21T09:00:00Z"
+            action: APPROVAL_ACTION_RECORDED
+            aggregate_type: APPROVAL_REQUEST
+            aggregate_id: 4d3c2b1a-0f9e-4d8c-8b7a-6f5e4d3c2b1a
+            actor: { id: 7c6b5a4d-3e2f-4b1a-8d9c-0e1f2a3b4c5d, username: demo_approver_1 }
+            data: { policy_version_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d, step: 1, action: APPROVE, request_status: PENDING }
+        meta: { page: 1, per_page: 20, total: 1 }
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/AuditEvent" }
+        meta: { $ref: "#/components/schemas/PageMeta" }
+    AuditDecision:
+      type: object
+      required: [decision_id, created_at, application_id, product_code, policy_version, final_decision, risk_grade, total_score, reason_codes]
+      description: A stored decision without the applicant's input and without the rule trace.
+      example:
+        decision_id: 0b9c5a52-1111-4222-8333-444455556666
+        created_at: "2026-11-21T08:30:00Z"
+        application_id: LOAN-APP-DEMO-0001
+        product_code: KTA_DEMO
+        policy_version: { id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d, number: 1, checksum: 5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592 }
+        final_decision: APPROVE
+        risk_grade: B
+        total_score: "620.00"
+        reason_codes: []
+      properties:
+        decision_id: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+        application_id: { type: string }
+        product_code: { type: string }
+        policy_version:
+          type: object
+          required: [id, number, checksum]
+          properties:
+            id: { $ref: "#/components/schemas/PolicyVersionId" }
+            number: { type: integer, minimum: 1 }
+            checksum: { type: string, pattern: "^[0-9a-f]{64}$" }
+        final_decision: { type: string, enum: [APPROVE, REFER, REJECT] }
+        risk_grade: { type: [string, "null"], description: Null when a RAC rule rejected before scoring. }
+        total_score: { type: [string, "null"], description: Decimal string. Null when a RAC rule rejected before scoring. }
+        reason_codes:
+          type: array
+          items: { type: string }
+    AuditDecisionList:
+      type: object
+      required: [data, meta]
+      example:
+        data:
+          - decision_id: 0b9c5a52-1111-4222-8333-444455556666
+            created_at: "2026-11-21T08:30:00Z"
+            application_id: LOAN-APP-DEMO-0001
+            product_code: KTA_DEMO
+            policy_version: { id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d, number: 1, checksum: 5d41402abc4b2a76b9719d911017c5925d41402abc4b2a76b9719d911017c592 }
+            final_decision: APPROVE
+            risk_grade: B
+            total_score: "620.00"
+            reason_codes: []
+        meta: { page: 1, per_page: 20, total: 1 }
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/AuditDecision" }
+        meta: { $ref: "#/components/schemas/PageMeta" }
   responses:
     Unauthenticated:
       description: Missing, malformed, tampered, or expired token, or the user is disabled.
@@ -4053,7 +4358,43 @@ components:
             error: { code: INTERNAL_ERROR, message: an unexpected error occurred }
             request_id: 5e4d3c2b1a0f9e8d7c6b5a493827160f
     ServiceBusy:
-      description: Password hashing capacity is saturated. Retry after the given number of seconds.
+      description: |
+        The process is saturated: the password hashing capacity (login), or the limit of requests
+        in flight (`HTTP_MAX_IN_FLIGHT`, any route except `/health/*`). Retry after the given
+        number of seconds.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+        Retry-After:
+          schema: { type: integer }
+          example: 1
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error: { code: SERVICE_BUSY, message: "the service is busy, retry shortly" }
+            request_id: 6f5e4d3c2b1a0f9e8d7c6b5a49382716
+    RateLimited:
+      description: |
+        The caller used up the rate limit of this route (token bucket per user, or per client
+        address for login; an IPv6 address counts as its /64 prefix). Retry after the number of
+        seconds in `Retry-After`. The limits are set in `config/ratelimit.go` (`RATE_LIMIT_*`).
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/XRequestID" }
+        Retry-After:
+          schema: { type: integer, minimum: 1 }
+          example: 2
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          example:
+            error: { code: RATE_LIMITED, message: "too many requests, retry after the time in the Retry-After header" }
+            request_id: 7a6f5e4d3c2b1a0f9e8d7c6b5a493827
+    DuplicateInFlight:
+      description: |
+        Another request with the same `Idempotency-Key` is still being processed and did not
+        finish within the lock timeout (2 seconds). Nothing was evaluated or stored by this call.
+        Retry with the same key and the same body: once the first request has committed, the
+        retry returns its stored decision with `Idempotent-Replayed: true`.
       headers:
         X-Request-ID: { $ref: "#/components/headers/XRequestID" }
         Retry-After:

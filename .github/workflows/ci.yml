@@ -1,0 +1,152 @@
+# Continuous integration of RiskForge (RF-025, SYSTEM_DESIGN.md 16.4, docs/CI.md).
+#
+# Every job calls one script of scripts/, which is also what `./scripts/ci.sh` runs on a developer
+# machine, so a failure here can be reproduced locally with the command in the job. Every job that
+# needs a database creates its own Compose project, named after the run (rf-test-ci-<run>-<job>),
+# with a new PostgreSQL that is removed with `down -v` on that project only; nothing is shared
+# between jobs or runs, and nothing is deployed or pushed.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A new push to the same branch replaces the run that is still going.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# The jobs only read the repository. No job has a secret, and none is given write access.
+permissions:
+  contents: read
+
+env:
+  # Unique per run and per re-run, so Compose projects, networks, and volumes never collide.
+  CI_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+
+jobs:
+  docs:
+    name: Documentation links and paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Self-tests of the checkers
+        run: |
+          ./scripts/docs-check.sh --self-test
+          ./scripts/benchmark.sh --self-test
+      - name: Check links, paths in code spans, and the lists of scripts and guides
+        run: ./scripts/docs-check.sh
+      - name: Lint the workflows (this file included)
+        run: docker run --rm -v "$PWD:/repo:ro" -w /repo rhysd/actionlint:1.7.7 -color
+
+  contract:
+    name: OpenAPI, Postman, and contract tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: ./scripts/init-agent-env.sh
+      - name: Lint OpenAPI 3.1, regenerate Postman from scratch and compare bytes, run the contract tests
+        run: ./scripts/contract-check.sh "rf-test-ci-${CI_ID}-contract"
+      - name: The committed collection is what the generator writes
+        run: |
+          ./scripts/generate-postman.sh
+          git diff --exit-code -- api/postman
+
+  migrations:
+    name: Migrations up, down, up
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: ./scripts/init-agent-env.sh
+      - run: ./scripts/migration-check.sh "rf-test-ci-${CI_ID}-mig"
+
+  tests:
+    name: gofmt, vet, and every test with the race detector
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: ./scripts/init-agent-env.sh
+      - run: ./scripts/test.sh "rf-test-ci-${CI_ID}-tests" --repeat 3
+      - name: Keep the test output
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-output
+          path: storage/test/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  e2e:
+    name: End to end on a new stack, then the Postman collection
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: ./scripts/init-agent-env.sh
+      - run: ./scripts/e2e.sh --project "rf-live-ci-${CI_ID}"
+
+  image:
+    name: Release image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the image and check it (nothing is pushed)
+        run: ./scripts/image-check.sh
+
+  vulnerabilities:
+    name: Known vulnerabilities (Go code)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: govulncheck against scripts/vuln-baseline.txt
+        run: ./scripts/vuln-check.sh
+
+  vulnerabilities-image:
+    name: Known vulnerabilities (release image)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Trivy on the OS packages of the image, and govulncheck again
+        run: ./scripts/vuln-check.sh --image
+
+  # One status for branch protection: it passes only if every required job passed.
+  ci:
+    name: CI passed
+    if: always()
+    needs: [docs, contract, migrations, tests, e2e, image, vulnerabilities, vulnerabilities-image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every required job succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for r in $RESULTS; do
+            [ "$r" = success ] || { echo "a required job did not succeed"; exit 1; }
+          done

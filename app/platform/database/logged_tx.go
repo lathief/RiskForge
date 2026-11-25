@@ -7,7 +7,7 @@ import (
 
 	"github.com/goravel/framework/contracts/database/db"
 
-	"goravel/app/platform/logging"
+	"github.com/lathief/RiskForge/app/platform/logging"
 )
 
 // loggedTx wraps a Goravel query handle and records every raw SQL statement in query.log.

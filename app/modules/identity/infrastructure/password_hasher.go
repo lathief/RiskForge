@@ -7,7 +7,7 @@ import (
 
 	"github.com/goravel/framework/contracts/hash"
 
-	"goravel/app/modules/identity/application"
+	"github.com/lathief/RiskForge/app/modules/identity/application"
 )
 
 // PasswordHasher adapts the Goravel hash facade (bcrypt by default, see config/hashing.go)

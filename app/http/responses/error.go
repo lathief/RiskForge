@@ -4,7 +4,7 @@ package responses
 import (
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/ctxkeys"
+	"github.com/lathief/RiskForge/app/http/ctxkeys"
 )
 
 // Error codes returned to clients.
@@ -22,6 +22,7 @@ const (
 	CodeIdempotencyConflict = "IDEMPOTENCY_CONFLICT"
 	CodeRouteNotFound       = "ROUTE_NOT_FOUND"
 	CodeServiceBusy         = "SERVICE_BUSY"
+	CodeRateLimited         = "RATE_LIMITED"
 	genericInternalMessage  = "an unexpected error occurred"
 	genericForbiddenMessage = "you do not have permission to perform this action"
 )
@@ -69,6 +70,12 @@ func Forbidden(ctx http.Context) http.AbortableResponse {
 
 func NotFound(ctx http.Context, code, message string) http.AbortableResponse {
 	return Error(ctx, http.StatusNotFound, code, message)
+}
+
+// TooManyRequests answers 429 with the number of seconds after which the client may retry.
+func TooManyRequests(ctx http.Context, retryAfterSeconds string) http.AbortableResponse {
+	ctx.Response().Header("Retry-After", retryAfterSeconds)
+	return Error(ctx, http.StatusTooManyRequests, CodeRateLimited, "too many requests, retry after the time in the Retry-After header")
 }
 
 func Conflict(ctx http.Context, code, message string) http.AbortableResponse {

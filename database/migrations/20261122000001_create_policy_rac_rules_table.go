@@ -1,7 +1,7 @@
 package migrations
 
 import (
-	"goravel/app/facades"
+	"github.com/lathief/RiskForge/app/facades"
 )
 
 type M20261122000001CreatePolicyRacRulesTable struct{}

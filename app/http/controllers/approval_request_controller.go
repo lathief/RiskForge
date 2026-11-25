@@ -6,12 +6,13 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/auth"
-	"goravel/app/http/responses"
-	"goravel/app/modules/approval/application"
-	"goravel/app/modules/approval/domain"
-	policyapp "goravel/app/modules/policy/application"
-	"goravel/app/platform/logging"
+	"github.com/lathief/RiskForge/app/http/auth"
+	"github.com/lathief/RiskForge/app/http/responses"
+	"github.com/lathief/RiskForge/app/modules/approval/application"
+	"github.com/lathief/RiskForge/app/modules/approval/domain"
+	policyapp "github.com/lathief/RiskForge/app/modules/policy/application"
+	"github.com/lathief/RiskForge/app/platform/logging"
+	"github.com/lathief/RiskForge/app/platform/metrics"
 )
 
 const (
@@ -24,6 +25,7 @@ const (
 	codeWorkflowNotConfigured   = "APPROVAL_WORKFLOW_NOT_CONFIGURED"
 	codeVersionSuperseded       = "POLICY_VERSION_SUPERSEDED"
 	codeNotPublishable          = "POLICY_NOT_PUBLISHABLE"
+	codeStateConflict           = "APPROVAL_STATE_CONFLICT"
 )
 
 // ApprovalRequestController serves submission for approval and the approval state machine
@@ -242,6 +244,12 @@ func (c *ApprovalRequestController) Act(ctx http.Context) http.Response {
 	if err != nil {
 		return c.fail(ctx, "act", err)
 	}
+	// Counted only after the transaction committed. The request closes APPROVED only with the
+	// publication of its version (SYSTEM_DESIGN.md 11.7).
+	metrics.ApprovalActions.Inc(in.Action)
+	if r.Status == domain.RequestApproved {
+		metrics.PolicyPublish.Inc()
+	}
 	return ctx.Response().Json(http.StatusOK, toApprovalRequest(r))
 }
 
@@ -273,6 +281,11 @@ func (c *ApprovalRequestController) fail(ctx http.Context, op string, err error)
 		logging.Default().Error(ctx.Context(), "approval request: publish refused", err)
 		return responses.Conflict(ctx, codeNotPublishable,
 			"the approved version cannot be compiled, so it was not published and the approval was not recorded")
+	case errors.Is(err, policyapp.ErrVersionNotPending), errors.Is(err, policyapp.ErrVersionNotApproved), errors.Is(err, application.ErrRequestExists):
+		// The request row lock and the database triggers make these unreachable through the API;
+		// one that happens means the state drifted, which an operator must look at (M4-REL-02).
+		logging.Default().Error(ctx.Context(), "approval request: state conflict (integrity alert)", err)
+		return responses.Conflict(ctx, codeStateConflict, "the state of the request or of the policy version changed; reload and check it")
 	default:
 		logging.Default().Error(ctx.Context(), "approval request: "+op+" failed", err)
 		return responses.Internal(ctx)

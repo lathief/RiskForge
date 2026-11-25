@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"goravel/app/modules/ruleengine"
+	"github.com/lathief/RiskForge/app/modules/ruleengine"
 )
 
 // Golden test execution (SYSTEM_DESIGN.md 9.3, 9.9, 12; RF-013). Each stored test case is run

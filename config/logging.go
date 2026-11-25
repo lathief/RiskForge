@@ -1,7 +1,7 @@
 package config
 
 import (
-	"goravel/app/facades"
+	"github.com/lathief/RiskForge/app/facades"
 )
 
 func init() {
@@ -59,7 +59,7 @@ func init() {
 			},
 			"otel": map[string]any{
 				"driver":          "otel",
-				"instrument_name": config.GetString("APP_NAME", "goravel/log"),
+				"instrument_name": config.GetString("APP_NAME", "github.com/lathief/RiskForge/log"),
 				"level":           config.Env("LOG_LEVEL", "debug"),
 			},
 		},

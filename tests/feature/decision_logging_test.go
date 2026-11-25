@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"goravel/app/platform/logging"
+	"github.com/lathief/RiskForge/app/platform/logging"
 )
 
 // The applicant's financial data and the decision made from it must not reach activity.log,

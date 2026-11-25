@@ -4,7 +4,7 @@ import (
 	"context"
 	"math/big"
 
-	"goravel/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/modules/policy/domain"
 )
 
 type scorecardRow struct {

@@ -6,8 +6,8 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/responses"
-	"goravel/app/platform/logging"
+	"github.com/lathief/RiskForge/app/http/responses"
+	"github.com/lathief/RiskForge/app/platform/logging"
 )
 
 // DocsController serves Swagger UI and the raw OpenAPI contract (DX-001). It is registered

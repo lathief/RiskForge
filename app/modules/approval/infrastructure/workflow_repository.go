@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"goravel/app/modules/approval/application"
-	"goravel/app/modules/approval/domain"
-	"goravel/app/platform/database"
+	"github.com/lathief/RiskForge/app/modules/approval/application"
+	"github.com/lathief/RiskForge/app/modules/approval/domain"
+	"github.com/lathief/RiskForge/app/platform/database"
 )
 
 const definitionColumns = `d.id::text AS id, d.product_id::text AS product_id, pr.code AS product_code,

@@ -10,9 +10,10 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/auth"
-	"goravel/app/http/ctxkeys"
-	"goravel/app/platform/logging"
+	"github.com/lathief/RiskForge/app/http/auth"
+	"github.com/lathief/RiskForge/app/http/ctxkeys"
+	"github.com/lathief/RiskForge/app/platform/logging"
+	"github.com/lathief/RiskForge/app/platform/metrics"
 )
 
 // ActivityLog writes one activity.log entry per request: request and response headers,
@@ -124,6 +125,7 @@ func (m *ActivityLog) addUser(ctx http.Context, entry *logging.ActivityEntry) {
 
 func finish(logger *logging.Logger, entry logging.ActivityEntry, start time.Time, status int) {
 	entry.HTTPCode = status
+	metrics.ObserveHTTP(entry.Module, status, time.Since(start))
 	entry.ResponseTime = float64(time.Since(start).Microseconds()) / 1000
 	entry.MemoryUsage = logging.HeapBytes()
 	logger.Activity(entry)

@@ -13,15 +13,15 @@ import (
 	contractstesting "github.com/goravel/framework/contracts/testing/http"
 	"github.com/stretchr/testify/suite"
 
-	"goravel/app/facades"
-	approvalapp "goravel/app/modules/approval/application"
-	approvaldomain "goravel/app/modules/approval/domain"
-	approvalinfra "goravel/app/modules/approval/infrastructure"
-	catalogapp "goravel/app/modules/catalog/application"
-	cataloginfra "goravel/app/modules/catalog/infrastructure"
-	"goravel/app/platform/database"
-	"goravel/database/seeders"
-	"goravel/tests"
+	"github.com/lathief/RiskForge/app/facades"
+	approvalapp "github.com/lathief/RiskForge/app/modules/approval/application"
+	approvaldomain "github.com/lathief/RiskForge/app/modules/approval/domain"
+	approvalinfra "github.com/lathief/RiskForge/app/modules/approval/infrastructure"
+	catalogapp "github.com/lathief/RiskForge/app/modules/catalog/application"
+	cataloginfra "github.com/lathief/RiskForge/app/modules/catalog/infrastructure"
+	"github.com/lathief/RiskForge/app/platform/database"
+	"github.com/lathief/RiskForge/database/seeders"
+	"github.com/lathief/RiskForge/tests"
 )
 
 // Approval workflow configuration (RF-018, SYSTEM_DESIGN.md 11).

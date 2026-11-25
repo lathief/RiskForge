@@ -11,7 +11,7 @@ import (
 	"errors"
 	"fmt"
 
-	decision "goravel/app/modules/decision/application"
+	decision "github.com/lathief/RiskForge/app/modules/decision/application"
 )
 
 // MaxApplicantFields bounds the keys of one applicant object, as for a decision.

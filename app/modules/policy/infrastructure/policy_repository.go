@@ -5,9 +5,9 @@ import (
 	"context"
 	"time"
 
-	"goravel/app/modules/policy/application"
-	"goravel/app/modules/policy/domain"
-	"goravel/app/platform/database"
+	"github.com/lathief/RiskForge/app/modules/policy/application"
+	"github.com/lathief/RiskForge/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/platform/database"
 )
 
 const packageColumns = `p.id::text AS id, p.product_id::text AS product_id, pr.code AS product_code, p.scope, p.created_at`

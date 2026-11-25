@@ -1,6 +1,6 @@
 # Release image. Configuration comes from environment variables at runtime; no .env is baked in.
 # Base images are pinned by digest; refresh them deliberately (docker pull + inspect RepoDigests).
-FROM golang:1.25-alpine@sha256:1ae0735f00daffa3aaf1363a5184c0d2dc55c78e3db4ec70241cdac97bf84b59 AS builder
+FROM golang:1.26-alpine@sha256:ecb67f987aa1a57794c91d19ade7ae0209f2f0f5496aaef9e6ae85ddf92d02ab AS builder
 ENV CGO_ENABLED=0
 WORKDIR /build
 COPY go.mod go.sum ./

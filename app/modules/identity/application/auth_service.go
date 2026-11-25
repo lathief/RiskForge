@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"goravel/app/modules/identity/domain"
+	"github.com/lathief/RiskForge/app/modules/identity/domain"
 )
 
 var (

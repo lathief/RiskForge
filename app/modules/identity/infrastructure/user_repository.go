@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"regexp"
 
-	"goravel/app/modules/identity/application"
-	"goravel/app/modules/identity/domain"
-	"goravel/app/platform/database"
+	"github.com/lathief/RiskForge/app/modules/identity/application"
+	"github.com/lathief/RiskForge/app/modules/identity/domain"
+	"github.com/lathief/RiskForge/app/platform/database"
 )
 
 var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)

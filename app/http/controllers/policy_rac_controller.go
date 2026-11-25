@@ -6,8 +6,8 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/responses"
-	"goravel/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/http/responses"
+	"github.com/lathief/RiskForge/app/modules/policy/domain"
 )
 
 type ruleResponse struct {

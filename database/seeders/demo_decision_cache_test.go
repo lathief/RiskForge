@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"goravel/app/modules/decision/application"
-	"goravel/app/modules/decision/infrastructure"
-	policydomain "goravel/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/modules/decision/application"
+	"github.com/lathief/RiskForge/app/modules/decision/infrastructure"
+	policydomain "github.com/lathief/RiskForge/app/modules/policy/domain"
 )
 
 // The compiled policy cache (RF-016, SYSTEM_DESIGN.md 10.6) in front of the real demo policy.

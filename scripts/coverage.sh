@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Measures Go statement coverage and prints it as Markdown (the source of docs/coverage.md).
+# Measures Go statement coverage and prints it as Markdown (the source of docs/COVERAGE.md).
 #
 #   ./scripts/coverage.sh [project]     default project: rf-test-coverage
 #
@@ -27,7 +27,8 @@ trap '"${compose[@]}" down -v --remove-orphans >/dev/null 2>&1 || true' EXIT
 "${compose[@]}" up -d db >/dev/null
 "${compose[@]}" run --rm --no-deps api ./artisan migrate >/dev/null
 "${compose[@]}" run --rm --no-deps -e HASH_BCRYPT_ROUNDS=4 api sh -euc '
-  summarize() { # profile -> "package statements covered"
+  mod="$(go list -m)"
+  summarize() { # profile -> "package statements covered", paths relative to the module
     # Every test binary writes the whole block list, so the same block appears once per
     # binary. Merge by block first (statement count once, hits summed), then add up per package.
     awk '"'"'NR > 1 { stm[$1] = $2; hit[$1] += $3 }
@@ -39,7 +40,7 @@ trap '"${compose[@]}" down -v --remove-orphans >/dev/null 2>&1 || true' EXIT
         total[pkg] += stm[b]; if (hit[b] > 0) covered[pkg] += stm[b]
       }
       for (k in total) printf "%s %d %d\n", k, total[k], covered[k] + 0
-    }'"'"' "$1" | sort
+    }'"'"' "$1" | sed "s#^$mod/##" | sort
   }
   table() { # profile
     summarize "$1" | awk '"'"'{ t += $2; c += $3; printf "| `%s` | %d | %d | %.1f%% |\n", $1, $2, $3, ($2 ? 100 * $3 / $2 : 0) }

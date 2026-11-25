@@ -16,10 +16,10 @@ import (
 	contractstesting "github.com/goravel/framework/contracts/testing/http"
 	"github.com/stretchr/testify/suite"
 
-	"goravel/app/facades"
-	"goravel/app/platform/logging"
-	"goravel/database/seeders"
-	"goravel/tests"
+	"github.com/lathief/RiskForge/app/facades"
+	"github.com/lathief/RiskForge/app/platform/logging"
+	"github.com/lathief/RiskForge/database/seeders"
+	"github.com/lathief/RiskForge/tests"
 )
 
 // LoggingTestSuite checks the structured logs end to end through the Fiber driver.

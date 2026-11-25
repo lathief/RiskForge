@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"goravel/app/modules/dictionary/domain"
+	"github.com/lathief/RiskForge/app/modules/dictionary/domain"
 )
 
 func ptr[T any](v T) *T { return &v }

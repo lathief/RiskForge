@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"goravel/app/modules/policy/domain"
+	"github.com/lathief/RiskForge/app/modules/policy/domain"
 )
 
 // Draft is a version with the content and the dictionary it is evaluated against. The

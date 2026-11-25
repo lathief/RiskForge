@@ -1,0 +1,5 @@
+{
+  "application_id": "DEMO-APP-0005",
+  "product_code": "KTA_DEMO",
+  "applicant": {"age_years":29,"monthly_income":null,"existing_installment":"2500000.00","employment_tenure_months":36,"slik_max_kol":1,"is_blacklisted":false}
+}

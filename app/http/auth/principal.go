@@ -3,8 +3,8 @@ package auth
 import (
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/ctxkeys"
-	"goravel/app/modules/identity/domain"
+	"github.com/lathief/RiskForge/app/http/ctxkeys"
+	"github.com/lathief/RiskForge/app/modules/identity/domain"
 )
 
 // PrincipalFrom returns the caller attached by the Authenticate middleware.

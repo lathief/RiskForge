@@ -1,6 +1,6 @@
 # Architecture
 
-RiskForge is a **modular monolith**: one Go process (Goravel v1.18 with the official Fiber HTTP driver) and one PostgreSQL 18 database. Business capabilities live in separate modules with explicit boundaries, so they can be reasoned about and tested independently without the operational cost of microservices. The full target design is in `SYSTEM_DESIGN.md` sections 5 to 12; this page describes what runs today and marks what is planned.
+RiskForge is a **modular monolith**: one Go process (Goravel v1.18 with the official Fiber HTTP driver) and one PostgreSQL 18 database. Business capabilities live in separate modules with explicit boundaries, so they can be reasoned about and tested independently without the operational cost of microservices. The full target design is in `SYSTEM_DESIGN.md` sections 5 to 12; this page describes what runs today.
 
 ## High-level view
 
@@ -19,8 +19,8 @@ flowchart TD
         API --> ENGINE[decision + ruleengine + simulation - M3, RF-017]
         API --> APPROVAL[approval module - workflows RF-018, requests RF-019, atomic publish RF-020]
         APPROVAL --> POLICY
-        APPROVAL --> AUDIT[audit module - event log RF-020, search planned M5]
-        PLATFORM[platform: transactions, structured logging]
+        APPROVAL --> AUDIT[audit module - event log RF-020, search RF-022]
+        PLATFORM[platform: transactions, structured logging, metrics, rate limit]
     end
 
     IDENTITY --> PLATFORM
@@ -33,7 +33,7 @@ flowchart TD
     PLATFORM --> LOGS[[storage/logs: activity, error, lifetime, query]]
 ```
 
-All modules in the diagram exist; audit search (M5) is planned and described in `SYSTEM_DESIGN.md`.
+All modules in the diagram exist. `GET /metrics` and the rate limits (RF-023) belong to the HTTP layer and the platform box.
 
 ## Modules
 
@@ -47,8 +47,8 @@ All modules in the diagram exist; audit search (M5) is planned and described in 
 | `decision` | Decision API: resolves the active policy, evaluates an application, returns the decision with its trace | `POST /decisions/evaluate` (RF-014) with durable runs, traces, and idempotency, and `GET /decisions/{id}` (RF-015) implemented, with the compiled policy cache (RF-016) | `app/modules/decision` |
 | `simulation` | Policy simulator: evaluates one applicant against any version with the Decision API's evaluation core (`decision/infrastructure.NewEvaluablePolicy`) and stores nothing. No tables. | `POST /policy-versions/{version_id}/simulate` implemented (RF-017) | `app/modules/simulation` |
 | `approval` | Approval workflow configuration (one workflow per product and policy scope, append-only versions of sequential steps with role, scope, quorum) and approval requests: submit opens a request pinned to the policy checksum and workflow version; the state machine records approver actions on the active step. Calls the policy module through a port. | Workflow configuration (RF-018) and state machine (RF-019) implemented, schema `approval`: `workflow_definitions`, `workflow_versions`, `workflow_steps`, `requests`, `actions`; the last approval publishes the version in the same transaction (RF-020); the review endpoint returns the policy diff (RF-021) | `app/modules/approval` |
-| `audit` | Append-only domain event log (`audit.events`): who, when, action, entity, identifiers only | Event log written in the same transaction as the change: publication (RF-020, `POLICY_VERSION_PUBLISHED`) and workflow configuration (`APPROVAL_WORKFLOW_CREATED`, `APPROVAL_WORKFLOW_VERSION_CREATED`, M4 review); audit search planned (RF-022) | `app/modules/audit` |
-| `platform` | Transaction manager, query logging, structured logs | Implemented | `app/platform` |
+| `audit` | Append-only domain event log (`audit.events`): who, when, action, entity, identifiers only | Event log written in the same transaction as the change: publication (RF-020, `POLICY_VERSION_PUBLISHED`) and workflow configuration (`APPROVAL_WORKFLOW_CREATED`, `APPROVAL_WORKFLOW_VERSION_CREATED`, M4 review), and the approval history (`APPROVAL_REQUEST_OPENED`, `APPROVAL_ACTION_RECORDED`, `APPROVAL_REQUEST_CLOSED`, RF-022); `GET /audit/events` searches it, and `GET /audit/decisions` lists stored decisions through the decision module (RF-022) | `app/modules/audit` |
+| `platform` | Transaction manager, query logging, structured logs, metrics registry (`GET /metrics`), token bucket rate limiter | Implemented (metrics and rate limit in RF-023) | `app/platform` |
 
 Each PostgreSQL schema belongs to one module (`identity`, `catalog`, `dictionary`, `policy`, `approval`, `decision`, `audit`). A module never queries another module's tables; cross-module calls go through application interfaces.
 
@@ -84,6 +84,7 @@ sequenceDiagram
     participant RID as RequestID
     participant DRV as Fiber driver globals
     participant ACT as ActivityLog
+    participant GATE as InFlightLimit
     participant MOD as Module catalog
     participant AUTHN as Authenticate
     participant PERM as RequirePermission product read
@@ -95,7 +96,8 @@ sequenceDiagram
     C->>RID: GET /api/v1/products
     RID->>DRV: accept or generate X-Request-ID
     DRV->>ACT: 3 s timeout, CORS
-    ACT->>MOD: capture request (redacted)
+    ACT->>GATE: capture request (redacted)
+    GATE->>MOD: place taken (HTTP_MAX_IN_FLIGHT)
     MOD->>AUTHN: label module = catalog
     AUTHN->>DB: load user + roles (identity schema)
     AUTHN->>PERM: principal attached
@@ -119,6 +121,8 @@ Failures short-circuit with the standard error envelope and the same `request_id
 | Unknown route (any method) | `404 ROUTE_NOT_FOUND` from the fallback handler. |
 | Panic | `500 INTERNAL_ERROR`; `middleware.Recover` writes the stack trace to `error.log` without headers or body. |
 | Login while bcrypt slots are full | `503 SERVICE_BUSY` with `Retry-After` (ADR 0003). |
+| More than `HTTP_MAX_IN_FLIGHT` requests in flight (default 64) | `503 SERVICE_BUSY` with `Retry-After: 1` from `InFlightLimit`, at once, logged and counted in `riskforge_requests_shed_total`; `/health/*` is never refused (ADR 0028). |
+| A rate limit used up (login, evaluate, analysis routes) | `429 RATE_LIMITED` with `Retry-After` from `RateLimit` (ADR 0024). |
 | Body over 64 KiB / request over 3 s | `413` / `408` plain text from the Fiber driver. |
 
 ## Transactions and concurrency
@@ -145,11 +149,34 @@ Failures short-circuit with the standard error envelope and the same `request_id
 ```mermaid
 flowchart LR
     subgraph Compose["docker compose -p <project>"]
-        api["api: golang:1.25, source bind-mounted, 127.0.0.1:3000"]
+        api["api: golang:1.26, source bind-mounted, 127.0.0.1:3000"]
         db[("db: postgres:18, no host port, named volume")]
         api -->|backend network| db
     end
-    host[Host: curl, browser, Postman] -->|127.0.0.1 only| api
+    host["Host: curl, browser, Postman"] -->|127.0.0.1 only| api
 ```
 
 Every developer, agent, or test run uses its own Compose project name (`rf-dev`, `rf-test-<ticket>`), so networks and database volumes never collide. The release image (`Dockerfile`) is a static binary on Alpine running as a non-root user, without `.env`, docs assets, or the API spec.
+## From a change to a verified release
+Every check is a script, and the CI workflow and your machine run the same ones (`./scripts/ci.sh`, [CI.md](CI.md)). Each gate that needs a database creates its own Compose project and removes only that project.
+```mermaid
+flowchart LR
+    Change[Commit on a ticket branch] --> Docs[docs-check]
+    Change --> Contract["contract-check: OpenAPI lint, Postman parity"]
+    Change --> Mig["migration-check: up, down, up"]
+    Change --> Tests["test.sh: gofmt, vet, race, concurrency"]
+    Change --> E2E["e2e.sh: 130 checks + Postman run"]
+    Change --> Image["image-check: release image"]
+    Change --> Vuln["vuln-check: govulncheck vs baseline"]
+    Change --> VulnImg["vuln-check --image: Trivy on the OS packages"]
+    Docs --> Gate{CI passed}
+    Contract --> Gate
+    Mig --> Gate
+    Tests --> Gate
+    E2E --> Gate
+    Image --> Gate
+    Vuln --> Gate
+    VulnImg --> Gate
+    Gate --> Review[Review and merge]
+    Demo["demo.sh: the story on a fresh stack"] -.-> Review
+```

@@ -1,6 +1,6 @@
 # Test coverage
 
-Statement coverage of the Go code, measured at the end of milestone 4 (branch `feature/M4-governance`, which contains RF-017 to RF-021 and the M4 review fixes). The numbers come from `./scripts/coverage.sh`, which runs the tests in a disposable `rf-test-*` Compose project with a real PostgreSQL and removes the project afterwards. There is no coverage gate yet; CI with a threshold arrives with RF-025. Re-measure after each ticket and update this file. Do not run it while another stack (for example `rf-dev`) is writing to `storage/logs` (see `AGENT_RUNBOOK.md`).
+Statement coverage of the Go code, measured at the M5 validation on Go 1.26.11 (branch `feature/M5-hardening`: RF-022 to RF-026 and the validation fixes, on top of `main` with milestones 1 to 4). The validation added the in-flight gate (`app/http/middleware/in_flight.go`), the shared bucket of the limiter, the proxy check of `app/support`, and the `aggregate_id` check of the audit search, all with unit tests; the move to Go 1.26 and the module path `github.com/lathief/RiskForge` (ADR 0029) changed no statement, and the numbers did not move. They come from `./scripts/coverage.sh`, which runs the tests in a disposable `rf-test-*` Compose project with a real PostgreSQL and prints package paths relative to the module. There is no coverage gate in CI ([CI.md](CI.md)). Re-measure after each ticket and update this file. Do not run it while another stack (for example `rf-dev`) is writing to `storage/logs` (see `AGENT_RUNBOOK.md`).
 
 ```sh
 ./scripts/coverage.sh                 # prints the two tables below as Markdown (project rf-test-coverage)
@@ -26,24 +26,29 @@ Both count every statement in `app/`, including packages that have no unit test 
 | RF-015 | 59.1% | 90.0% | Decision persistence and idempotency: tables, repository, key claim and replay, GET |
 | RF-016 | 59.4% | 90.1% | Compiled policy cache: LRU with single-flight, `ActiveReference`, batch rule trace insert |
 | M4 (RF-017 to RF-021) | 57.5% | 89.9% | Simulator, approval workflows and requests, atomic publish with `audit.events`, policy diff and review, M4 review fixes |
+| RF-022 | 56.7% | 89.9% | Audit event search, decision history, approval events, redaction of event data, `audit.events.seq` |
+| RF-023 | 57.3% | 90.1% | Metrics registry, token bucket limiter, rate limit and security header middleware, metrics endpoint, claim lock timeout |
+| RF-024 | 57.3% | 90.1% | No application code changed: golden cases, benchmarks, and scripts add tests, not statements, so every package keeps its numbers |
+| RF-025 | 57.2% | 90.0% | `app/support` `AppKeyMissing` (tested) and `app/preflight` (6 statements, its `init` runs only in the server binary and is covered by `scripts/image-check.sh`, not by Go coverage); the new contract tests add no statements |
+| M5 validation | 57.7% | 90.1% | In-flight gate and its client address key (unit tested, the middleware unit figure rose from 8.8% to 23.4%), shared limiter bucket, proxy configuration check, `aggregate_id` check; measured first on the host, then again in Compose on Go 1.26 with the same result |
 
 ## Unit tests
 | Package | Statements | Covered | Coverage |
 |---|---:|---:|---:|
 | `app/http/auth` | 19 | 0 | 0.0% |
-| `app/http/controllers` | 1021 | 0 | 0.0% |
-| `app/http/middleware` | 120 | 13 | 10.8% |
-| `app/http/responses` | 11 | 0 | 0.0% |
-| `app/modules/approval/application` | 146 | 130 | 89.0% |
+| `app/http/controllers` | 1114 | 0 | 0.0% |
+| `app/http/middleware` | 188 | 44 | 23.4% |
+| `app/http/responses` | 13 | 0 | 0.0% |
+| `app/modules/approval/application` | 153 | 135 | 88.2% |
 | `app/modules/approval/domain` | 153 | 146 | 95.4% |
 | `app/modules/approval/infrastructure` | 176 | 6 | 3.4% |
-| `app/modules/audit/application` | 6 | 6 | 100.0% |
-| `app/modules/audit/infrastructure` | 5 | 0 | 0.0% |
+| `app/modules/audit/application` | 52 | 51 | 98.1% |
+| `app/modules/audit/infrastructure` | 35 | 0 | 0.0% |
 | `app/modules/catalog/application` | 31 | 29 | 93.5% |
 | `app/modules/catalog/domain` | 50 | 46 | 92.0% |
 | `app/modules/catalog/infrastructure` | 39 | 0 | 0.0% |
-| `app/modules/decision/application` | 71 | 65 | 91.5% |
-| `app/modules/decision/infrastructure` | 193 | 51 | 26.4% |
+| `app/modules/decision/application` | 102 | 96 | 94.1% |
+| `app/modules/decision/infrastructure` | 228 | 51 | 22.4% |
 | `app/modules/dictionary/application` | 69 | 61 | 88.4% |
 | `app/modules/dictionary/domain` | 291 | 284 | 97.6% |
 | `app/modules/dictionary/infrastructure` | 65 | 0 | 0.0% |
@@ -57,29 +62,32 @@ Both count every statement in `app/`, including packages that have no unit test 
 | `app/modules/simulation/application` | 21 | 20 | 95.2% |
 | `app/modules/simulation/infrastructure` | 11 | 0 | 0.0% |
 | `app/platform/database` | 51 | 35 | 68.6% |
-| `app/platform/logging` | 200 | 168 | 84.0% |
-| `app/support` | 23 | 23 | 100.0% |
-| **total** | **4981** | **2865** | **57.5%** |
+| `app/platform/logging` | 203 | 171 | 84.2% |
+| `app/platform/metrics` | 114 | 112 | 98.2% |
+| `app/platform/ratelimit` | 56 | 54 | 96.4% |
+| `app/preflight` | 6 | 0 | 0.0% |
+| `app/support` | 45 | 45 | 100.0% |
+| **total** | **5494** | **3168** | **57.7%** |
 
-The business-rule packages (`*/domain`, `*/application`, `ruleengine`) are the ones unit tests are meant to cover, and they sit between 88% and 100% apart from `identity/domain` (73.9%). The 57.5% total is low because the packages that talk to HTTP or SQL (`controllers`, `infrastructure`, `responses`, `auth`) have no unit tests by design; they are covered by the integration suites below. The total dropped from 59.4% at RF-016 because M4 added 281 controller statements and 176 approval repository statements, which only the integration suites run. A low unit total is therefore expected, and the per-package lines are the useful part.
+The business-rule packages (`*/domain`, `*/application`, `ruleengine`) are the ones unit tests are meant to cover, and they sit between 88% and 100% apart from `identity/domain` (73.9%). The low unit total is expected because the packages that talk to HTTP or SQL (`controllers`, `infrastructure`, `responses`, `auth`) have no unit tests by design; they are covered by the integration suites below. The total dropped from 59.4% at RF-016 because M4 added 281 controller statements and 176 approval repository statements, which only the integration suites run, and from 57.5% to 56.7% at RF-022 because the audit controller (67 statements), the event search (30), and the decision history query (26) are also reached only over HTTP. A low unit total is therefore expected, and the per-package lines are the useful part. `audit/application` grew from 6 to 44 statements and is at 97.7%. RF-023 raised the total to 57.3% because the new packages are unit tested: `platform/metrics` 98.2% and `platform/ratelimit` 95.8% of 160 statements together. `http/middleware` fell from 10.8% to 8.8% in the unit table at RF-023 because the rate limit and security header middleware (27 statements) need an HTTP request; the M5 validation raised it to 23.4% with unit tests of the in-flight gate and of the client address key.
 
 ## Unit tests and integration tests together
 | Package | Statements | Covered | Coverage |
 |---|---:|---:|---:|
 | `app/http/auth` | 19 | 17 | 89.5% |
-| `app/http/controllers` | 1021 | 963 | 94.3% |
-| `app/http/middleware` | 120 | 104 | 86.7% |
-| `app/http/responses` | 11 | 11 | 100.0% |
-| `app/modules/approval/application` | 146 | 132 | 90.4% |
+| `app/http/controllers` | 1114 | 1046 | 93.9% |
+| `app/http/middleware` | 188 | 166 | 88.3% |
+| `app/http/responses` | 13 | 13 | 100.0% |
+| `app/modules/approval/application` | 153 | 137 | 89.5% |
 | `app/modules/approval/domain` | 153 | 152 | 99.3% |
 | `app/modules/approval/infrastructure` | 176 | 152 | 86.4% |
-| `app/modules/audit/application` | 6 | 6 | 100.0% |
-| `app/modules/audit/infrastructure` | 5 | 4 | 80.0% |
+| `app/modules/audit/application` | 52 | 51 | 98.1% |
+| `app/modules/audit/infrastructure` | 35 | 31 | 88.6% |
 | `app/modules/catalog/application` | 31 | 29 | 93.5% |
 | `app/modules/catalog/domain` | 50 | 50 | 100.0% |
 | `app/modules/catalog/infrastructure` | 39 | 33 | 84.6% |
-| `app/modules/decision/application` | 71 | 66 | 93.0% |
-| `app/modules/decision/infrastructure` | 193 | 167 | 86.5% |
+| `app/modules/decision/application` | 102 | 98 | 96.1% |
+| `app/modules/decision/infrastructure` | 228 | 195 | 85.5% |
 | `app/modules/dictionary/application` | 69 | 61 | 88.4% |
 | `app/modules/dictionary/domain` | 291 | 288 | 99.0% |
 | `app/modules/dictionary/infrastructure` | 65 | 55 | 84.6% |
@@ -93,14 +101,17 @@ The business-rule packages (`*/domain`, `*/application`, `ruleengine`) are the o
 | `app/modules/simulation/application` | 21 | 20 | 95.2% |
 | `app/modules/simulation/infrastructure` | 11 | 11 | 100.0% |
 | `app/platform/database` | 51 | 47 | 92.2% |
-| `app/platform/logging` | 200 | 184 | 92.0% |
-| `app/support` | 23 | 23 | 100.0% |
-| `database/migrations` | 162 | 17 | 10.5% |
+| `app/platform/logging` | 203 | 187 | 92.1% |
+| `app/platform/metrics` | 114 | 112 | 98.2% |
+| `app/platform/ratelimit` | 56 | 55 | 98.2% |
+| `app/preflight` | 6 | 0 | 0.0% |
+| `app/support` | 45 | 45 | 100.0% |
+| `database/migrations` | 171 | 18 | 10.5% |
 | `database/seeders` | 171 | 122 | 71.3% |
-| `routes` | 95 | 95 | 100.0% |
-| **total** | **5409** | **4863** | **89.9%** |
+| `routes` | 129 | 129 | 100.0% |
+| **total** | **5965** | **5374** | **90.1%** |
 
-`decision/infrastructure` is at 26.4% in the unit table: the cache (`policy_cache_test.go`) is tested there, while the resolver and the policy evaluation are tested in `database/seeders` (they need the demo policy) and the repository over HTTP, so the second table counts them (86.5%). `approval/infrastructure` (3.4% unit) is the same case: its repositories are SQL and run in the feature suites (86.4%). `database/migrations` is low because the migration `Up()` bodies are SQL strings run once by `./artisan migrate`, which the suites call in a separate step; the effect of the migrations is verified by the constraint and trigger tests instead (for example `TestDatabaseRejectsInvalidRowsDirectly`, `TestDatabaseFreezesSubmittedVersionsEvenWhenTheServiceIsBypassed`, `TestDatabaseFreezesRulesOfSubmittedVersions`, `TestDatabaseFreezesTheScorecardOfSubmittedVersions`, `TestDatabaseFreezesTheMatrixOfSubmittedVersions`, `TestDatabaseTestCaseConstraints`, `TestDatabaseKeepsWorkflowConfigurationAppendOnly`, `TestDatabaseGuardsTheApprovalHistory`, and `TestTheAuditLogIsAppendOnly`). `database/seeders` is below 100% because the `Run()` wrappers that check `APP_ENV` are not invoked by tests, which call the `Seed...` functions directly.
+`decision/infrastructure` is at 22.4% in the unit table: the cache (`policy_cache_test.go`) is tested there, while the resolver and the policy evaluation are tested in `database/seeders` (they need the demo policy) and the repository over HTTP, so the second table counts them (85.5%). `approval/infrastructure` (3.4% unit) is the same case: its repositories are SQL and run in the feature suites (86.4%). `database/migrations` is low because the migration `Up()` bodies are SQL strings run once by `./artisan migrate`, which the suites call in a separate step; the effect of the migrations is verified by the constraint and trigger tests instead (for example `TestDatabaseRejectsInvalidRowsDirectly`, `TestDatabaseFreezesSubmittedVersionsEvenWhenTheServiceIsBypassed`, `TestDatabaseFreezesRulesOfSubmittedVersions`, `TestDatabaseFreezesTheScorecardOfSubmittedVersions`, `TestDatabaseFreezesTheMatrixOfSubmittedVersions`, `TestDatabaseTestCaseConstraints`, `TestDatabaseKeepsWorkflowConfigurationAppendOnly`, `TestDatabaseGuardsTheApprovalHistory`, and `TestTheAuditLogIsAppendOnly`). `database/seeders` is below 100% because the `Run()` wrappers that check `APP_ENV` are not invoked by tests, which call the `Seed...` functions directly.
 
 ## Where the unit tests stop
 
@@ -135,7 +146,7 @@ Functions in the business-rule packages below 100% (from `go tool cover -func` o
 
 ## Gaps worth closing
 
-- `app/http/middleware` is 87% only with the integration suites; its unit tests (10.8%) cover just the activity log. Authentication and permission middleware (including `RequireAnyPermission`) are tested over HTTP.
+- `app/http/middleware` is 88.3% only with the integration suites; its unit tests (23.4%) cover the activity log, the client address key of the rate limit, and the in-flight gate. Authentication and permission middleware (including `RequireAnyPermission`) are tested over HTTP.
 - `identity/infrastructure` unit coverage is 34.6%: the password hasher is unit tested, the user repository only through HTTP.
 - Repositories (`*/infrastructure`) have no unit tests. They contain SQL, so a unit test with a fake would prove nothing; the suites run them against PostgreSQL. The uncovered statements there (about 15%) are mostly error returns for a failed query.
 - The rule language is covered by table tests of accepted and refused expressions. A library upgrade can add syntax; `TestUnsupportedSyntaxIsRefused` and the `default` branch of `Visit` are what stop a new construct from slipping into the allowed subset, so run the `ruleengine` tests after bumping `expr-lang/expr`.

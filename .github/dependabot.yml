@@ -1,0 +1,24 @@
+# Dependency update pull requests (RF-025). Each one goes through the same CI as any change, so a
+# bump that breaks the build, the tests, the contract, or the vulnerability baseline is visible
+# before it is merged. Go modules are grouped: the indirect dependencies of the Goravel framework
+# move together, and a partial bump of one family (OpenTelemetry) breaks the build (docs/CI.md).
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      go-dependencies:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3

@@ -5,15 +5,15 @@ import (
 	"errors"
 	"fmt"
 
-	"goravel/app/facades"
-	catalogapp "goravel/app/modules/catalog/application"
-	cataloginfra "goravel/app/modules/catalog/infrastructure"
-	dictionaryapp "goravel/app/modules/dictionary/application"
-	dictionaryinfra "goravel/app/modules/dictionary/infrastructure"
-	policyapp "goravel/app/modules/policy/application"
-	policyinfra "goravel/app/modules/policy/infrastructure"
-	"goravel/app/platform/database"
-	"goravel/app/platform/logging"
+	"github.com/lathief/RiskForge/app/facades"
+	catalogapp "github.com/lathief/RiskForge/app/modules/catalog/application"
+	cataloginfra "github.com/lathief/RiskForge/app/modules/catalog/infrastructure"
+	dictionaryapp "github.com/lathief/RiskForge/app/modules/dictionary/application"
+	dictionaryinfra "github.com/lathief/RiskForge/app/modules/dictionary/infrastructure"
+	policyapp "github.com/lathief/RiskForge/app/modules/policy/application"
+	policyinfra "github.com/lathief/RiskForge/app/modules/policy/infrastructure"
+	"github.com/lathief/RiskForge/app/platform/database"
+	"github.com/lathief/RiskForge/app/platform/logging"
 )
 
 // DemoActivePolicySeeder makes the demo policy of KTA_DEMO the active one, so the Decision

@@ -8,10 +8,10 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 
-	"goravel/app/http/responses"
-	"goravel/app/modules/approval/application"
-	"goravel/app/modules/approval/domain"
-	"goravel/app/platform/logging"
+	"github.com/lathief/RiskForge/app/http/responses"
+	"github.com/lathief/RiskForge/app/modules/approval/application"
+	"github.com/lathief/RiskForge/app/modules/approval/domain"
+	"github.com/lathief/RiskForge/app/platform/logging"
 )
 
 const (

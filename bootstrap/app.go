@@ -9,11 +9,11 @@ import (
 	contractsconfiguration "github.com/goravel/framework/contracts/foundation/configuration"
 	"github.com/goravel/framework/foundation"
 
-	"goravel/app/facades"
-	"goravel/app/http/middleware"
-	"goravel/app/platform/logging"
-	"goravel/config"
-	"goravel/routes"
+	"github.com/lathief/RiskForge/app/facades"
+	"github.com/lathief/RiskForge/app/http/middleware"
+	"github.com/lathief/RiskForge/app/platform/logging"
+	"github.com/lathief/RiskForge/config"
+	"github.com/lathief/RiskForge/routes"
 )
 
 func Boot() contractsfoundation.Application {
@@ -22,8 +22,11 @@ func Boot() contractsfoundation.Application {
 		WithSeeders(Seeders).
 		WithMiddleware(func(handler contractsconfiguration.Middleware) {
 			handler.Prepend(middleware.NewRequestID())
+			handler.Prepend(middleware.NewSecurityHeaders())
 			// After RequestID, so every activity entry carries the correlation ID.
 			handler.Append(middleware.NewActivityLog())
+			// After ActivityLog, so a request refused for load is still logged and counted.
+			handler.Append(middleware.NewInFlightLimit())
 			// Replaces the default handler, which logs request headers and body.
 			handler.Recover(middleware.Recover)
 		}).

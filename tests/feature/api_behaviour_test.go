@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/suite"
 	"gopkg.in/yaml.v3"
 
-	"goravel/app/facades"
-	"goravel/app/modules/identity/domain"
-	"goravel/database/seeders"
-	"goravel/tests"
+	"github.com/lathief/RiskForge/app/facades"
+	"github.com/lathief/RiskForge/app/modules/identity/domain"
+	"github.com/lathief/RiskForge/database/seeders"
+	"github.com/lathief/RiskForge/tests"
 )
 
 // This file deepens the DX-001 gate beyond (METHOD, path):
@@ -251,6 +251,10 @@ func (s *ContractBehaviourTestSuite) call(op operationDetail, token string) stri
 	}
 	s.Require().NoError(err)
 
+	// An allowed call may answer with text (GET /metrics, Prometheus format); only errors are JSON.
+	if resp.IsSuccessful() && !strings.Contains(resp.Headers().Get("Content-Type"), "json") {
+		return ""
+	}
 	body, err := resp.Json()
 	s.Require().NoError(err, "%s returned a non-JSON body", op.key)
 	errBody, _ := body["error"].(map[string]any)
