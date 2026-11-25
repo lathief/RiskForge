@@ -17,8 +17,23 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+  # The Go line is a decision (ADR 0029) that must change in go.mod, compose.yaml, the Dockerfile,
+  # and scripts/vuln-check.sh together, so only patch releases of golang are proposed here; a new
+  # minor or major Go is a ticket with an ADR (BACKLOG SEC-16). Alpine and other images move freely.
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: golang
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+  # compose.yaml names the dev and CI images (golang, postgres); same rule for golang.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: golang
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
