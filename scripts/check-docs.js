@@ -6,8 +6,10 @@
 //      names a heading of the target file;
 //   2. every `code span` that looks like a path of this repository (scripts/..., docs/..., api/...,
 //      app/..., tests/..., .github/..., and so on, with a file extension) exists;
-//   3. every script in scripts/ is described in docs/SCRIPTS.md, and every guide in docs/ is listed
-//      in docs/README.md.
+//   3. every file in scripts/, also in its subfolders (helpers such as postman/smoke-check.js, load
+//      generators, the vulnerability baseline), is named in docs/SCRIPTS.md, and every guide in
+//      docs/ is listed in docs/README.md. A data folder may be named once instead of each file in
+//      it (for example `scripts/demo/applications/`).
 //
 // Usage: node check-docs.js <repository root>      node check-docs.js --self-test
 // Exit code 0 when everything holds, 1 when a problem was found.
@@ -85,6 +87,34 @@ function check(file, text, exists, headings) {
   return problems;
 }
 
+// undocumentedScripts returns the files of scripts/ (paths relative to scripts/, "/" separated)
+// that docs/SCRIPTS.md does not name. A file counts as named when the text contains
+// scripts/<path>, or the bare name for a file at the top of scripts/, or one of its folders written
+// as scripts/<folder>/ on its own (not as the start of a longer path, so naming
+// scripts/postman/normalize.js does not cover the other files of scripts/postman/).
+function undocumentedScripts(files, doc) {
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const token = (s) => new RegExp(`(^|[^A-Za-z0-9_./-])${esc(s)}($|[^A-Za-z0-9_-])`).test(doc);
+  const folder = (d) => new RegExp(`${esc(`scripts/${d}/`)}($|[^A-Za-z0-9_.-])`).test(doc);
+  return files.filter((rel) => {
+    if (doc.includes(`scripts/${rel}`)) return false;
+    if (!rel.includes("/") && token(rel)) return false;
+    const parts = rel.split("/");
+    for (let i = 1; i < parts.length; i++) if (folder(parts.slice(0, i).join("/"))) return false;
+    return true;
+  });
+}
+// listFiles returns every file under dir (relative, "/" separated), without node_modules.
+function listFiles(dir, rel = "") {
+  const out = [];
+  for (const entry of fs.readdirSync(path.join(dir, rel), { withFileTypes: true })) {
+    if (entry.name === "node_modules") continue;
+    const next = rel ? `${rel}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) out.push(...listFiles(dir, next));
+    else out.push(next);
+  }
+  return out;
+}
 function selfTest() {
   const assert = require("node:assert/strict");
   const files = new Set(["docs/A.md", "docs/B.md", "scripts/x.sh", "scripts"]);
@@ -106,6 +136,12 @@ function selfTest() {
   assert.equal(run("docs/A.md", "`app/nowhere/file.go` is missing").length, 1);
   assert.equal(run("docs/A.md", "`storage/logs/error.log` is runtime output").length, 0, "storage is not a checked root");
   assert.equal(slug("RF-025 CI/CD: the `ci.sh` run!"), "rf-025-cicd-the-cish-run");
+  const doc = "Run `./scripts/a.sh` and `b.sh`. Helpers: `scripts/tools/one.js`. Fixtures in `scripts/data/sets/`.";
+  assert.deepEqual(undocumentedScripts(["a.sh", "b.sh", "tools/one.js", "data/sets/x.json", "data/sets/y.json"], doc), [], "named files and a named data folder");
+  assert.deepEqual(undocumentedScripts(["c.sh", "tools/two.js", "data/other.json"], doc), ["c.sh", "tools/two.js", "data/other.json"],
+    "a missing script, a helper next to a named one, and a file outside the named folder are reported");
+  assert.deepEqual(undocumentedScripts(["tools/one.js"], "the folder `scripts/tools/` holds helpers"), [], "a folder named on its own covers its files");
+  assert.deepEqual(undocumentedScripts(["two.js"], "see `scripts/tools/two.js`"), ["two.js"], "a top-level name inside a longer path does not count");
   console.log("check-docs.js self-test: ok");
 }
 
@@ -134,8 +170,8 @@ function main(root) {
   }
   // 3. Every script and every guide is described.
   const scriptsDoc = fs.readFileSync(path.join(root, "docs/SCRIPTS.md"), "utf8");
-  for (const f of fs.readdirSync(path.join(root, "scripts"))) {
-    if (f.endsWith(".sh") && !scriptsDoc.includes(f)) problems.push(`scripts/${f} is not described in docs/SCRIPTS.md`);
+  for (const f of undocumentedScripts(listFiles(path.join(root, "scripts")), scriptsDoc)) {
+    problems.push(`scripts/${f} is not described in docs/SCRIPTS.md`);
   }
   const docsIndex = fs.readFileSync(path.join(root, "docs/README.md"), "utf8");
   for (const f of fs.readdirSync(path.join(root, "docs"))) {

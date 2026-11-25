@@ -12,7 +12,7 @@ Every gate that needs a database makes its own Compose project with a new Postgr
 
 | Job | Command | What fails it | About |
 |---|---|---|---|
-| `docs` | `./scripts/docs-check.sh` (and `--self-test`, `benchmark.sh --self-test`, actionlint on the workflows) | A broken relative link or heading anchor, a `code span` that names a missing repository path, a script not described in `docs/SCRIPTS.md`, a guide not listed in `docs/README.md`, a workflow error | 1 min |
+| `docs` | `./scripts/docs-check.sh` (and `--self-test`, `benchmark.sh --self-test`, actionlint on the workflows) | A broken relative link or heading anchor, a `code span` that names a missing repository path, a file of `scripts/` (also in its subfolders) not named in `docs/SCRIPTS.md`, a guide not listed in `docs/README.md`, a workflow error | 1 min |
 | `contract` | `./scripts/contract-check.sh` | OpenAPI 3.1 lint error or warning; the Postman collection regenerated from scratch differs from the committed one; a route, spec, or collection mismatch; a missing or duplicate `operationId`, summary, or tag; a secured operation without `401`, `403`, `408`, `500`; a rate-limited one without `429`; a permission claim the code does not honour; then `generate-postman.sh` and `git diff --exit-code api/postman` | 6 min |
 | `migrations` | `./scripts/migration-check.sh` | A migration that cannot be applied, a second `migrate` that does something, a rollback step that fails or changes nothing, objects left behind, or up-down-up giving another schema | 6 min |
 | `tests` | `./scripts/test.sh --repeat 3` | `gofmt` or `go vet` findings, a failing test or a data race anywhere (unit, PostgreSQL integration, golden cases, HTTP, contract), or a failing concurrency test in three repeated runs | 30 min |

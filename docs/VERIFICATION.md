@@ -378,6 +378,7 @@ Run on 24 and 25 November 2026. The first two items ran in Compose; everything a
   - `./scripts/security-check.sh --project rf-live-m5sec`: **124 passed, 0 failed.**
   - `./scripts/demo.sh --project rf-live-demo`: exit 0.
 - Not run: `benchmark.sh` (the baseline phase of `stress.sh` measured the evaluate route on the same stack), the workflow on GitHub, Trivy.
+- **Documentation of `scripts/` (follow-up):** `check-docs.js` checked only the `.sh` files at the top of `scripts/`, so `scripts/postman/smoke-check.js` was not described anywhere in `docs/SCRIPTS.md`. The checker now requires every file of `scripts/`, also in subfolders (a data folder may be named once); on the old text it reported exactly that file, and after the description was added `docs-check.sh` and its self-test (four new cases) pass, 54 Markdown files.
 ## Not verified yet
 
 | Item | Why | Planned in |

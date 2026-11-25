@@ -78,14 +78,18 @@ To upgrade a tool: edit `scripts/postman/package.json`, regenerate the lockfile 
 
 Proves the committed collection imports and works against the real API. Newman runs inside the project's Compose network and calls `http://api:3000`; the database port stays closed. It logs in as `demo_auditor` through the API. The auditor has no write permission, so every write answers 403 and no data changes (`demo_analyst` cannot be used since RF-005: it may write the dictionary). It also sets `productCode=KTA_DEMO`, `variableCode=age_years`, and the ids of the first policy, so the stack must be seeded. Expected statuses:
 
+The expected status of every request is decided by `scripts/postman/smoke-check.js`, which reads Newman's JSON report and prints one `ok` or `FAIL` line per request:
+
 | Request | Expected |
 |---|---|
 | Health checks | 200 |
 | Login example | 401 (the saved example uses the placeholder password `<DEMO_USER_PASSWORD>`) |
 | Protected reads | 200 |
+| `GET /api/v1/decisions/{decision_id}`, `GET /api/v1/approval-requests/{request_id}` and its review | 404 (placeholder ids: the read-only run creates no decision and no approval request) |
+| `GET /metrics` | 403 (`metrics:read` belongs to the admin, not the auditor) |
 | Protected writes | 403 (no write permission) |
 
-Any other status or a connection error fails the run. Example output:
+Any other status, or a connection error, fails the run. When a route is added whose expected answer for the auditor is not one of these, add its rule to `smoke-check.js` next to the others. Example output:
 
 ```text
 ok   200 GET Process liveness
@@ -199,7 +203,7 @@ The pipeline of `.github/workflows/ci.yml` on your machine, with the same script
 ./scripts/docs-check.sh               # every Markdown file of the repository
 ./scripts/docs-check.sh --self-test   # the checker itself
 ```
-Runs `scripts/check-docs.js` in the pinned Node container. It fails when a relative Markdown link points at a file that does not exist or at a heading that the target does not have, when a `code span` names a repository path (`scripts/...`, `docs/...`, `api/...`, `app/...`, `tests/...`, `.github/...`) that does not exist, when a script of `scripts/` is not described in this file, or when a guide of `docs/` is not listed in `docs/README.md`. Fenced code blocks, patterns (`docs/<name>.md`, `*`, `{}`), runtime paths under `storage/`, and the names that the guides mention because they were renamed (`m4-e2e.sh`, `POST_M5_BACKLOG.md`) are not checked.
+Runs `scripts/check-docs.js` in the pinned Node container. It fails when a relative Markdown link points at a file that does not exist or at a heading that the target does not have, when a `code span` names a repository path (`scripts/...`, `docs/...`, `api/...`, `app/...`, `tests/...`, `.github/...`) that does not exist, when a file of `scripts/` is not named in this file (every file, also helpers in subfolders such as `scripts/postman/smoke-check.js`; a data folder such as `scripts/demo/applications/` may be named once for all its files; `node_modules` is skipped), or when a guide of `docs/` is not listed in `docs/README.md`. Fenced code blocks, patterns (`docs/<name>.md`, `*`, `{}`), runtime paths under `storage/`, and the names that the guides mention because they were renamed (`m4-e2e.sh`, `POST_M5_BACKLOG.md`) are not checked.
 
 ## contract-check.sh
 ```sh
