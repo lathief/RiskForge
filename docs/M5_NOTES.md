@@ -1,6 +1,6 @@
 # Milestone 5 notes (portfolio hardening)
 
-Status: M5 is implemented and collected on `feature/M5-hardening`, not merged yet. The tickets were built on stacked branches, each on top of the one before: RF-022 `feature/RF-022-audit-endpoints`, RF-023 `feature/RF-023-observability-security`, RF-024 `feature/RF-024-tests-benchmark`, RF-025 `feature/RF-025-ci-cd-local-run`, RF-026 `feature/RF-026-developer-experience-demo`. The milestone validation (`SYSTEM_DESIGN.md` 17.5 and 19.4) is the last section of this file.
+Status: M5 is complete and merged to `main` (PR #10, merge commit `fdd3354`, 25 November 2026). The tickets were built on stacked branches, each on top of the one before: RF-022 `feature/RF-022-audit-endpoints`, RF-023 `feature/RF-023-observability-security`, RF-024 `feature/RF-024-tests-benchmark`, RF-025 `feature/RF-025-ci-cd-local-run`, RF-026 `feature/RF-026-developer-experience-demo`, and collected with the milestone validation (`SYSTEM_DESIGN.md` 17.5 and 19.4, the last sections of this file) on `feature/M5-hardening`.
 
 Limits, deviations from `SYSTEM_DESIGN.md`, and open decisions of milestone 5, one section per ticket.
 
@@ -186,12 +186,12 @@ Branch `feature/M5-hardening` (from RF-026), 24 and 25 November 2026. Design: `S
 | OpenAPI, Swagger UI, Postman | COMPLETE | OpenAPI 0.20.3 lint clean, collection regenerated and byte-stable (`--check`), contract and docs tests pass, Newman smoke 46/46. |
 | No personal data, keys, or credentials in the repository | COMPLETE | Synthetic fixtures only; `.env*` git-ignored; the probe confirms no secret in errors, logs read through the API, or metrics. |
 
-### Before merging `feature/M5-hardening`
+### Merge of `feature/M5-hardening`
 
-The blockers of the first validation pass are closed: the collection is regenerated and every gate passes in Compose. What is left is a decision and a first run elsewhere, not a defect:
+The blockers of the first validation pass were closed before the merge: the collection was regenerated and every gate passed in Compose and on GitHub. Merged as PR #10, merge commit `fdd3354`, 25 November 2026; CI passed on the pull request (run 45620740455, `0de6818`) and again on `main` after the merge (run 45622572162). What was decided on the way:
 
 1. SEC-11 is done (ADR 0029): Go 1.26.11, `x/net` v0.63.0, OpenTelemetry v1.46.0, module path `github.com/lathief/RiskForge`. 3 findings remain in the OpenTelemetry log signal until a Goravel release after v1.18.1 (SEC-15).
-2. The workflow ran on GitHub for the first time (PR #10): `docs`, `contract`, `migrations`, `image`, `vulnerabilities`, and Trivy passed. `tests` failed because the `api` container could not create `storage/logs` in a checkout owned by the runner user; fixed with `cap_add: DAC_OVERRIDE`, confirmed by the third run (881 passed). `e2e` failed because `go build` in the `api` container could not stamp VCS data from a `.git` owned by the runner user, so the stack never became ready; fixed with `-buildvcs=false`. **Run 45596210311 (`736f83d`) passed every job, `CI passed` included (5 min 54 s).** The Trivy job is now blocking and part of `CI passed`; making `CI passed` the required check of `main` is a repository setting (`docs/CI.md`).
+2. The workflow ran on GitHub for the first time (PR #10): `docs`, `contract`, `migrations`, `image`, `vulnerabilities`, and Trivy passed. `tests` failed because the `api` container could not create `storage/logs` in a checkout owned by the runner user; fixed with `cap_add: DAC_OVERRIDE`, confirmed by the third run (881 passed). `e2e` failed because `go build` in the `api` container could not stamp VCS data from a `.git` owned by the runner user, so the stack never became ready; fixed with `-buildvcs=false`. **Run 45596210311 (`736f83d`) passed every job, `CI passed` included (5 min 54 s).** The Trivy job is now blocking and part of `CI passed`; making `CI passed` the required check of `main` is a repository setting (`docs/CI.md`); at the merge `main` had no branch protection yet.
 
 ### SEC-11: Go 1.26 and the module path (ADR 0029)
 

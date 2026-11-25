@@ -6,7 +6,7 @@ English: [README.md](README.md).
 
 Dibangun sebagai **modular monolith** di atas Goravel v1.18 dengan driver HTTP Fiber resmi dan PostgreSQL 18. Proyek dikerjakan per tiket, dan setiap perubahan disertai tes, ADR, dan bukti verifikasi. Semua data sintetis.
 
-> **Status:** Milestone 1 sampai 4 sudah di-merge ke `main`: fondasi, identitas dan RBAC, katalog produk, konfigurasi kebijakan, mesin keputusan, dan tata kelola (simulator, persetujuan bertingkat, publikasi atomik, diff dan review kebijakan). Milestone 5 (hardening) sudah diimplementasikan dan dikumpulkan di `feature/M5-hardening`, belum di-merge. Isinya: pencarian audit (RF-022); metrics, rate limit, dan header keamanan (RF-023); golden test, skrip end-to-end, dan baseline performa (RF-024); pipeline CI yang gerbangnya juga bisa dijalankan lokal (RF-025); demo dan perapian dokumentasi (RF-026); serta validasi milestone (perbaikan hasil review, load shedding, uji stres, dan uji keamanan). Batasan tiap milestone ada di [M2_NOTES.md](docs/M2_NOTES.md), [M3_NOTES.md](docs/M3_NOTES.md), [M4_NOTES.md](docs/M4_NOTES.md), dan [M5_NOTES.md](docs/M5_NOTES.md). Temuan yang belum dikerjakan ada di [BACKLOG.md](docs/BACKLOG.md). Lihat [Roadmap](#roadmap).
+> **Status:** Milestone 1 sampai 4 sudah di-merge ke `main`: fondasi, identitas dan RBAC, katalog produk, konfigurasi kebijakan, mesin keputusan, dan tata kelola (simulator, persetujuan bertingkat, publikasi atomik, diff dan review kebijakan). Milestone 5 (hardening) sudah di-merge ke `main` (PR #10). Isinya: pencarian audit (RF-022); metrics, rate limit, dan header keamanan (RF-023); golden test, skrip end-to-end, dan baseline performa (RF-024); pipeline CI yang gerbangnya juga bisa dijalankan lokal (RF-025); demo dan perapian dokumentasi (RF-026); serta validasi milestone (perbaikan hasil review, load shedding, uji stres, dan uji keamanan). Batasan tiap milestone ada di [M2_NOTES.md](docs/M2_NOTES.md), [M3_NOTES.md](docs/M3_NOTES.md), [M4_NOTES.md](docs/M4_NOTES.md), dan [M5_NOTES.md](docs/M5_NOTES.md). Temuan yang belum dikerjakan ada di [BACKLOG.md](docs/BACKLOG.md). Lihat [Roadmap](#roadmap).
 
 ## Yang ditunjukkan proyek ini
 
@@ -126,7 +126,7 @@ Panduan di folder `docs/` ditulis dalam bahasa Inggris. Desain, ADR, dan runbook
 | M2 Konfigurasi kebijakan | Data dictionary, draft kebijakan berversi, RAC, scorecard, validasi matrix | Selesai (RF-005 sampai RF-010); golden test dijalankan sejak RF-013 |
 | M3 Mesin keputusan | Fitur, evaluasi RAC, scorecard, dan matrix, Decision API yang idempoten | Selesai (RF-011 sampai RF-016), di-merge ke `main` lewat `feature/M3-decision-engine` |
 | M4 Tata kelola | Simulator, persetujuan bertingkat, publikasi atomik | Selesai (RF-017 sampai RF-021), dikumpulkan di `feature/M4-governance`, di-merge ke `main` (PR #8 dan #9) |
-| M5 Hardening | Pencarian audit, metrics, CI/CD, benchmark, demo | Diimplementasikan di `feature/M5-hardening` (RF-022 sampai RF-026 ditambah validasi milestone), belum di-merge; batasan dan audit milestone di [M5_NOTES.md](docs/M5_NOTES.md) |
+| M5 Hardening | Pencarian audit, metrics, CI/CD, benchmark, demo | Selesai (RF-022 sampai RF-026 ditambah validasi milestone), dikumpulkan di `feature/M5-hardening`, di-merge ke `main` (PR #10); batasan dan audit milestone di [M5_NOTES.md](docs/M5_NOTES.md) |
 
 Rincian per tiket ada di `SYSTEM_DESIGN.md` bagian 18.
 

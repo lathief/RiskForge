@@ -397,9 +397,13 @@ Run on branch `feature/M5-hardening` on 25 November 2026, in Compose (`golang:1.
 - Not run on Go 1.26: `stress.sh`, `benchmark.sh`, `demo.sh` (the evaluate path did not change).
 ## M5: second documentation audit (after ADR 0029)
 25 November 2026, on `0a4838a`. A read-only audit of every guide, ADR, the design, the runbook, the env examples, the Compose and Docker comments, the script headers, the workflow, and the OpenAPI descriptions against the code found 28 current-state statements that the Go 1.26 move, the module path, the blocking Trivy job, and the green GitHub run had made wrong (for example "Trivy non-blocking", "17 in the baseline", "SEC-11 pending", "the workflow has not run on GitHub", ADRs "0001..0005", the import path `goravel/app/preflight` in the runbook, M2 to M4 tickets "not merged", and 13 unticked boxes of the Final Checklist). All were corrected; historical run records were left as they are. The Final Checklist now has 12 of 13 boxes ticked; "CI passes" is ticked after a green GitHub run on the final commit. A scan of the tracked files for private keys, cloud and GitHub tokens, and filled-in secrets of `.env` found none, and no `.env`, `.env.agent`, `.pem`, or `.key` file is tracked. `./scripts/docs-check.sh`: ok.
+## M5: merge to `main` (PR #10)
+- **Run 45620740455** on the pull request (`0de6818`, Go 1.26.11, module `github.com/lathief/RiskForge`): all 9 jobs passed, `vulnerabilities-image` (Trivy, now blocking) and `CI passed` included.
+- PR #10 merged on 25 November 2026 at 13:20 UTC (merge commit `fdd3354`). **Run 45622572162** on `main` after the push: all 9 jobs passed.
+- Branch protection of `main` after the merge: none (GitHub API: `protected: false`, no required status checks, no rulesets). `CI passed` as the required check is left to the repository owner (`docs/CI.md`).
+- Dependabot opened three pull requests after the merge: #11 (`alpine` 3.22 to 3.24, release runtime), #12 (`golang` 1.26-alpine to 1.27-alpine, `Dockerfile` only), and #13 (`expr-lang/expr` 1.17.8 to 1.18.1, the rule language). #12 contradicts ADR 0029; `.github/dependabot.yml` now proposes only patch releases of `golang` (SEC-16).
 ## Not verified yet
 
 | Item | Why | Planned in |
 |---|---|---|
-| The workflow on GitHub with Go 1.26 (commit `0a4838a` and later) | Run 45596210311 is on `736f83d`, before ADR 0029 | The push of `feature/M5-hardening` |
 | `stress.sh`, `benchmark.sh`, `demo.sh` on Go 1.26 | The evaluate path did not change | After M5 |

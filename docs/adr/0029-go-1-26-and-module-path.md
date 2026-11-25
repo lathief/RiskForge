@@ -28,6 +28,7 @@ Path modul masih `goravel`, nama bawaan scaffold. Nama itu bukan path yang dapat
 ## Konsekuensi
 
 - `scripts/vuln-baseline.txt` turun dari 17 menjadi 3 baris. Baris itu dihapus saat Goravel merilis versi yang memakai otel 1.47 (branch pengembangannya sudah).
+- Dependabot hanya mengusulkan rilis patch `golang` (1.26.x) untuk `Dockerfile` dan `compose.yaml`; versi minor atau mayor baru (misalnya 1.27) adalah tiket dengan ADR, karena harus berubah bersama di `go.mod`, `compose.yaml`, `Dockerfile`, dan `scripts/vuln-check.sh` (BACKLOG SEC-16). PR Dependabot #12 (`golang` 1.27-alpine untuk `Dockerfile` saja) bertentangan dengan keputusan ini.
 - Pengembang yang menjalankan Go di host butuh Go 1.26.11 atau `GOTOOLCHAIN=auto` (toolchain diunduh otomatis).
 - `scripts/coverage.sh` mencetak path paket relatif terhadap modul, jadi tabel `docs/COVERAGE.md` tidak bergantung pada nama modul.
 - Output yang tercatat sebelum perubahan ini (misalnya di `docs/BENCHMARK.md`) masih menyebut paket `goravel/...`; itu catatan run lama, bukan perintah.

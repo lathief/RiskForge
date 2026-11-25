@@ -22,7 +22,7 @@ Every gate that needs a database makes its own Compose project with a new Postgr
 | `vulnerabilities-image` | `./scripts/vuln-check.sh --image` | Trivy finds a fixed HIGH or CRITICAL OS package vulnerability in the release image, or cannot run. Blocking since it passed on GitHub (PR #10); it was `continue-on-error` before | 6 min |
 | `ci` | (a status job) | Any of the required jobs above did not succeed | seconds |
 
-The jobs run in parallel. Make the status `CI passed` the required check of the protected branch: it is the one name that stays the same when a job is added, and it waits for every job, `vulnerabilities-image` included. On GitHub: Settings, Branches (or Rules), a rule for `main` that requires a pull request and the status check `CI passed`.
+The jobs run in parallel. Make the status `CI passed` the required check of the protected branch: it is the one name that stays the same when a job is added, and it waits for every job, `vulnerabilities-image` included. On GitHub: Settings, Branches (or Rules), a rule for `main` that requires a pull request and the status check `CI passed`. At the merge of M5 (PR #10) `main` had no such rule yet; it is a setting of the repository owner, not of this repository's files.
 
 ## Run it on your machine
 
