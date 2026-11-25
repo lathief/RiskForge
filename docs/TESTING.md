@@ -183,7 +183,7 @@ Benchmarks are not gates: nothing fails because a number moved. They are a recor
 
 | Gap | Ticket |
 |---|---|
-| The workflow run on GitHub, a blocking Trivy image scan, and a performance gate | TST-08, `docs/CI.md` |
+| A performance gate (no SLO yet) | `SYSTEM_DESIGN.md` 15.3, `docs/BENCHMARK.md` |
 | `stress.sh` and `security-check.sh` as CI gates: they are run by hand at a milestone | TST-11 |
 | Malformed URL escapes (`/%zz`) over HTTP: Goravel's test client cannot send them, so the fix is unit tested (`activity_log_test.go`) and verified with `curl` | Covered outside the feature suite |
 | Docs disabled, over HTTP: routes are registered once per process, so the gate (`support.DocsEnabled`) is unit tested instead | Covered by unit test |

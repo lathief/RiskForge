@@ -18,8 +18,8 @@
 #   e2e         the whole API over HTTP on a new stack, then Postman    scripts/e2e.sh --project
 #   image       build the release image and check it                    scripts/image-check.sh
 #   vuln        govulncheck against the baseline                        scripts/vuln-check.sh
-#   vulnimage   Trivy on the release image (only with --only vulnimage; CI reports it without
-#               blocking until it has passed once, docs/CI.md)               scripts/vuln-check.sh --image
+#   vulnimage   Trivy on the release image (only with --only vulnimage; blocking in CI,
+#               docs/CI.md)                                                  scripts/vuln-check.sh --image
 #
 # Every gate runs, even after one fails, so one run shows everything that is wrong. Each uses a
 # Compose project named after --id (rf-test-ci-<id>-<gate>, rf-live-ci-<id>), created and removed

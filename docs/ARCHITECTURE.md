@@ -168,6 +168,7 @@ flowchart LR
     Change --> E2E["e2e.sh: 130 checks + Postman run"]
     Change --> Image["image-check: release image"]
     Change --> Vuln["vuln-check: govulncheck vs baseline"]
+    Change --> VulnImg["vuln-check --image: Trivy on the OS packages"]
     Docs --> Gate{CI passed}
     Contract --> Gate
     Mig --> Gate
@@ -175,6 +176,7 @@ flowchart LR
     E2E --> Gate
     Image --> Gate
     Vuln --> Gate
+    VulnImg --> Gate
     Gate --> Review[Review and merge]
     Demo["demo.sh: the story on a fresh stack"] -.-> Review
 ```

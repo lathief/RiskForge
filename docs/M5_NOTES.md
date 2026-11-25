@@ -96,28 +96,29 @@ Branch `feature/RF-025-ci-cd-local-run`, on top of RF-024. ADR `docs/adr/0026-ci
 
 | Item | Status | Notes |
 |---|---|---|
-| GitHub Actions | Done, not run on GitHub | `.github/workflows/ci.yml`: parallel jobs `docs`, `contract`, `migrations`, `tests`, `e2e`, `image`, `vulnerabilities`, `vulnerabilities-image`, and the status job `CI passed`. Read-only permissions, no secret, actions pinned to a commit. Checked with actionlint; every job runs a script that was run here (TST-08). |
+| GitHub Actions | Done, passed on GitHub (run 45596210311) | `.github/workflows/ci.yml`: parallel jobs `docs`, `contract`, `migrations`, `tests`, `e2e`, `image`, `vulnerabilities`, `vulnerabilities-image`, and the status job `CI passed`. Read-only permissions, no secret, actions pinned to a commit. Checked with actionlint; every job runs a script that was run locally; the first runs on GitHub found two runner-only defects, both fixed (TST-08). |
 | Unique namespace, disposable DB | Done | Compose projects `rf-test-ci-<run>-<job>` and `rf-live-ci-<run>`, new PostgreSQL each, `down -v` on that project only. |
 | Goravel/Fiber build and HTTP tests | Done | The `tests` job: `scripts/test.sh --repeat 3` (gofmt, vet, `-race` on everything, concurrency repeated). |
 | Redocly lint, Postman byte parity, operationId coverage | Done | The `contract` job. New tests: unique lower camel case operationId, unique summary, one declared tag, collection names and folders equal to the spec, `401`/`403`/`408`/`500` on secured operations, `429` on limited ones. |
 | Artisan migration check | Done | `scripts/migration-check.sh`: 18 migrations up, down one step at a time (each must change the schema), up again, reset, up; the fingerprints match (M4-TOOL-03). |
 | Docker image for release | Done (build and check, no push) | `scripts/image-check.sh`. Found that Goravel exits with status 0 without `APP_KEY`; fixed with `app/preflight`. |
-| Compose agent run and runbook | Done | `scripts/ci.sh` and the runbook section; `compose.yaml` unchanged. |
+| Compose agent run and runbook | Done | `scripts/ci.sh` and the runbook section; `compose.yaml` got `-buildvcs=false` and `cap_add: DAC_OVERRIDE` in the M5 validation (runner-only defects). |
 | E2E and smoke in CI | Done | The `e2e` job (130 checks and the Postman collection, M4-TOOL-01). |
-| Dependency vulnerability scan | Done, with a baseline | `scripts/vuln-check.sh`: 26 findings at the first scan, 9 fixed by dependency bumps, 17 in `scripts/vuln-baseline.txt` with reasons; new findings fail the pipeline. SEC-11 (High) tracks the Go 1.26 and Goravel decision. |
+| Dependency vulnerability scan | Done, with a baseline | `scripts/vuln-check.sh`: 26 findings at the first scan, 9 fixed by dependency bumps; the 17 left were reduced to 3 by Go 1.26.11 and OpenTelemetry 1.46 in the M5 validation (SEC-11, ADR 0029), which stay in `scripts/vuln-baseline.txt` with reasons (SEC-15); new findings fail the pipeline. |
 | Image scan (Trivy) | Done | Its database could not be downloaded here; it passed on GitHub in PR #10 and is blocking since the M5 validation. |
 | Documentation check | Done | `scripts/docs-check.sh`: links, anchors, repository paths in code spans, and the lists of scripts and guides. It found no stale link at the start; it did find that five new scripts were not described, which is the point. |
 | Format | Done | `.gitattributes` LF rules (TST-02). |
 | Dependabot, PR template | Done | `.github/dependabot.yml`, `.github/pull_request_template.md` (the Definition of Done of 16.2). |
 | Publishing the image (CD) | Not built | No registry, credentials, or tag policy is decided. |
 | Go modules cache between runs | Not built | TST-09. |
-| Move to Go 1.26 and upgrade Goravel | Not built | SEC-11: needs a decision and a new ADR. |
+| Move to Go 1.26 | Done | SEC-11, ADR 0029 (M5 validation). |
+| Upgrade Goravel | Not possible yet | v1.18.1 is the latest release; SEC-15. |
 
 Known limits:
 
-- The workflow has not run on GitHub. The first run may differ in the Docker defaults of the runner, the ownership of files that containers write into the checkout, and Docker Hub limits.
+- The first runs on GitHub (PR #10) found two runner-only differences (file ownership of the checkout, VCS stamping); both are fixed and run 45596210311 passed every job. Docker Hub limits may still apply to forks.
 - A full `ci.sh` takes about 45 minutes on the machine of these runs (the `tests` gate 25 with its repetitions, `e2e` 5 to 10); in GitHub the jobs run in parallel, so the pipeline takes as long as the slowest, about 30 minutes.
-- The 17 baseline vulnerabilities are real and reachable by the scan. Most traces go through HTTP/2 and client code that the fasthttp server does not use, but the Go 1.25 line has no fix.
+- The 3 baseline vulnerabilities (after SEC-11) are real and reachable by the scan, all in the OpenTelemetry log signal, which the app does not enable (`scripts/vuln-baseline.txt`, SEC-15).
 ## Developer experience and demo (RF-026)
 Branch `feature/RF-026-developer-experience-demo`, on top of RF-025. ADR `docs/adr/0027-demo-and-developer-experience.md`. Guide: `docs/DEMO.md`. Design: `SYSTEM_DESIGN.md` 16.5. No code under `app/` and no API change.
 | Item | Status | Notes |
@@ -156,7 +157,7 @@ Branch `feature/M5-hardening` (from RF-026), 24 and 25 November 2026. Design: `S
 | F-10 | Low | An unencoded `+` in `from`/`to` reads as a space (422). | Fixed in OpenAPI (encode as `%2B`). |
 | F-11 | Low | `GET /audit/decisions` runs through the audit database manager and joins `policy.*`. | Open: ARC-07. |
 | F-12 | Low | CI checkout kept the job token. | Fixed: `persist-credentials: false`. |
-| F-13 | Low | Action SHAs not verified offline. | Open: part of TST-08. |
+| F-13 | Low | Action SHAs not verified offline. | Closed: the pinned SHAs ran on GitHub (TST-08, run 45596210311). |
 | F-14 | Low | The metrics scraper needs an ADMIN login. | Open: SEC-13. |
 
 ### Found by testing
@@ -190,7 +191,7 @@ Branch `feature/M5-hardening` (from RF-026), 24 and 25 November 2026. Design: `S
 The blockers of the first validation pass are closed: the collection is regenerated and every gate passes in Compose. What is left is a decision and a first run elsewhere, not a defect:
 
 1. SEC-11 is done (ADR 0029): Go 1.26.11, `x/net` v0.63.0, OpenTelemetry v1.46.0, module path `github.com/lathief/RiskForge`. 3 findings remain in the OpenTelemetry log signal until a Goravel release after v1.18.1 (SEC-15).
-2. The workflow ran on GitHub for the first time (PR #10): `docs`, `contract`, `migrations`, `image`, `vulnerabilities`, and Trivy passed. `tests` failed because the `api` container could not create `storage/logs` in a checkout owned by the runner user; fixed with `cap_add: DAC_OVERRIDE`, confirmed by the third run (881 passed). `e2e` failed because `go build` in the `api` container could not stamp VCS data from a `.git` owned by the runner user, so the stack never became ready; fixed with `-buildvcs=false`. **Run 45596210311 (`736f83d`) passed every job, `CI passed` included (5 min 54 s).** The Trivy job is now blocking and part of `CI passed`; making `CI passed` the required check of `main` is a repository setting (`docs/CI.md`). When both pass, make `CI passed` the required check (TST-08).
+2. The workflow ran on GitHub for the first time (PR #10): `docs`, `contract`, `migrations`, `image`, `vulnerabilities`, and Trivy passed. `tests` failed because the `api` container could not create `storage/logs` in a checkout owned by the runner user; fixed with `cap_add: DAC_OVERRIDE`, confirmed by the third run (881 passed). `e2e` failed because `go build` in the `api` container could not stamp VCS data from a `.git` owned by the runner user, so the stack never became ready; fixed with `-buildvcs=false`. **Run 45596210311 (`736f83d`) passed every job, `CI passed` included (5 min 54 s).** The Trivy job is now blocking and part of `CI passed`; making `CI passed` the required check of `main` is a repository setting (`docs/CI.md`).
 
 ### SEC-11: Go 1.26 and the module path (ADR 0029)
 
